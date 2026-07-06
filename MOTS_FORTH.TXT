@@ -1,0 +1,277 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                Mots Forth - Epona OS (interpreter.rs)                  ║
+║          Primitives 0-104 + 32 nouveaux mots Forth                    ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ PRIMITIVES 0-99 (tableau principal dans init_primitives())              │
+└──────────────────────────────────────────────────────────────────────────┘
+
+--- ARITHMETIQUE ---
+  0  +        ( a b -- somme )       Addition
+  1  -        ( a b -- diff )        Soustraction
+  2  *        ( a b -- produit )     Multiplication
+  3  /        ( a b -- quot )        Division entiere
+  4  mod      ( a b -- reste )       Modulo
+ 47  1+       ( n -- n+1 )           Incremente de 1
+ 48  1-       ( n -- n-1 )           Decremente de 1
+ 49  2+       ( n -- n+2 )           +2
+ 50  2-       ( n -- n-2 )           -2
+ 51  2*       ( n -- n*2 )           Multiplication par 2
+ 52  2/       ( n -- n/2 )           Division par 2
+ 53  abs      ( n -- |n| )           Valeur absolue
+ 54  negate   ( n -- -n )            Negation
+ 55  min      ( a b -- min )         Minimum
+ 56  max      ( a b -- max )         Maximum
+ 57  /mod     ( a b -- reste quot )  Division + modulo
+
+--- MANIPULATION DE PILE ---
+  5  dup      ( a -- a a )           Duplique le sommet
+  6  drop     ( a -- )               Jette le sommet
+  7  swap     ( a b -- b a )         Echange les 2 sommets
+  8  over     ( a b -- a b a )       Recopie le 2e sommet
+  9  rot      ( a b c -- b c a )     Rotation de 3 sommets
+ 38  -rot     ( a b c -- c a b )     Rotation inverse
+ 39  nip      ( a b -- b )           Supprime le 2e sommet
+ 40  tuck     ( a b -- b a b )       Duplique sous le sommet
+ 41  2dup     ( a b -- a b a b )     Duplique les 2 sommets
+ 42  2drop    ( a b -- )             Jette les 2 sommets
+ 43  2swap    ( a b c d -- c d a b ) Echange 2 paires
+ 44  2over    ( a b c d -- a b c d a b ) Recopie la 2e paire
+ 45  ?dup     ( a -- 0 | a a )       Dup si non nul
+ 46  pick     ( ... n -- nth )       Pioche le n-ieme
+
+--- COMPARAISON ---
+ 37  =        ( a b -- flag )        Egalite (0/1)
+ 58  <>       ( a b -- flag )        Non-egalite (0/1)
+ 59  <        ( a b -- flag )        Inferieur (0/1)
+ 60  >        ( a b -- flag )        Superieur (0/1)
+ 61  <=       ( a b -- flag )        Inferieur ou egal (0/1)
+ 62  >=       ( a b -- flag )        Superieur ou egal (0/1)
+ 63  0=       ( n -- flag )          Test zero (0/1)
+ 64  0<>      ( n -- flag )          Test non-zero (0/1)
+ 65  0<       ( n -- flag )          Test negatif (0/1)
+ 66  0>       ( n -- flag )          Test positif (0/1)
+
+--- BIT A BIT ---
+ 67  and      ( a b -- a&b )         ET bit-a-bit
+ 68  or       ( a b -- a|b )         OU bit-a-bit
+ 69  xor      ( a b -- a^b )         XOR bit-a-bit
+ 70  invert   ( a -- ~a )            NON bit-a-bit
+ 71  lshift   ( a n -- a<<n )        Decalage gauche
+ 72  rshift   ( a n -- a>>n )        Decalage droite
+
+--- MEMOIRE VM (self.memory, 4096 cells de 64-bit) ---
+ 10  @        ( addr -- val )        Lecture 64-bit (VM memory)
+ 11  !        ( val addr -- )        Ecriture 64-bit (VM memory)
+ 95  alloc    ( size -- addr )       Alloue dans VM memory (resize)
+
+--- MMIO / LECTURE PHYSIQUE ---
+ 73  c@       ( addr -- byte )       Lit 8-bit MMIO
+ 74  c!       ( byte addr -- )       Ecrit 8-bit MMIO
+ 75  w@       ( addr -- word )       Lit 16-bit MMIO
+ 76  w!       ( word addr -- )       Ecrit 16-bit MMIO
+ 77  l@       ( addr -- long )       Lit 32-bit MMIO
+ 78  l!       ( long addr -- )       Ecrit 32-bit MMIO
+ 79  fill     ( addr n byte -- )     Remplit memoire MMIO
+ 80  cmove    ( src dest n -- )      Copie memoire MMIO
+
+--- PORTS I/O x86 ---
+ 87  inb      ( port -- byte )       Lit port I/O 8-bit
+ 88  outb     ( byte port -- )       Ecrit port I/O 8-bit
+ 89  inw      ( port -- word )       Lit port I/O 16-bit
+ 90  outw     ( word port -- )       Ecrit port I/O 16-bit
+ 91  inl      ( port -- long )       Lit port I/O 32-bit
+ 92  outl     ( long port -- )       Ecrit port I/O 32-bit
+
+--- PCI CONFIG ---
+ 93  pci@     ( bus dev func offset -- val )     Lecture PCI config
+ 94  pci!     ( val bus dev func offset -- )     Ecriture PCI config
+
+--- GRAPHIQUE (ForthCanvas 400x300) ---
+ 12  pixel    ( x y color -- )       Dessine un pixel
+ 13  rect     ( x y w h color -- )   Dessine un rectangle
+ 14  ligne    ( x1 y1 x2 y2 color -- ) Dessine une ligne
+ 15  effacer  ( color -- )           Efface le canevas
+ 16  couleur  ( r g b -- color )     Fabrique couleur RGB (0xRRGGBB)
+
+--- FRAMEBUFFER (ecran direct) ---
+ 28  fb:pixel ( x y color -- )       Pixel sur le framebuffer
+ 29  fb:rect  ( x y w h color -- )   Rectangle sur le framebuffer
+ 30  fb:line  ( x1 y1 x2 y2 color -- ) Ligne sur le framebuffer
+ 31  fb:text  ( x y char color -- )  Dessine un caractere
+
+--- ENTREE / SORTIE ---
+ 17  touche   ( -- char )            Lit une touche (bloquant)
+ 18  touche?  ( -- char )            Lit une touche (non-bloquant)
+ 19  souris   ( -- x y btn )         Etat de la souris
+ 32  souris?  ( -- found )           1 si souris detectee
+ 20  attendre ( ms -- )              Pause (spin-loop)
+ 22  .        ( n -- )               Affiche le sommet (signe)
+ 35  cr       ( -- )                 Retour a la ligne
+ 81  space    ( -- )                 Affiche un espace
+ 82  spaces   ( n -- )               Affiche n espaces
+ 83  emit     ( char -- )            Affiche un caractere
+ 84  u.       ( u -- )               Affiche non-signe
+ 21  hasard   ( max -- rand )        Nombre aleatoire [0, max)
+ 36  pile     ( -- )                 Affiche toute la pile
+
+--- BASE ---
+ 85  hex      ( -- )                 Passe en hexadecimal
+ 86  decimal  ( -- )                 Passe en decimal
+
+--- I2C ---
+ 25  i2c.probe          ( base -- )          Scrutage adresses HID I2C
+ 33  dw-i2c-init        ( base -- ok? )      Init controleur DesignWare I2C
+ 34  dw-i2c-probe       ( base addr -- ok? ) Teste peripherique I2C
+
+--- SYSTEME ---
+ 26  sys:drivers  ( -- )                     Liste les drivers enregistres
+ 27  sys:probe    ( -- )                     Initialise tous les drivers
+ 96  reboot       ( -- )                     Redemarrage systeme
+ 97  poweroff     ( -- )                     Extinction systeme
+ 98  cpuid        ( eax -- eax ebx ecx edx ) CPUID x86_64
+ 99  ticks        ( -- ms )                  Timer systeme en ms
+
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ PRIMITIVES COMPILATEUR (indices 100-104)                                │
+└──────────────────────────────────────────────────────────────────────────┘
+
+100  state    ( -- n )               Pousse l'etat (0=interprete, 1=compil)
+101  ]        ( -- )                 Passe en mode compilation (state=1)
+102  execute  ( idx -- )             Execute un mot par son index dict.
+103  find     ( addr len -- idx|-1 ) Cherche un mot dans le dictionnaire
+104  literal  ( n -- )  [IMMEDIAT]   Compile le sommet comme Op::Push
+
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ MOTS DE COMPILATION (geres directement par compile())                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+MODE INTERPRETE (state=0) :
+  :  "nom"         Entre en mode compilation, lit le nom du mot
+  ]                Passe en mode compilation (state=1)
+  '  "nom"         Pousse l'index dictionnaire du mot suivant
+  variable  "nom"  Declare une variable (alloue un slot dans memory[])
+  sys:load  "fichier"  Charge et compile un fichier Forth
+  sys:read  addr "fichier"  Lit fichier en memoire, pousse taille
+  sys:write addr size "fichier"  Ecrit memoire dans fichier
+  sys:register "driver"  Enregistre un driver
+   sys:log  "msg"   Ecrit dans le log systeme
+   constant  "nom"  Cree une constante (valeur depuis la pile)
+   create   "nom"   Cree un mot definissant (alloue 1 cellule)
+   here     ( -- addr )     Pousse l'adresse here
+   allot    ( n -- )        Avance here de n cellules
+   ,        ( val -- )      Stocke val a here, avance de 1
+   words    ( -- )          Liste tous les mots definis
+   ."  texte"       Affiche la chaine (jusqu'au guillemet fermant)
+  app:  x y w h "nom"  Cree une application fenetree
+
+MODE COMPILATION (state=1, dans : ... ;) :
+  [                Passe en mode interprete (permet code immediat)
+  ;                Finalise la definition (compile Op::Exit)
+  '  "nom"         Compile Op::Push(index_du_mot)
+  postpone "nom"   Compile l'appel au mot (Call/CallPrim)
+  if               Compile JumpIfZero (placeholder)
+  else             Compile Jump + corrige le if precedent
+  then             Corrige le saut du if/else courant
+  begin            Marque le debut de boucle
+  until            Compile JumpIfZero vers begin
+  exit             Compile Exit (sortie anticipee)
+  variable "nom"   Cree une variable dans memory[]
+  sys:load  "fichier"  Compile un appel sys:load
+  sys:read  "fichier"  Compile un appel sys:read
+  sys:write "fichier"  Compile un appel sys:write
+  sys:register "driver"  Compile un appel sys:register
+  sys:log  "msg"   Compile un appel sys:log
+  ."  texte"       Compile PrintStr de la chaine
+  app:  "nom"      Compile AppCreate
+   literal  (n -- ) [IMMEDIAT]  Compile n comme Op::Push
+   state   ( -- n ) Compile un appel a state
+
+   --- NOUVEAUX MOTS ---
+   constant  "nom"   Compile ConstantCreate (valeur sur pile runtime)
+   create  "nom"     Compile CreateWord (cree un mot definissant)
+   does>             Compile Does (patch au ; pour le comportement runtime)
+   do                Compile Do avec debut de boucle
+   loop              Compile Loop (incremente de 1)
+   +loop             Compile PlusLoop (incremente de n)
+   i                 Compile I (pousse l'index courant de boucle)
+   here              Compile Here (pousse l'adresse here)
+   allot             Compile Allot (avance here de n)
+   ,                 Compile Comma (stocke et avance here)
+   recurse           Compile Recurse (appel recursif, patch au ;)
+
+--- VARIABLES ---
+  variable  "nom"   Cree une variable (stockee dans memory[])
+  nom              En mode interp: pousse l'adresse de la variable
+                   En mode compil: compile Op::VariableAddr(offset)
+  @  ( addr -- val )         Lit la valeur a l'adresse
+  !  ( val addr -- )         Ecrit la valeur a l'adresse
+
+--- APPLICATION FENETREE (ForthApp) ---
+  app:  x y w h "nom"  Cree la fenetre app
+  Le systeme appelle automatiquement "nom-draw" a chaque frame
+  avec la pile contenant : x y w h (zone cliente)
+  Et "nom-key" si une touche est pressee
+
+--- MODE SECURISE ---
+  secure on       Bloque les acces MMIO, I2C, framebuffer, ports, PCI
+  secure off      Debloque tout
+
+--- ACCES MATERIEL AVANCE ---
+  rdtsc       ( -- cycles )      Compteur de cycles CPU (RDTSC, 64-bit)
+  msr@        ( ecx -- hi lo )   Lit un MSR CPU (Machine Specific Register)
+  msr!        ( eax edx ecx -- ) Ecrit un MSR CPU
+  get-time    ( -- s m h d M Y ) Lit l'heure UEFI (secondes, minutes, heures, jour, mois, annee)
+  set-time    ( s m h d M Y -- ) Regle l'heure UEFI (memes champs)
+  pci-scan    ( -- n )           Enumere le bus PCI (retourne le nombre de peripheriques)
+  pci-dev     ( idx -- b d f v d c s ) Infos du peripherique PCI a l'index idx:
+                                 bus, device, fonction, vendor_id, device_id, class, subclass
+  pci-bar     ( bus dev func barn -- addr size flags ) Lit un BAR PCI
+                                 retourne addr, size, flags(0=mem,1=IO)
+                                 + mem_type(0/2=32/64bit) + prefetchable flag
+  pci-name    ( class sub -- ptr len ) Nom textuel de la classe PCI (ex: "Controleur USB")
+  pci!        ( val bus dev func off -- ) Ecrit un registre PCI config
+  i2c-read    ( base dev reg -- byte ) Lit un registre I2C sur un peripherique
+                                 base=adresse MMIO du controleur DW
+                                 dev=adresse I2C du peripherique (ex: 0x2C)
+                                 reg=registre a lire
+                                 retourne -1 si echec
+  fb-size     ( -- w h )         Dimensions du framebuffer ecran
+  fb-swap     ( -- )             Synchronise le double buffer (affiche le rendu)
+
+--- ACPI (Advanced Configuration and Power Interface) ---
+  acpi-rsdp   ( -- addr )        Adresse de la table RSDP (0 si non trouve)
+  acpi-find   ( sig -- addr )    Cherche une table ACPI par signature 4-caracteres
+                                 Exemple pour trouver FACP (FADT):
+                                 0x50434146 acpi-find .  \ "FACP" en little-endian
+                                 Exemple pour trouver DSDT:
+                                 0x54445344 acpi-find .
+  acpi-hdr    ( addr -- sig len ) Lit l'en-tete d'une table ACPI
+                                 sig = 4 octets compactes en i64 (little-endian)
+                                 len = taille de la table en octets
+  acpi-tables ( -- n [addrs...] ) Liste toutes les tables DSDT/SSDT
+                                 n = nombre de tables
+                                 addrs = adresses des tables sur la pile
+
+--- UEFI Configuration ---
+  cfg-tables  ( -- n [addr lo hi...] ) Liste les tables de configuration UEFI
+                                 n = nombre d'entrees
+                                 Pour chaque entree: addr, guid_lo, guid_hi
+                                 (GUID 128-bit encode sur 2 i64)
+
+--- EXEMPLE : DEFINIR UN MOT ---
+  : carre  dup * ;    ( n -- n^2 )
+  5 carre .            Affiche 25
+
+--- EXEMPLE : UTILISER ' ET execute ---
+  ' dup execute       ( appelle dup sur la pile )
+  : appeler  ' swap execute ;    ( "mot" -- appelle le mot )
+
+--- EXEMPLE : UTILISER [ ET ] ---
+  : foo  [ 5 5 + ] literal . ;   ( compile Push(10), puis affiche )
+
+--- EXEMPLE : BOUCLE begin...until ---
+  : boucle  10 0 begin 1+ dup . dup 10 = until drop ;
