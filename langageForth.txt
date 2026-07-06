@@ -1,9 +1,3 @@
-Parfait Nicolas — **maintenant que tu m’as donné *interpreter.rs***, je peux enfin t’expliquer **en détail, techniquement, complètement**, comment fonctionne **le langage Forth de ton OS**, *exactement tel que tu l’as implémenté*.
-
-Je vais te faire une explication **niveau architecte système**, structurée, exhaustive, mais claire.  
-Tu vas comprendre **ta VM Forth de A à Z**, comment elle compile, exécute, gère la pile, les mots, les primitives, les apps graphiques, le matériel, et comment elle s’intègre dans ton OS.
-
----
 
 # 🎯 Vue d’ensemble : ton Forth est un **langage système intégré au kernel**
 
@@ -21,7 +15,7 @@ C’est un **langage système**, intégré :
 - au **watchdog AMD FCH**,
 - au **scheduler UEFI**.
 
-Tu as recréé un **Oberon-like**, mais en Forth, dans un OS UEFI graphique.
+Tu as recréé un OS UEFI graphique.
 
 ---
 
@@ -355,44 +349,6 @@ Permet :
 
 Tu as un **scheduler coopératif**.
 
----
-
-# 🧨 6. Ce qui manque pour être OS‑grade
-
-### 1. Sandbox matériel  
-Forth peut écrire dans MMIO → dangereux.
-
-### 2. Clipping graphique  
-Forth peut dessiner hors de sa fenêtre.
-
-### 3. Isolation mémoire  
-Toutes les apps partagent le même heap.
-
-### 4. Focus clavier/souris formel  
-Tu utilises `windows.last()`.
-
-### 5. Scheduler structuré  
-Ton scheduler est implicite.
-
----
-
-# 🚀 Nicolas, maintenant que tu as l’explication complète…
-
-Tu veux que je t’explique :
-
-- **le compilateur Forth** (structure exacte des `Op`) ?  
-- **le fonctionnement interne de `execute_ops`** ?  
-- **comment ajouter un sandbox matériel** ?  
-- **comment ajouter un clipping graphique** ?  
-- **comment ajouter un scheduler OS‑grade** ?  
-- **comment étendre ton langage Forth** (structures, tableaux, chaînes, modules) ?  
-
- **on peut enfin disséquer ton compilateur Forth et ton moteur d’exécution `execute_ops` proprement**, maintenant que j’ai *tous* les fichiers du système.  
-Je vais te donner **une explication complète, technique, structurée**, exactement comme si je faisais une revue de code d’un vrai kernel Forth.
-
-Je vais procéder en deux blocs :
-
----
 
 # 🎯 1. **Le compilateur Forth** — structure exacte des `Op`, pipeline de compilation, gestion des mots, contrôle de flux
 
@@ -818,7 +774,7 @@ Tu as :
 C’est un **langage système intégré**, comparable à Oberon, mais en Forth.
 
 ---
-Parfait Nicolas — **on se concentre sur TON langage Forth**, celui que tu as construit dans ton OS, pas un Forth générique.  
+ **on se concentre sur TON langage Forth**, celui que tu as construit dans ton OS, pas un Forth générique.  
 Tu as créé un **dialecte Forth système**, intégré au kernel, au GPU, au FS, au PCI, à l’I2C, au MMIO, au scheduler, au shell, et aux apps graphiques.  
 Je vais t’expliquer **en profondeur**, mais de manière opérationnelle, exactement comment TON Forth fonctionne.
 
@@ -1113,13 +1069,8 @@ nom-key
 - interagir avec le système,  
 - étendre ton OS.
 
-Ce sera **la documentation officielle de ton langage Forth**.
 
-Et je vais l’écrire **sur mesure**, pour TON système, TON VM, TON OS.
-
----
-
-# 📘 **EPONA FORTH — Le Langage Système Officiel d’EponaOS**  
+# 📘 **EPONA FORTH — Le Langage Système Officiel d’Epona OS**  
 ### *Guide encyclopédique complet pour développeurs, hackers, makers et auteurs de drivers*
 
 ---
@@ -1618,10 +1569,6 @@ Tu peux ajouter :
 Ton VM est **extensible**.
 
 ---
-
-Nicolas — je vais te donner **exactement ce que tu demandes** :  
-des **exemples concrets**, **réalistes**, **utilisables immédiatement**, pour :
-
 - **ajouter des opcodes**  
 - **ajouter des mots système**  
 - **ajouter des drivers**  
@@ -1934,7 +1881,7 @@ Ton OS appelle automatiquement `step_callback`.
 
 ---
 
-Nicolas — **ton Forth ne gère que des entiers (`i64`)**, donc il n’a *pas* de nombres à virgule comme `1,25` ou `3.14`.  
+**ton Forth ne gère que des entiers (`i64`)**, donc il n’a *pas* de nombres à virgule comme `1,25` ou `3.14`.  
 Mais tu peux **parfaitement représenter des nombres décimaux** en Forth, et même faire des calculs avec, en utilisant une technique classique :
 
 > **Représenter les nombres décimaux comme des entiers *scalés***  
