@@ -1,0 +1,395 @@
+Voici **le Manuel PCI Avancé pour Epona‑OS**, conçu pour être **expert**, **opérationnel**, et **directement exploitable** dans ton kernel Rust et ton langage Forth.  
+
+
+Ce manuel couvre **PCI**, **PCI‑Express**, **BAR**, **MMIO**, **MSI/MSI‑X**, **capabilities**, **drivers NVMe/USB/e1000**, et inclut des **scripts Forth** adaptés à Epona‑OS.
+
+---
+
+# 📘 Manuel PCI Avancé — Epona‑OS  
+*(Architecture, registres, BAR, MSI/MSI‑X, MMIO, Forth, drivers)*
+
+---
+
+## 🧠 1. Introduction : Pourquoi PCI est essentiel dans Epona‑OS
+
+Le bus **PCI / PCI‑Express** est la base de presque tout le hardware moderne :
+
+- NVMe  
+- USB (XHCI)  
+- GPU  
+- Audio HDA  
+- Ethernet (Intel e1000/e1000e)  
+- SATA / AHCI  
+- WiFi  
+- Bluetooth  
+- TPM  
+- Contrôleurs ACPI  
+- Root Complex PCIe
+
+Pour écrire des **drivers modernes**, tu dois maîtriser :
+
+- la structure PCI,  
+- les registres de configuration,  
+- les BAR (Base Address Registers),  
+- les capabilities,  
+- les MSI/MSI‑X,  
+- le MMIO PCIe.
+
+Epona‑OS possède déjà :
+
+- un scanner PCI,  
+- des primitives MMIO,  
+- des primitives ACPI,  
+- un langage Forth système.
+
+Ce manuel te donne **le niveau expert** pour exploiter tout cela.
+
+---
+
+# 🟥 2. Architecture PCI / PCI‑Express
+
+## 🔍 2.1. Structure PCI classique
+
+Chaque périphérique PCI est identifié par :
+
+- **Bus**  
+- **Device**  
+- **Function**
+
+Epona‑OS utilise la notation :
+
+```
+bus device function offset pci-read
+```
+
+---
+
+## 🔍 2.2. Structure PCI‑Express
+
+PCIe est une évolution de PCI :
+
+- communication par paquets,  
+- MMIO obligatoire (plus d’I/O ports),  
+- capabilities étendues,  
+- MSI/MSI‑X standard,  
+- BAR 64 bits possibles.
+
+Mais la **configuration PCIe** reste compatible PCI.
+
+---
+
+# 🟦 3. Registres PCI : Configuration Space
+
+Chaque périphérique PCI possède un **Configuration Space** de 256 octets (PCI) ou 4096 octets (PCIe).
+
+Les offsets importants :
+
+| Offset | Nom | Description |
+|--------|-----|-------------|
+| 0x00 | Vendor ID | Identifie le fabricant |
+| 0x02 | Device ID | Identifie le modèle |
+| 0x04 | Command | Active MMIO, I/O, bus mastering |
+| 0x06 | Status | Flags d’erreur |
+| 0x08 | Class Code | Type de périphérique |
+| 0x0C | Header Type | Type de header |
+| 0x10–0x24 | BAR0–BAR5 | Base Address Registers |
+| 0x3C | Interrupt Line | IRQ (legacy) |
+| 0x34 | Capabilities Pointer | Liste des capabilities |
+
+---
+
+# 🟧 4. Lire les registres PCI dans Epona‑OS
+
+## 🧪 4.1. Lire Vendor ID
+
+```
+0 1 0 0 pci-read .
+```
+
+## 🧪 4.2. Lire Device ID
+
+```
+0 1 0 2 pci-read .
+```
+
+## 🧪 4.3. Lire Class Code
+
+```
+0 1 0 8 pci-read .
+```
+
+---
+
+# 🟪 5. BAR — Base Address Registers
+
+Les BAR indiquent **où se trouvent les registres MMIO** du périphérique.
+
+## 🔍 5.1. Types de BAR
+
+| Type | Description |
+|------|-------------|
+| BAR 32 bits | Adresse MMIO 32 bits |
+| BAR 64 bits | Adresse MMIO 64 bits |
+| I/O BAR | Ancien mode (rare en PCIe) |
+
+---
+
+## 🧪 5.2. Lire un BAR dans Epona‑OS
+
+BAR0 = offset 0x10 :
+
+```
+0 1 0 16 pci-read .
+```
+
+BAR1 = offset 0x14 :
+
+```
+0 1 0 20 pci-read .
+```
+
+---
+
+## 🔍 5.3. Interpréter un BAR
+
+Un BAR contient :
+
+- les bits bas → flags (type, I/O/MMIO, 64 bits)  
+- les bits hauts → adresse MMIO
+
+Exemple :
+
+```
+E0000000h → MMIO framebuffer
+```
+
+---
+
+## 🧪 5.4. Exemple complet : lire l’adresse MMIO d’un NVMe
+
+```
+0 2 0 16 pci-read .   \ BAR0
+```
+
+Puis :
+
+```
+hex
+bar0 FFFFFFF0 and   \ masque les flags
+```
+
+---
+
+# 🟫 6. Activer MMIO et Bus Mastering
+
+Pour qu’un périphérique fonctionne, il faut activer :
+
+- MMIO  
+- Bus Mastering (DMA)
+
+Offset 0x04 (Command Register) :
+
+| Bit | Nom |
+|-----|-----|
+| 0 | I/O Space |
+| 1 | MMIO Space |
+| 2 | Bus Mastering |
+
+---
+
+## 🧪 6.1. Activer MMIO
+
+```
+0 1 0 4 pci-read
+2 or
+0 1 0 4 pci-write
+```
+
+## 🧪 6.2. Activer Bus Mastering
+
+```
+0 1 0 4 pci-read
+4 or
+0 1 0 4 pci-write
+```
+
+---
+
+# 🟩 7. Capabilities PCI
+
+Les capabilities sont une liste chaînée :
+
+- MSI  
+- MSI‑X  
+- PCIe  
+- Power Management  
+- Hot‑Plug  
+- AER (Advanced Error Reporting)
+
+Offset 0x34 → pointeur vers la première capability.
+
+---
+
+## 🧪 7.1. Lire la première capability
+
+```
+0 1 0 52 pci-read .
+```
+
+---
+
+## 🧪 7.2. Parcourir les capabilities
+
+```
+: cap-list
+    0 1 0 52 pci-read
+    begin
+        dup 0= if drop exit then
+        dup .                     \ affiche offset
+        0 1 0 swap pci-read .     \ affiche ID
+        0 1 0 swap 1+ pci-read    \ next pointer
+    again
+;
+cap-list
+```
+
+---
+
+# 🟦 8. MSI — Message Signaled Interrupts
+
+MSI remplace les IRQ classiques.
+
+## 🔍 8.1. Avantages MSI
+
+- pas de lignes IRQ physiques,  
+- pas de partage IRQ,  
+- plus rapide,  
+- plus fiable,  
+- obligatoire pour NVMe, XHCI, e1000e.
+
+---
+
+## 🧩 8.2. Structure MSI Capability
+
+| Offset | Description |
+|--------|-------------|
+| +0 | MSI Control |
+| +4 | Message Address |
+| +8 | Message Data |
+
+---
+
+## 🧪 8.3. Activer MSI dans Epona‑OS
+
+1. Trouver capability MSI  
+2. Écrire Message Address (APIC)  
+3. Écrire Message Data (vecteur)  
+4. Activer MSI
+
+Exemple :
+
+```
+msi-cap 4 +   \ message address
+FEE00000 mmio-write
+
+msi-cap 8 +   \ message data
+40 mmio-write
+
+msi-cap       \ control
+1 or mmio-write
+```
+
+---
+
+# 🟧 9. MSI‑X — Interruptions avancées
+
+MSI‑X permet :
+
+- plusieurs vecteurs d’interruptions,  
+- idéal pour NVMe, réseau, USB.
+
+Structure :
+
+- Table MSI‑X (MMIO)  
+- PBA (Pending Bit Array)
+
+---
+
+## 🧪 9.1. Activer MSI‑X
+
+```
+msix-cap 2 + pci-read
+0x8000 or
+msix-cap 2 + pci-write
+```
+
+---
+
+# 🟪 10. Drivers PCI avancés dans Epona‑OS
+
+## 🔥 10.1. NVMe
+
+Pipeline :
+
+1. Scanner PCI  
+2. Trouver classe 01h / sous‑classe 08h  
+3. Lire BAR0 → MMIO NVMe  
+4. Activer MMIO + Bus Mastering  
+5. Activer MSI/MSI‑X  
+6. Lire CAP, VS, CC, CSTS  
+7. Initialiser Admin Queue  
+8. Lire Identify Controller  
+9. Lire Identify Namespace  
+10. Lire/écrire via I/O Queue
+
+---
+
+## 🔥 10.2. USB XHCI
+
+Pipeline :
+
+1. Scanner PCI  
+2. Trouver classe 0Ch / sous‑classe 03h / progIF 30h  
+3. Lire BAR → MMIO XHCI  
+4. Lire CAPLENGTH, HCSPARAMS  
+5. Activer MSI/MSI‑X  
+6. Initialiser les rings  
+7. Gérer les TRB  
+8. Gérer les endpoints
+
+---
+
+## 🔥 10.3. Ethernet Intel e1000/e1000e
+
+Pipeline :
+
+1. Scanner PCI  
+2. Trouver classe 02h (Network)  
+3. Lire BAR → MMIO e1000  
+4. Activer MMIO + Bus Mastering  
+5. Activer MSI/MSI‑X  
+6. Initialiser RX/TX rings  
+7. Lire MAC  
+8. Envoyer/recevoir des paquets
+
+---
+
+# 🧠 11. Résumé final
+
+### Ce que tu maîtrises maintenant
+
+- Structure PCI / PCIe  
+- Configuration Space  
+- BAR 32/64 bits  
+- MMIO PCIe  
+- Command Register (MMIO + Bus Mastering)  
+- Capabilities  
+- MSI / MSI‑X  
+- Pipelines NVMe / USB / e1000
+
+### Ce que cela débloque dans Epona‑OS
+
+- drivers NVMe, USB, réseau, audio, GPU  
+- scheduler préemptif  
+- multitâche avancé  
+- OS moderne complet

@@ -1,0 +1,286 @@
+Voici **un vrai cours pour débutant**, entièrement basé sur **Epona‑OS**, mais réécrit de façon **pédagogique**, progressive, claire**, pour que n’importe qui puisse apprendre ton Forth même sans connaître la programmation.  
+Je garde **tes mots**, **ta logique**, **tes conventions**, mais je les transforme en **cours structuré**.
+
+---
+
+# 🎓 Cours débutant : Le langage Forth d’Epona‑OS  
+*(Ton langage Forth, expliqué simplement, étape par étape)*
+
+
+
+
+
+---
+
+## 🧠 1. Forth : un langage basé sur une pile  
+Forth n’est pas comme Python, C ou Rust.  
+Il fonctionne avec une **pile** : une zone où l’on empile des nombres, puis où les mots (fonctions) les utilisent.
+
+### Exemple simple  
+```
+2 3 +
+```
+
+Explication :
+- `2` → empilé  
+- `3` → empilé  
+- `+` → dépile 2 et 3, calcule 5, et remet 5 sur la pile
+
+Pour afficher le résultat :
+```
+.
+```
+
+---
+
+## 🧱 2. Les mots : les “commandes” de Forth  
+Un **mot** est une commande.  
+Tu écris son nom → il s’exécute.
+
+Exemples :
+```
+.      (affiche le sommet de la pile)
++      (addition)
+-      (soustraction)
+*      (multiplication)
+/      (division)
+```
+
+---
+
+## 🔢 3. Manipuler la pile  
+Voici les mots essentiels :
+
+| Mot | Effet |
+|-----|-------|
+| `dup` | Duplique le sommet de la pile |
+| `drop` | Supprime le sommet |
+| `swap` | Échange les deux premiers |
+| `over` | Copie l’élément n‑2 sur la pile |
+
+Exemples :
+
+```
+5 dup . .     \ affiche 5 puis 5
+```
+
+```
+10 20 swap . .   \ affiche 10 puis 20
+```
+
+---
+
+## 🧮 4. Arithmétique  
+Ton Forth Epona‑OS supporte :
+
+```
++  -  *  /  mod
+```
+
+Exemple :
+```
+7 3 mod .   \ affiche 1
+```
+
+---
+
+## 🗣️ 5. Commentaires  
+Tu utilises la syntaxe standard :
+
+```
+\ ceci est un commentaire
+```
+
+---
+
+## 🏗️ 6. Créer un mot (définir une fonction)  
+Tu utilises la syntaxe classique :
+
+```
+: nom-du-mot
+    ...code...
+;
+```
+
+Exemple :
+```
+: carre
+    dup *
+;
+```
+
+Test :
+```
+5 carre .     \ affiche 25
+```
+
+---
+
+## 🔁 7. Boucles et conditions  
+Ton README montre que tu utilises les structures Forth classiques :
+
+### Condition
+```
+if
+    ...code...
+else
+    ...code...
+then
+```
+
+### Boucle
+```
+do
+    ...code...
+loop
+```
+
+Exemple simple :
+```
+: compte
+    10 0 do
+        i .
+    loop
+;
+```
+
+Affiche :
+```
+0 1 2 3 4 5 6 7 8 9
+```
+
+---
+
+## 📦 8. Variables et constantes  
+Ton Forth supporte :
+
+### Variable
+```
+variable x
+```
+
+Mettre une valeur :
+```
+42 x !
+```
+
+Lire :
+```
+x @ .
+```
+
+### Constante
+```
+42 constant reponse
+```
+
+---
+
+## 🧰 9. Accès mémoire (MMIO)  
+Ton OS expose des mots pour lire/écrire en mémoire :
+
+```
+@   (lecture)
+!   (écriture)
+```
+
+Exemple :
+```
+1000 @ .
+```
+
+---
+
+## 🖥️ 10. Accès matériel (PCI, ACPI, I2C, MMIO)  
+Ton Forth Epona‑OS inclut des mots système :
+
+- `pci` → scan PCI  
+- `acpi` → tables ACPI  
+- `mmio-read` / `mmio-write`  
+- `i2c-read` / `i2c-write`  
+
+Exemple :
+```
+pci
+```
+
+Affiche la liste des périphériques PCI.
+
+---
+
+## 🖼️ 11. Graphisme (GUI)  
+Ton Forth permet :
+
+- dessiner des pixels  
+- afficher du texte  
+- manipuler le framebuffer  
+- créer des fenêtres
+
+Exemple typique :
+```
+100 100 pixel
+```
+
+---
+
+## 🧩 12. Forth dans Epona‑OS : un langage système  
+Ton Forth n’est pas un Forth “normal”.  
+C’est un **langage système**, capable de :
+
+- manipuler la mémoire du kernel  
+- appeler des drivers  
+- contrôler le GUI  
+- lancer des applications  
+- accéder au filesystem USB  
+- exécuter des scripts système
+
+C’est exactement comme OpenFirmware ou GForth, mais intégré dans ton OS.
+
+---
+
+# 🎓 Résumé pour un débutant  
+Voici les **10 choses à retenir** :
+
+1. Forth utilise une **pile**  
+2. Un mot = une commande  
+3. Les nombres s’empilent  
+4. Les mots utilisent la pile  
+5. `.` affiche  
+6. `: ... ;` crée un mot  
+7. `dup drop swap over` manipulent la pile  
+8. `if else then` pour les conditions  
+9. `do loop` pour les boucles  
+10. Ton Forth contrôle **tout l’OS** (drivers, GUI, PCI, ACPI)
+
+---
+
+# 📘 Exercices pour débutant
+
+### 1. Afficher 3 nombres
+```
+1 2 3 . . .
+```
+
+### 2. Créer un mot qui triple un nombre
+```
+: triple 3 * ;
+7 triple .
+```
+
+### 3. Afficher les nombres de 1 à 5
+```
+: un-a-cinq
+    6 1 do
+        i .
+    loop
+;
+un-a-cinq
+```
+
+### 4. Lire une variable
+```
+variable x
+123 x !
+x @ .
+```
+

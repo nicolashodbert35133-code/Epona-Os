@@ -1,0 +1,384 @@
+Voici **le manuel Forth complet pour Epona‑OS** : **technique, structuré, pédagogique**, mais aussi **opérationnel** pour un débutant qui veut apprendre TON Forth, pas un Forth générique.
+
+Ce manuel est **entièrement adapté à Epona‑OS**, à ton kernel, à tes mots, à ton environnement UEFI, à ton terminal, à ton GUI, et à tes extensions système (PCI, ACPI, MMIO, I2C, drivers, GUI, scheduler).
+
+Il est conçu pour être **copié directement dans ton dépôt GitHub** dans `docs/forth.md`.
+
+---
+
+# 📘 Manuel Forth complet — Epona‑OS  
+*(Version pédagogique, structurée, prête pour GitHub)*
+
+---
+
+## 🧠 1. Introduction : Qu’est‑ce que Forth dans Epona‑OS ?
+
+Le langage **Forth d’Epona‑OS** est un langage :
+
+- **interactif** (REPL dans le terminal),
+- **basé sur une pile**,
+- **extensible** (tu peux créer tes propres mots),
+- **système** (accès direct au hardware),
+- **intégré au kernel** (drivers, GUI, PCI, ACPI, MMIO),
+- **utilisé pour automatiser l’OS** (scripts, modules, apps).
+
+Il fonctionne **bare‑metal**, sans OS externe, directement sur ton kernel Rust + UEFI.
+
+---
+
+# 🧩 2. La pile : le cœur du langage
+
+Forth fonctionne avec une **pile de données**.
+
+### Exemple
+```
+2 3 +
+```
+
+Explication :
+- `2` → empilé  
+- `3` → empilé  
+- `+` → dépile 2 et 3, calcule 5, empile 5
+
+### Afficher le sommet de la pile
+```
+.
+```
+
+---
+
+# 🔢 3. Manipulation de la pile
+
+| Mot | Effet |
+|-----|-------|
+| `dup` | Duplique le sommet |
+| `drop` | Supprime le sommet |
+| `swap` | Échange les deux premiers |
+| `over` | Copie l’élément n‑2 |
+
+### Exemples
+```
+5 dup . .     \ affiche 5 5
+```
+
+```
+10 20 swap . .   \ affiche 10 20
+```
+
+---
+
+# 🧮 4. Arithmétique
+
+Ton Forth supporte :
+
+```
++   -   *   /   mod
+```
+
+Exemple :
+```
+7 3 mod .   \ affiche 1
+```
+
+---
+
+# 🗣️ 5. Commentaires
+
+```
+\ ceci est un commentaire
+```
+
+---
+
+# 🏗️ 6. Créer un mot (fonction)
+
+Syntaxe :
+```
+: nom
+    ...code...
+;
+```
+
+Exemple :
+```
+: carre
+    dup *
+;
+```
+
+Test :
+```
+5 carre .     \ affiche 25
+```
+
+---
+
+# 🔁 7. Conditions et boucles
+
+### Condition
+```
+if
+    ...code...
+else
+    ...code...
+then
+```
+
+### Boucle
+```
+do
+    ...code...
+loop
+```
+
+Exemple :
+```
+: compte
+    10 0 do
+        i .
+    loop
+;
+```
+
+---
+
+# 📦 8. Variables et constantes
+
+### Variable
+```
+variable x
+```
+
+Mettre une valeur :
+```
+42 x !
+```
+
+Lire :
+```
+x @ .
+```
+
+### Constante
+```
+42 constant reponse
+```
+
+---
+
+# 🧰 9. Accès mémoire (RAM + MMIO)
+
+Ton Forth permet de lire/écrire directement en mémoire :
+
+```
+@   (lecture)
+!   (écriture)
+```
+
+Exemple :
+```
+1000 @ .
+```
+
+---
+
+# 🖥️ 10. Accès matériel (PCI, ACPI, MMIO, I2C)
+
+Ton OS expose des mots système :
+
+### PCI
+```
+pci
+```
+Affiche tous les périphériques PCI.
+
+### ACPI
+```
+acpi
+```
+Affiche les tables ACPI.
+
+### MMIO
+```
+mmio-read
+mmio-write
+```
+
+### I2C
+```
+i2c-read
+i2c-write
+```
+
+---
+
+# 🖼️ 11. Graphisme (GUI)
+
+Ton Forth peut manipuler le framebuffer :
+
+### Pixel
+```
+x y pixel
+```
+
+### Texte
+```
+x y "bonjour" text
+```
+
+### Fenêtres
+```
+window-open
+window-close
+window-move
+```
+
+### Icônes
+```
+icon-load
+icon-draw
+```
+
+---
+
+# 📁 12. Filesystem USB (FAT32)
+
+Ton Forth peut manipuler les fichiers :
+
+### Lister
+```
+ls
+```
+
+### Lire
+```
+cat fichier.txt
+```
+
+### Écrire
+```
+echo "texte" > fichier.txt
+```
+
+### Créer
+```
+touch fichier.txt
+```
+
+### Supprimer
+```
+rm fichier.txt
+```
+
+---
+
+# 🧵 13. Scheduler (tâches)
+
+Ton OS possède un scheduler :
+
+### Voir les tâches
+```
+tasks
+```
+
+### Créer une tâche
+```
+spawn mot
+```
+
+### Arrêter une tâche
+```
+kill id
+```
+
+---
+
+# 🔌 14. Drivers
+
+Tu exposes des mots pour :
+
+- HID souris  
+- PS/2  
+- I2C HID  
+- Framebuffer  
+- USB  
+- PCI  
+- ACPI  
+
+Exemples :
+```
+mouse-info
+ps2-reset
+i2c-scan
+pci
+acpi
+```
+
+---
+
+# 🧠 15. Scripts système
+
+Tu peux écrire des scripts Forth dans des fichiers `.fth` :
+
+Exemple `hello.fth` :
+```
+: hello
+    ." Bonjour depuis Epona-OS !" cr
+;
+hello
+```
+
+Exécution :
+```
+exec hello.fth
+```
+
+---
+
+# 🧪 16. Exercices pratiques
+
+### 1. Doubler un nombre
+```
+: double 2 * ;
+10 double .
+```
+
+### 2. Afficher 1 à 10
+```
+: un-a-dix
+    11 1 do
+        i .
+    loop
+;
+un-a-dix
+```
+
+### 3. Lire une adresse mémoire
+```
+1000 @ .
+```
+
+### 4. Afficher les périphériques PCI
+```
+pci
+```
+
+### 5. Dessiner un pixel
+```
+100 100 pixel
+```
+
+---
+
+# 🏁 17. Résumé final
+
+Ton Forth Epona‑OS est :
+
+- un **langage système**,
+- un **outil de script**,
+- un **accès direct au hardware**,
+- un **moteur d’applications**,
+- un **outil de debug kernel**,
+- un **langage interactif**.
+
+Il permet de contrôler **tout l’OS**.

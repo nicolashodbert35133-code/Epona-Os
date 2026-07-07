@@ -1,0 +1,320 @@
+Voici **le guide avancé MMIO / PCI / ACPI pour Epona‑OS**, conçu pour être **technique**, **clair**, **pédagogique**, et **directement utilisable** dans ton OS.  
+C’est un document de niveau **intermédiaire → expert**, mais écrit pour être **accessible**, même si on débute dans les systèmes bas‑niveau.
+
+
+
+---
+
+# 📘 Guide avancé — MMIO, PCI, ACPI dans Epona‑OS  
+*(Version complète, structurée, adaptée à ton kernel et ton Forth)*
+
+---
+
+## 🧠 1. Introduction  
+Epona‑OS expose des primitives système permettant d’accéder directement :
+
+- à la **mémoire mappée matériel** (MMIO),
+- aux **périphériques PCI**,
+- aux **tables ACPI**.
+
+Ce guide explique :
+
+- comment fonctionne chaque sous‑système,
+- comment Epona‑OS les expose en Forth,
+- comment écrire des scripts Forth pour manipuler le hardware,
+- comment déboguer et explorer la machine.
+
+---
+
+# 🟥 2. MMIO — Memory‑Mapped I/O
+
+## 🔍 2.1. Qu’est‑ce que le MMIO ?
+Le **MMIO** est une technique où les registres matériels sont accessibles comme des adresses mémoire.
+
+Exemples typiques :
+- contrôleurs PCI,
+- framebuffer,
+- NVMe,
+- I/O APIC,
+- timers HPET,
+- contrôleurs USB.
+
+Dans Epona‑OS, tu peux lire/écrire directement dans ces zones.
+
+---
+
+## 🧩 2.2. Mots Forth MMIO dans Epona‑OS
+
+| Mot | Description |
+|-----|-------------|
+| **mmio-read** | Lit une valeur 32 bits à une adresse MMIO |
+| **mmio-write** | Écrit une valeur 32 bits |
+| **@** | Lecture mémoire générique |
+| **!** | Écriture mémoire générique |
+
+---
+
+## 🧪 2.3. Exemple : lire un registre matériel
+
+Supposons que le framebuffer soit à l’adresse `0xE0000000` :
+
+```
+hex
+E0000000 mmio-read .
+```
+
+---
+
+## 🧪 2.4. Exemple : écrire dans un registre
+
+```
+hex
+E0000000 00FF00 mmio-write
+```
+
+---
+
+## 🧠 2.5. Cas d’usage MMIO dans Epona‑OS
+
+- lecture des registres PCI BAR,
+- manipulation du framebuffer,
+- lecture des timers HPET,
+- accès au contrôleur NVMe (futur),
+- lecture des registres ACPI (PM Timer),
+- manipulation du I/O APIC.
+
+---
+
+# 🟦 3. PCI — Peripheral Component Interconnect
+
+## 🔍 3.1. Qu’est‑ce que PCI ?
+Le bus **PCI** permet de détecter et configurer les périphériques :
+
+- GPU,
+- NVMe,
+- USB,
+- Audio,
+- Ethernet,
+- SATA.
+
+Epona‑OS inclut un **scanner PCI complet**.
+
+---
+
+## 🧩 3.2. Mots Forth PCI dans Epona‑OS
+
+| Mot | Description |
+|-----|-------------|
+| **pci** | Affiche tous les périphériques PCI |
+| **pci-read** | Lit un registre PCI |
+| **pci-write** | Écrit un registre PCI |
+| **pci-bar** | Lit un Base Address Register |
+
+---
+
+## 🧪 3.3. Exemple : scanner le bus PCI
+
+```
+pci
+```
+
+Affiche :
+- bus,
+- device,
+- function,
+- vendor ID,
+- device ID,
+- classes.
+
+---
+
+## 🧪 3.4. Lire un registre PCI
+
+Lire le Vendor ID d’un périphérique :
+
+```
+0 1 0 0 pci-read .
+```
+
+Signifie :
+- bus 0  
+- device 1  
+- function 0  
+- offset 0  
+
+---
+
+## 🧪 3.5. Lire un BAR PCI
+
+```
+0 1 0 16 pci-read .
+```
+
+Offset 16 = BAR0.
+
+---
+
+## 🧠 3.6. Cas d’usage PCI dans Epona‑OS
+
+- détecter un contrôleur NVMe,
+- détecter un GPU,
+- détecter un contrôleur USB,
+- lire les BAR pour accéder au MMIO,
+- identifier les classes de périphériques.
+
+---
+
+# 🟧 4. ACPI — Advanced Configuration and Power Interface
+
+## 🔍 4.1. Qu’est‑ce que ACPI ?
+ACPI fournit des tables décrivant :
+
+- la topologie CPU,
+- les timers,
+- les contrôleurs d’interruptions,
+- les zones mémoire,
+- les périphériques système.
+
+Epona‑OS peut lire les tables ACPI via UEFI.
+
+---
+
+## 🧩 4.2. Mots Forth ACPI dans Epona‑OS
+
+| Mot | Description |
+|-----|-------------|
+| **acpi** | Affiche les tables ACPI |
+| **acpi-find** | Trouve une table par signature |
+| **acpi-read** | Lit une entrée ACPI |
+
+---
+
+## 🧪 4.3. Exemple : afficher les tables ACPI
+
+```
+acpi
+```
+
+Affiche :
+- RSDP  
+- RSDT  
+- XSDT  
+- FADT  
+- MADT  
+- HPET  
+- MCFG  
+
+---
+
+## 🧪 4.4. Trouver une table spécifique
+
+Trouver la table MADT (interruptions APIC) :
+
+```
+"APIC" acpi-find .
+```
+
+---
+
+## 🧪 4.5. Lire le timer ACPI (PM Timer)
+
+```
+acpi-pmtimer @ .
+```
+
+---
+
+## 🧠 4.6. Cas d’usage ACPI dans Epona‑OS
+
+- initialisation du scheduler préemptif (APIC timer),
+- lecture du HPET,
+- gestion des interruptions,
+- détection du nombre de CPU,
+- configuration du I/O APIC,
+- lecture des zones mémoire réservées.
+
+---
+
+# 🟪 5. Combiner MMIO + PCI + ACPI
+
+## 🔥 Exemple complet : détecter un NVMe
+
+1. Scanner PCI :
+```
+pci
+```
+
+2. Trouver un périphérique classe 01h (Mass Storage) sous‑classe 08h (NVMe).
+
+3. Lire BAR0 :
+```
+bus dev func 16 pci-read .
+```
+
+4. Utiliser MMIO :
+```
+bar0 mmio-read .
+```
+
+5. Lire les registres NVMe :
+- CAP  
+- VS  
+- INTMS  
+- INTMC  
+- CC  
+- CSTS  
+
+---
+
+## 🔥 Exemple complet : lire le HPET
+
+1. Trouver la table HPET :
+```
+"HPET" acpi-find .
+```
+
+2. Lire l’adresse MMIO :
+```
+hpet-base @ .
+```
+
+3. Lire le timer :
+```
+hpet-base 0 mmio-read .
+```
+
+---
+
+## 🔥 Exemple complet : lire le I/O APIC
+
+1. Trouver MADT :
+```
+"APIC" acpi-find .
+```
+
+2. Lire l’adresse du I/O APIC :
+```
+ioapic-base @ .
+```
+
+3. Lire un registre :
+```
+ioapic-base 0 mmio-write   \ select register
+ioapic-base 10 mmio-read . \ read value
+```
+
+---
+
+# 🧠 6. Résumé final
+
+### MMIO  
+Accès direct aux registres matériels.
+
+### PCI  
+Détection des périphériques + lecture des BAR.
+
+### ACPI  
+Description complète du hardware (APIC, HPET, CPU, tables).
+
+### Epona‑OS  
+Ton OS expose tout cela en **Forth**, ce qui est extrêmement rare et puissant.

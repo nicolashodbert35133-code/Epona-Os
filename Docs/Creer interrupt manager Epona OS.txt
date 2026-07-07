@@ -1,0 +1,177 @@
+### Vue d’ensemble
+
+| **Bloc**              | **Rôle**                                  |
+|-----------------------|-------------------------------------------|
+| **IDT**               | Table des descripteurs d’interruptions   |
+| **Interrupt Manager** | Enregistrer, router, abstraire les IRQ   |
+| **APIC / IOAPIC**     | Source matérielle des interruptions       |
+| **Forth hooks**       | Pilotage / debug depuis ton langage       |
+
+---
+
+## 1. Objectif de l’interrupt manager
+
+**But**: avoir une couche unique qui gère :
+
+- **enregistrement** de handlers (clavier, souris, timer, PCI, etc.),
+- **routing** des vecteurs (APIC, IOAPIC, MSI/MSI‑X),
+- **priorités / masquage**,
+- **statistiques / debug**,
+- **exposition Forth** (inspecter, activer/désactiver, tracer).
+
+Tu passes de “handlers éparpillés” à un **noyau centralisé des interruptions**.
+
+---
+
+## 2. Structure de base en Rust
+
+```rust
+pub type InterruptHandler = fn(&mut InterruptFrame);
+
+pub struct InterruptEntry {
+    pub handler: Option<InterruptHandler>,
+    pub name: &'static str,
+    pub enabled: bool,
+    pub count: u64,
+}
+
+pub struct InterruptManager {
+    pub entries: [InterruptEntry; 256],
+}
+```
+
+Initialisation:
+
+```rust
+impl InterruptManager {
+    pub fn init(&mut self) {
+        for (vec, entry) in self.entries.iter_mut().enumerate() {
+            entry.handler = None;
+            entry.name = "unassigned";
+            entry.enabled = false;
+            entry.count = 0;
+        }
+    }
+
+    pub fn register(&mut self, vec: u8, name: &'static str, h: InterruptHandler) {
+        self.entries[vec as usize].handler = Some(h);
+        self.entries[vec as usize].name = name;
+        self.entries[vec as usize].enabled = true;
+    }
+}
+```
+
+---
+
+## 3. Intégration avec l’IDT
+
+Pour chaque vecteur, tu pointes vers un **stub commun**:
+
+```rust
+extern "x86-interrupt" fn generic_isr(frame: InterruptFrame, vec: u8) {
+    INTERRUPT_MANAGER.handle(vec, frame);
+}
+```
+
+Dans l’IDT:
+
+```rust
+for vec in 0u8..=255 {
+    set_idt_entry(vec, isr_stub_for(vec), DPL0, INTERRUPT_GATE);
+}
+```
+
+`isr_stub_for(vec)` est un petit stub qui pousse `vec` puis appelle `generic_isr`.
+
+---
+
+## 4. Gestion dans l’InterruptManager
+
+```rust
+impl InterruptManager {
+    pub fn handle(&mut self, vec: u8, frame: InterruptFrame) {
+        let entry = &mut self.entries[vec as usize];
+
+        if !entry.enabled {
+            // éventuellement log
+            apic_eoi();
+            return;
+        }
+
+        entry.count += 1;
+
+        if let Some(h) = entry.handler {
+            h(&mut frame);
+        }
+
+        apic_eoi();
+    }
+}
+```
+
+Tu peux ajouter:
+
+- **masquage**: `entry.enabled = false`,
+- **priorités**: simple table de niveaux si besoin.
+
+---
+
+## 5. APIC / IOAPIC / MSI intégrés
+
+- **APIC**: tous les vecteurs d’IRQ (timer, etc.) arrivent dans l’IDT → `InterruptManager`.
+- **IOAPIC**: tu remappes les IRQ physiques vers des vecteurs logiques (ex: clavier → 0x21, souris → 0x2C).
+- **MSI/MSI‑X**: tu programmes les périphériques PCI pour envoyer leurs interruptions sur des vecteurs que tu as **réservés** dans l’InterruptManager (ex: NVMe → 0x50, XHCI → 0x60, e1000 → 0x70).
+
+Tu obtiens une **carte logique**:
+
+- `0x20` → timer APIC  
+- `0x21` → clavier  
+- `0x2C` → souris  
+- `0x50` → NVMe  
+- `0x60` → XHCI  
+- `0x70` → e1000  
+
+---
+
+## 6. Hooks Forth
+
+Expose des mots Forth pour:
+
+- **Lister les vecteurs**:
+
+```forth
+: interrupts
+    \ boucle sur entries[0..255], affiche vec, name, count, enabled
+;
+```
+
+- **Activer/désactiver un vecteur**:
+
+```forth
+: irq-enable ( vec -- )
+    \ INTERRUPT_MANAGER.entries[vec].enabled = true
+;
+
+: irq-disable ( vec -- )
+    \ INTERRUPT_MANAGER.entries[vec].enabled = false
+;
+```
+
+- **Voir les stats**:
+
+```forth
+: irq-stats
+    \ affiche count par vecteur
+;
+```
+
+---
+
+## 7. Résultat
+
+Avec cet interrupt manager, Epona‑OS gagne:
+
+- une **abstraction propre** des IRQ,
+- un **point central** pour le debug,
+- une **base solide** pour les drivers (NVMe, XHCI, e1000),
+- une **intégration naturelle** avec ton Forth (inspection, contrôle).

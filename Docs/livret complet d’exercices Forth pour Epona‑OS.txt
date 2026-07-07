@@ -1,0 +1,291 @@
+Voici **le livret complet d’exercices Forth pour Epona‑OS**, structuré comme un vrai cahier d’apprentissage :  
+progressif, clair, pédagogique, mais toujours **technique** et **fidèle à TON Forth** (pile, MMIO, PCI, ACPI, GUI, scheduler).
+
+Il est prêt à être intégré dans ton dépôt GitHub sous :  
+
+
+---
+
+# 📘 Livret d’exercices Forth — Epona‑OS  
+*(40 exercices, 8 chapitres, progression complète)*
+
+---
+
+## 🧠 Chapitre 1 — La pile (débutant)
+
+### **Exercice 1 : Afficher trois valeurs**  
+Objectif : comprendre la pile et le mot `.`  
+```
+1 2 3 . . .
+```
+
+### **Exercice 2 : Dupliquer une valeur**  
+Objectif : `dup`  
+```
+5 dup . .
+```
+
+### **Exercice 3 : Échanger deux valeurs**  
+Objectif : `swap`  
+```
+10 20 swap . .
+```
+
+### **Exercice 4 : Supprimer le sommet**  
+Objectif : `drop`  
+```
+42 drop
+```
+
+### **Exercice 5 : Copier l’élément n‑2**  
+Objectif : `over`  
+```
+3 7 over . .
+```
+
+---
+
+## 🧮 Chapitre 2 — Arithmétique et mots (débutant/intermédiaire)
+
+### **Exercice 6 : Créer un mot qui triple**  
+```
+: triple 3 * ;
+7 triple .
+```
+
+### **Exercice 7 : Créer un mot carré**  
+```
+: carre dup * ;
+9 carre .
+```
+
+### **Exercice 8 : Moyenne de deux nombres**  
+```
+: moyenne + 2 / ;
+10 20 moyenne .
+```
+
+### **Exercice 9 : Afficher un message**  
+```
+: bonjour ." Bonjour Epona-OS" ;
+bonjour
+```
+
+### **Exercice 10 : Afficher 1 à 10**  
+```
+: un-a-dix
+    11 1 do
+        i .
+    loop
+;
+un-a-dix
+```
+
+---
+
+## 📦 Chapitre 3 — Variables, constantes, mémoire (intermédiaire)
+
+### **Exercice 11 : Variable + lecture**  
+```
+variable x
+123 x !
+x @ .
+```
+
+### **Exercice 12 : Constante**  
+```
+42 constant reponse
+reponse .
+```
+
+### **Exercice 13 : Lire une adresse mémoire**  
+```
+1000 @ .
+```
+
+### **Exercice 14 : Écrire en mémoire**  
+```
+1000 55 !
+```
+
+---
+
+## 🟥 Chapitre 4 — MMIO (intermédiaire/avancé)
+
+### **Exercice 15 : Lire un registre MMIO**  
+```
+hex
+E0000000 mmio-read .
+```
+
+### **Exercice 16 : Écrire un registre MMIO**  
+```
+hex
+E0000000 00FF00 mmio-write
+```
+
+### **Exercice 17 : Lire le timer HPET**  
+```
+hpet-base 10 mmio-read .
+```
+
+### **Exercice 18 : Lire un registre APIC**  
+```
+hex
+FEE00000 20 mmio-read .
+```
+
+---
+
+## 🟦 Chapitre 5 — PCI (avancé)
+
+### **Exercice 19 : Scanner le bus PCI**  
+```
+pci
+```
+
+### **Exercice 20 : Lire Vendor ID**  
+```
+0 1 0 0 pci-read .
+```
+
+### **Exercice 21 : Lire Device ID**  
+```
+0 1 0 2 pci-read .
+```
+
+### **Exercice 22 : Lire Class Code**  
+```
+0 1 0 8 pci-read .
+```
+
+### **Exercice 23 : Lire BAR0**  
+```
+0 1 0 16 pci-read .
+```
+
+### **Exercice 24 : Masquer les flags d’un BAR**  
+```
+bar0 FFFFFFF0 and .
+```
+
+---
+
+## 🟧 Chapitre 6 — ACPI (avancé/expert)
+
+### **Exercice 25 : Afficher les tables ACPI**  
+```
+acpi
+```
+
+### **Exercice 26 : Trouver MADT**  
+```
+"APIC" acpi-find .
+```
+
+### **Exercice 27 : Lire l’adresse du Local APIC**  
+```
+madT-local-apic-base @ .
+```
+
+### **Exercice 28 : Lire HPET via ACPI**  
+```
+"HPET" acpi-find .
+hpet-base @ .
+```
+
+---
+
+## 🖼️ Chapitre 7 — GUI (avancé)
+
+### **Exercice 29 : Dessiner un pixel**  
+```
+100 100 pixel
+```
+
+### **Exercice 30 : Afficher du texte**  
+```
+100 200 "Hello" text
+```
+
+### **Exercice 31 : Ouvrir une fenêtre**  
+```
+window-open
+```
+
+### **Exercice 32 : Déplacer une fenêtre**  
+```
+200 300 window-move
+```
+
+---
+
+## 🟫 Chapitre 8 — Scheduler (expert)
+
+### **Exercice 33 : Lister les tâches**  
+```
+tasks
+```
+
+### **Exercice 34 : Créer une tâche Forth**  
+```
+: boucle
+    begin
+        ." Je tourne" cr
+    again
+;
+' boucle task-create
+```
+
+### **Exercice 35 : Changer la quantum**  
+```
+50000 quantum!
+```
+
+### **Exercice 36 : Tâche qui clignote un pixel**  
+```
+: blink
+    begin
+        100 100 pixel
+        100 ms
+        100 100 clear-pixel
+        100 ms
+    again
+;
+' blink task-create
+```
+
+---
+
+## 🧩 Chapitre 9 — Scripts système (expert)
+
+### **Exercice 37 : Créer un script Forth**  
+Créer `hello.fth` :
+```
+: hello ." Bonjour depuis un script !" ;
+hello
+```
+
+### **Exercice 38 : Exécuter un script**  
+```
+exec hello.fth
+```
+
+### **Exercice 39 : Script qui lit PCI**  
+```
+: pci-info
+    pci
+;
+pci-info
+```
+
+### **Exercice 40 : Script de diagnostic système**  
+```
+: diag
+    ." --- DIAGNOSTIC EPONA-OS ---" cr
+    ." PCI:" cr pci cr
+    ." ACPI:" cr acpi cr
+    ." TACHES:" cr tasks cr
+;
+diag
+```

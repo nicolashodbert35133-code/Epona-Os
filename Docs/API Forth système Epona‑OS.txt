@@ -1,0 +1,261 @@
+### Vue d’ensemble — API Forth système Epona‑OS
+
+| **Domaine**   | **Prefix** | **Rôle**                         |
+|---------------|------------|----------------------------------|
+| Mémoire/MMIO  | `mmio-`    | Accès registres matériels        |
+| PCI           | `pci-`     | Bus, config, BAR, capabilities   |
+| ACPI          | `acpi-`    | Tables, MADT, HPET, RSDT/XSDT    |
+| APIC/IOAPIC   | `apic-`    | Interruptions CPU/périphériques  |
+| HPET          | `hpet-`    | Timer haute précision            |
+| Scheduler     | `task-`    | Tâches, quantum, introspection   |
+| Interruptions | `irq-`     | Manager IRQ, stats, enable/disable |
+| GUI           | `gui-`     | Framebuffer, fenêtres, texte     |
+| FS/Scripts    | `fs-` / `exec` | Fichiers, scripts système   |
+
+---
+
+## Conventions générales
+
+- **Notation pile**: `( in1 in2 -- out1 out2 )`
+- **Types implicites**:
+  - adresses: `u64`
+  - registres: `u32`
+  - booléens: `flag` (0/≠0)
+- **Préfixes**:
+  - `mmio-` → accès mémoire mappée
+  - `pci-` → config PCI
+  - `acpi-` → tables ACPI
+  - `task-` → scheduler
+  - `irq-` → interruptions
+  - `gui-` → interface graphique
+
+---
+
+## 1. Mémoire & MMIO
+
+- **`mmio-read`**  
+  \[
+  ( addr -- value )
+  \]  
+  Lit un `u32` à l’adresse MMIO.
+
+- **`mmio-write`**  
+  \[
+  ( addr value -- )
+  \]  
+  Écrit un `u32` à l’adresse MMIO.
+
+- **`@`**  
+  \[
+  ( addr -- value )
+  \]  
+  Lecture mémoire générique (RAM).
+
+- **`!`**  
+  \[
+  ( value addr -- )
+  \]  
+  Écriture mémoire générique (RAM).
+
+---
+
+## 2. PCI
+
+- **`pci`**  
+  \[
+  ( -- )
+  \]  
+  Affiche la liste des périphériques PCI.
+
+- **`pci-read`**  
+  \[
+  ( bus dev func offset -- value )
+  \]
+
+- **`pci-write`**  
+  \[
+  ( value bus dev func offset -- )
+  \]
+
+- **`pci-bar`**  
+  \[
+  ( bus dev func index -- bar-value )
+  \]  
+  `index` = 0..5 → BAR0..BAR5.
+
+---
+
+## 3. ACPI
+
+- **`acpi`**  
+  \[
+  ( -- )
+  \]  
+  Affiche les tables ACPI détectées.
+
+- **`acpi-find`**  
+  \[
+  ( "SIG" -- addr )
+  \]  
+  `SIG` = `"APIC"`, `"HPET"`, etc.
+
+- **`acpi-rsdt`**  
+  \[
+  ( -- addr )
+  \]
+
+- **`acpi-xsdt`**  
+  \[
+  ( -- addr )
+  \]
+
+---
+
+## 4. APIC / IOAPIC
+
+- **`apic-base`**  
+  \[
+  ( -- addr )
+  \]  
+  Adresse MMIO du Local APIC.
+
+- **`apic-enable`**  
+  \[
+  ( -- )
+  \]
+
+- **`apic-id`**  
+  \[
+  ( -- id )
+  \]
+
+- **`apic-eoi`**  
+  \[
+  ( -- )
+  \]
+
+- **`ioapic-base`**  
+  \[
+  ( -- addr )
+  \]
+
+- **`ioapic-read`**  
+  \[
+  ( reg -- value )
+  \]
+
+- **`ioapic-write`**  
+  \[
+  ( value reg -- )
+  \]
+
+---
+
+## 5. HPET
+
+- **`hpet-base`**  
+  \[
+  ( -- addr )
+  \]
+
+- **`hpet-enable`**  
+  \[
+  ( -- )
+  \]
+
+- **`hpet-counter`**  
+  \[
+  ( -- value )
+  \]
+
+---
+
+## 6. Scheduler & tâches
+
+- **`task-create`**  
+  \[
+  ( xt -- id )
+  \]  
+  Crée une tâche à partir d’un mot Forth.
+
+- **`tasks`**  
+  \[
+  ( -- )
+  \]  
+  Affiche la liste des tâches.
+
+- **`quantum!`**  
+  \[
+  ( ticks -- )
+  \]  
+  Change la quantum du scheduler (timer APIC).
+
+---
+
+## 7. Interruptions
+
+- **`interrupts`**  
+  \[
+  ( -- )
+  \]  
+  Affiche les vecteurs, noms, compteurs.
+
+- **`irq-enable`**  
+  \[
+  ( vec -- )
+  \]
+
+- **`irq-disable`**  
+  \[
+  ( vec -- )
+  \]
+
+- **`irq-stats`**  
+  \[
+  ( -- )
+  \]
+
+---
+
+## 8. GUI
+
+- **`pixel`**  
+  \[
+  ( x y -- )
+  \]
+
+- **`text`**  
+  \[
+  ( x y "str" -- )
+  \]
+
+- **`window-open`**  
+  \[
+  ( -- win-id )
+  \]
+
+- **`window-move`**  
+  \[
+  ( x y win-id -- )
+  \]
+
+---
+
+## 9. FS & scripts
+
+- **`exec`**  
+  \[
+  ( "file.fth" -- )
+  \]  
+  Charge et exécute un script Forth.
+
+- **`fs-read`**  
+  \[
+  ( "path" -- addr len )
+  \]
+
+- **`fs-write`**  
+  \[
+  ( addr len "path" -- )
+  \]
+

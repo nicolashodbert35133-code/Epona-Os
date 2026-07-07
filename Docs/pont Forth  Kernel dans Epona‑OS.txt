@@ -1,0 +1,260 @@
+### Tableau de synthèse — Parcours Forth → Kernel
+
+| **Niveau** | **Focus**                     | **Pont Forth ↔ Kernel**                  |
+|------------|------------------------------|------------------------------------------|
+| 1          | Forth de base                | Mots simples, pile, arithmétique         |
+| 2          | Forth système                | Mots MMIO/PCI/ACPI exposés par le kernel |
+| 3          | Hooks kernel                 | Appels Rust depuis Forth (syscalls)      |
+| 4          | Scheduler & tâches           | Création/gestion de tâches depuis Forth  |
+| 5          | Interruptions & drivers      | Debug IRQ, drivers via Forth             |
+| 6          | Scripts système              | Forth comme shell/kernel scripting       |
+
+---
+
+## 1. Niveau 1 — Forth de base (fondation)
+
+**Objectif:** que ton Forth soit maîtrisé comme langage, avant de le brancher au kernel.
+
+**Exemples Forth:**
+
+```forth
+\ pile et arithmétique
+1 2 3 . . .
+5 dup . .
+10 20 swap . .
+
+: carre dup * ;
+9 carre .
+```
+
+Ici, rien de kernel—juste la grammaire mentale Forth.
+
+---
+
+## 2. Niveau 2 — Forth système (MMIO, PCI, ACPI)
+
+**Objectif:** utiliser Forth comme *console système* pour parler au hardware via ton kernel Rust.
+
+Ton kernel expose déjà des primitives vers Forth :
+
+- **MMIO**: `mmio-read`, `mmio-write`
+- **PCI**: `pci`, `pci-read`
+- **ACPI**: `acpi`, `acpi-find`
+
+**Exemples Forth:**
+
+```forth
+\ MMIO
+hex
+E0000000 mmio-read .
+E0000000 00FF00 mmio-write
+
+\ PCI
+pci
+0 1 0 0  pci-read .   \ Vendor ID
+0 1 0 16 pci-read .   \ BAR0
+
+\ ACPI
+acpi
+"APIC" acpi-find .
+"HPET" acpi-find .
+```
+
+Ici, Forth est déjà **branché au kernel**: chaque mot appelle du Rust bas‑niveau.
+
+---
+
+## 3. Niveau 3 — Hooks kernel (appels Rust depuis Forth)
+
+**Objectif:** définir une interface claire entre Forth et ton kernel Rust.
+
+Côté Rust, tu exposes des fonctions comme “mots Forth natifs” :
+
+```rust
+#[no_mangle]
+pub extern "C" fn forth_mmio_read(addr: u64) -> u32 {
+    unsafe { core::ptr::read_volatile(addr as *const u32) }
+}
+
+#[no_mangle]
+pub extern "C" fn forth_mmio_write(addr: u64, val: u32) {
+    unsafe { core::ptr::write_volatile(addr as *mut u32, val) }
+}
+```
+
+Côté Forth, tu les lies à des mots :
+
+```forth
+\ pseudo-binding
+: mmio-read  ( addr -- val )
+    \ appelle forth_mmio_read
+;
+
+: mmio-write ( addr val -- )
+    \ appelle forth_mmio_write
+;
+```
+
+Même principe pour :
+
+- `pci-read`, `pci-write`
+- `acpi-find`
+- `tasks`, `task-create`
+- `irq-enable`, `irq-disable`
+
+Tu obtiens une **API kernel Forth**.
+
+---
+
+## 4. Niveau 4 — Scheduler & tâches (Forth pilote le multitâche)
+
+**Objectif:** que Forth puisse créer, inspecter, manipuler des tâches du kernel.
+
+Côté Rust:
+
+```rust
+#[no_mangle]
+pub extern "C" fn forth_task_create(entry: extern "C" fn()) -> u64 {
+    let id = scheduler::create_task(entry);
+    id
+}
+
+#[no_mangle]
+pub extern "C" fn forth_tasks_list() {
+    scheduler::debug_list();
+}
+```
+
+Côté Forth:
+
+```forth
+: tasks
+    \ appelle forth_tasks_list
+;
+
+: spawn ( xt -- id )
+    \ appelle forth_task_create avec l’adresse du mot
+;
+
+: boucle
+    begin
+        ." Je tourne dans une tâche" cr
+    again
+;
+
+' boucle spawn
+tasks
+```
+
+Ici, Forth devient **interface de contrôle du scheduler**.
+
+---
+
+## 5. Niveau 5 — Interruptions & drivers (Forth comme console de debug IRQ)
+
+**Objectif:** utiliser Forth pour inspecter et piloter ton interrupt manager + drivers.
+
+Côté Rust (interrupt manager):
+
+```rust
+#[no_mangle]
+pub extern "C" fn forth_irq_stats() {
+    INTERRUPT_MANAGER.debug_print();
+}
+
+#[no_mangle]
+pub extern "C" fn forth_irq_enable(vec: u8) {
+    INTERRUPT_MANAGER.enable(vec);
+}
+
+#[no_mangle]
+pub extern "C" fn forth_irq_disable(vec: u8) {
+    INTERRUPT_MANAGER.disable(vec);
+}
+```
+
+Côté Forth:
+
+```forth
+: interrupts
+    \ appelle forth_irq_stats
+;
+
+: irq-enable ( vec -- )
+    \ appelle forth_irq_enable
+;
+
+: irq-disable ( vec -- )
+    \ appelle forth_irq_disable
+;
+
+\ exemple : activer le vecteur XHCI
+60 irq-enable
+interrupts
+```
+
+Pour les drivers (NVMe, XHCI, e1000), tu ajoutes des mots Forth de debug:
+
+```forth
+: nvme-info
+    nvme-base 0  mmio-read .   \ CAP
+    nvme-base 1C mmio-read .   \ CSTS
+;
+
+: xhci-info
+    xhci-base 0 mmio-read .    \ CAPLENGTH
+    xhci-base 4 mmio-read .    \ HCSPARAMS
+;
+```
+
+---
+
+## 6. Niveau 6 — Scripts système (Forth comme “shell du kernel”)
+
+**Objectif:** Forth devient ton **shell système**: tu écris des scripts qui orchestrent le kernel.
+
+Exemple `diag.fth`:
+
+```forth
+: diag
+    ." --- DIAGNOSTIC EPONA-OS ---" cr
+    ." PCI:" cr pci cr
+    ." ACPI:" cr acpi cr
+    ." APIC ID:" cr FEE00000 20 mmio-read . cr
+    ." HPET:" cr hpet-base 10 mmio-read . cr
+    ." TACHES:" cr tasks cr
+    ." INTERRUPTS:" cr interrupts cr
+;
+diag
+```
+
+Exemple `nvme_test.fth`:
+
+```forth
+: nvme-test
+    ." NVMe CAP:" cr nvme-base 0 mmio-read . cr
+    ." NVMe CSTS:" cr nvme-base 1C mmio-read . cr
+;
+nvme-test
+```
+
+Tu peux charger ces scripts depuis USB/FAT:
+
+```forth
+exec diag.fth
+exec nvme_test.fth
+```
+
+---
+
+## Résumé — le pont Forth → Kernel dans Epona‑OS
+
+- **Forth** n’est pas juste un langage : c’est **l’interface humaine** de ton kernel.
+- Le kernel Rust expose des **primitives système** (MMIO, PCI, ACPI, scheduler, IRQ, drivers).
+- Forth les encapsule en **mots** qui deviennent :
+  - console de debug,
+  - shell système,
+  - outil de scripting,
+  - interface de contrôle du multitâche et des drivers.
+
+Si tu veux, on peut maintenant définir **une vraie “API Forth système”** pour Epona‑OS (liste officielle des mots kernel, signatures, conventions).

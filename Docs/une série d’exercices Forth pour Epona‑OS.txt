@@ -1,0 +1,252 @@
+Voici **une série d’exercices Forth pour Epona‑OS**, parfaitement adaptés à TON environnement (pile, MMIO, PCI, ACPI, GUI, scheduler).  
+Ils sont **progressifs**, **structurés**, et couvrent **tous les niveaux** : débutant → intermédiaire → avancé → expert système.
+
+Je te propose **20 exercices**, chacun avec un objectif clair et une difficulté croissante.  
+.
+
+---
+
+# 🎓 Exercices Forth — Epona‑OS  
+*(Progressifs, complets, adaptés à ton OS)*
+
+---
+
+## 🟦 **Niveau 1 — Bases de la pile (débutant)**
+
+### 1. Afficher trois nombres  
+Objectif : comprendre la pile et le mot `.`  
+```
+1 2 3 . . .
+```
+
+### 2. Dupliquer un nombre  
+Objectif : utiliser `dup`  
+```
+5 dup . .
+```
+
+### 3. Échanger deux valeurs  
+Objectif : utiliser `swap`  
+```
+10 20 swap . .
+```
+
+### 4. Supprimer un élément  
+Objectif : utiliser `drop`  
+```
+42 drop
+```
+
+### 5. Copier l’élément n‑2  
+Objectif : utiliser `over`  
+```
+3 7 over . .
+```
+
+---
+
+## 🟩 **Niveau 2 — Arithmétique et mots (débutant/intermédiaire)**
+
+### 6. Créer un mot qui triple un nombre  
+Objectif : définir un mot  
+```
+: triple 3 * ;
+7 triple .
+```
+
+### 7. Créer un mot qui calcule le carré  
+Objectif : utiliser `dup`  
+```
+: carre dup * ;
+9 carre .
+```
+
+### 8. Créer un mot qui calcule la moyenne de deux nombres  
+Objectif : manipuler la pile  
+```
+: moyenne + 2 / ;
+10 20 moyenne .
+```
+
+### 9. Créer un mot qui affiche “Bonjour Epona‑OS”  
+Objectif : utiliser `."`  
+```
+: bonjour ." Bonjour Epona-OS" ;
+bonjour
+```
+
+### 10. Créer un mot qui affiche 1 à 10  
+Objectif : boucle `do … loop`  
+```
+: un-a-dix
+    11 1 do
+        i .
+    loop
+;
+un-a-dix
+```
+
+---
+
+## 🟧 **Niveau 3 — Variables, constantes, mémoire (intermédiaire)**
+
+### 11. Créer une variable et la lire  
+Objectif : `variable`, `!`, `@`  
+```
+variable x
+123 x !
+x @ .
+```
+
+### 12. Créer une constante  
+Objectif : `constant`  
+```
+42 constant reponse
+reponse .
+```
+
+### 13. Lire une adresse mémoire arbitraire  
+Objectif : accès mémoire brut  
+```
+1000 @ .
+```
+
+### 14. Écrire dans une adresse mémoire  
+Objectif : écriture mémoire  
+```
+1000 55 !
+```
+
+---
+
+## 🟥 **Niveau 4 — MMIO (intermédiaire/avancé)**
+
+### 15. Lire un registre MMIO  
+Objectif : utiliser `mmio-read`  
+```
+hex
+E0000000 mmio-read .
+```
+
+### 16. Écrire dans un registre MMIO  
+Objectif : utiliser `mmio-write`  
+```
+hex
+E0000000 00FF00 mmio-write
+```
+
+### 17. Lire le timer HPET (si exposé)  
+Objectif : lire un timer matériel  
+```
+hpet-base 10 mmio-read .
+```
+
+---
+
+## 🟪 **Niveau 5 — PCI (avancé)**
+
+### 18. Scanner le bus PCI  
+Objectif : utiliser ton mot `pci`  
+```
+pci
+```
+
+### 19. Lire le Vendor ID d’un périphérique  
+Objectif : `pci-read`  
+```
+0 1 0 0 pci-read .
+```
+
+### 20. Lire un BAR PCI  
+Objectif : lire une adresse MMIO d’un périphérique  
+```
+0 1 0 16 pci-read .
+```
+
+---
+
+## 🟫 **Niveau 6 — ACPI (avancé/expert)**
+
+### 21. Afficher les tables ACPI  
+Objectif : `acpi`  
+```
+acpi
+```
+
+### 22. Trouver la table MADT  
+Objectif : `acpi-find`  
+```
+"APIC" acpi-find .
+```
+
+### 23. Lire l’adresse du Local APIC  
+Objectif : lire une entrée ACPI  
+```
+madT-local-apic-base @ .
+```
+
+---
+
+## 🟧 **Niveau 7 — GUI (avancé)**
+
+### 24. Dessiner un pixel  
+Objectif : framebuffer  
+```
+100 100 pixel
+```
+
+### 25. Afficher du texte à l’écran  
+Objectif : GUI texte  
+```
+100 200 "Hello" text
+```
+
+### 26. Ouvrir une fenêtre  
+Objectif : gestion des fenêtres  
+```
+window-open
+```
+
+---
+
+## 🟦 **Niveau 8 — Scheduler (expert)**
+
+### 27. Lister les tâches  
+Objectif : introspection du scheduler  
+```
+tasks
+```
+
+### 28. Créer une tâche Forth  
+Objectif : multitâche  
+```
+: boucle
+    begin
+        ." Je tourne" cr
+    again
+;
+' boucle task-create
+```
+
+### 29. Changer la quantum du scheduler  
+Objectif : timer APIC  
+```
+50000 quantum!
+```
+
+---
+
+## 🟩 **Niveau 9 — Scripts système (expert)**
+
+### 30. Écrire un script Forth dans un fichier  
+Objectif : filesystem + Forth  
+Créer `hello.fth` :
+```
+: hello ." Bonjour depuis un script !" ;
+hello
+```
+
+Exécuter :
+```
+exec hello.fth
+```

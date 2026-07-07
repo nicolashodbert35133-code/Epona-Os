@@ -1,0 +1,172 @@
+### Vue d’ensemble
+
+| **Bloc**        | **Rôle**                                  |
+|-----------------|-------------------------------------------|
+| **PCI/XHCI**    | Trouver le contrôleur USB 3.0             |
+| **MMIO**        | Accéder aux registres XHCI                |
+| **Init HC**     | Mettre le contrôleur en état opérationnel |
+| **Rings/TRB**   | Structurer les files de commandes/événements |
+| **Interrupts**  | Recevoir les événements USB               |
+| **Forth**       | Piloter/diagnostiquer depuis ton langage  |
+
+---
+
+### 1. Découverte PCI du contrôleur XHCI
+
+- **Classe**: `0x0C` (Serial Bus)
+- **Sous-classe**: `0x03` (USB)
+- **ProgIF**: `0x30` (XHCI)
+
+**Étapes:**
+
+- **Scanner PCI** avec ton mot `pci`.
+- Filtrer les entrées où:
+
+  \[
+  \text{class} = 0x0C,\ \text{subclass} = 0x03,\ \text{progIF} = 0x30
+  \]
+
+- Lire **BAR0**:
+
+  \[
+  \text{BAR0} = \text{pci-read}(bus, dev, func, 0x10)
+  \]
+
+- Masquer les flags:
+
+  \[
+  \text{mmio\_base} = \text{BAR0} \land 0xFFFFFFF0
+  \]
+
+---
+
+### 2. Layout MMIO XHCI
+
+À partir de `mmio_base`:
+
+- **CAPLENGTH**: offset `0x00`
+- **HCSPARAMS1**: offset `0x04`
+- **HCCPARAMS1**: offset `0x08`
+- **DOORBELLS**: base + `DBOFF`
+- **Runtime Registers**: base + `RTSOFF`
+- **Operational Registers**: base + `CAPLENGTH` (début)
+
+Dans ton OS:
+
+```forth
+mmio-base 0 mmio-read      \ CAPLENGTH
+mmio-base 4 mmio-read      \ HCSPARAMS1
+mmio-base 8 mmio-read      \ HCCPARAMS1
+```
+
+---
+
+### 3. Initialisation du contrôleur
+
+**Étapes standard XHCI:**
+
+1. **Arrêter le contrôleur**  
+   - Lire `USBCMD` (operational regs, offset `0x00` à partir d’OPREGBASE).
+   - Clear bit `Run/Stop`.
+
+2. **Attendre qu’il soit stoppé**  
+   - Poll `USBSTS` (offset `0x04`), attendre que `HCHalted` soit à 1.
+
+3. **Initialiser les structures en mémoire** (en RAM):
+
+   - **Device Context Base Address Array (DCBAA)**.
+   - **Command Ring**.
+   - **Event Ring**.
+
+4. **Programmer les pointeurs**:
+
+   - `CRCR` (Command Ring Control Register) → adresse du Command Ring.
+   - `DCBAAP` → adresse du DCBAA.
+   - Runtime regs → Event Ring (via interrupteurs / interrupter registers).
+
+5. **Activer le contrôleur**  
+   - Set `Run/Stop` dans `USBCMD`.
+   - Clear `HCHalted` (attendre).
+
+---
+
+### 4. Rings & TRB
+
+Tu dois allouer en mémoire (alignée):
+
+- **Command Ring**: tableau de TRB (16 bytes chacun).
+- **Event Ring**: idem.
+- **Transfer Rings**: par endpoint.
+
+Un **TRB** (Transfer Request Block) fait 16 octets:
+
+- 64 bits: adresse buffer
+- 32 bits: longueur + flags
+- 32 bits: type, cycle bit, etc.
+
+En Rust (simplifié):
+
+```rust
+#[repr(C)]
+struct Trb {
+    dword0: u32,
+    dword1: u32,
+    dword2: u32,
+    dword3: u32,
+}
+```
+
+Tu crées un **ring** circulaire avec un **cycle bit**.
+
+---
+
+### 5. Interruptions XHCI
+
+- Activer **MSI/MSI-X** via PCI (capabilities).
+- Configurer les **Interrupter Registers** dans les Runtime Registers:
+  - `IMAN` (Interrupt Management)
+  - `IMOD` (Interrupt Moderation)
+  - `ERSTSZ` (Event Ring Segment Table Size)
+  - `ERSTBA` (Event Ring Segment Table Base Address)
+  - `ERDP` (Event Ring Dequeue Pointer)
+
+Ton handler d’IRQ:
+
+- Lit l’Event Ring.
+- Parcourt les TRB d’événements.
+- Réagit aux:
+  - Command Completion
+  - Transfer Event
+  - Port Status Change
+
+---
+
+### 6. Intégration Forth
+
+Expose des mots Forth pour:
+
+- **Diagnostic**:
+
+  ```forth
+  : xhci-info
+      mmio-base 0 mmio-read .    \ CAPLENGTH
+      mmio-base 4 mmio-read .    \ HCSPARAMS1
+      mmio-base 8 mmio-read .    \ HCCPARAMS1
+  ;
+  ```
+
+- **Reset contrôleur**:
+
+  ```forth
+  : xhci-reset
+      \ écrire USBCMD, USBSTS via mmio-base + CAPLENGTH + offsets
+  ;
+  ```
+
+- **Lister ports**:
+
+  ```forth
+  : xhci-ports
+      \ lire PORTSCx dans les operational regs
+  ;
+  

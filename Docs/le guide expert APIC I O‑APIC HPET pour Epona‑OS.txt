@@ -1,0 +1,334 @@
+Voici **le guide expert APIC / I/O‑APIC / HPET pour Epona‑OS**, conçu pour être **technique**, **opérationnel**, et **directement exploitable** dans ton kernel Rust + ton langage Forth**.  
+C’est un document de niveau **expert OS‑dev**, mais écrit pour rester **clair**, **progressif**, et **adapté à Epona‑OS**.
+
+
+
+---
+
+# 📘 Guide Expert — APIC, I/O‑APIC, HPET dans Epona‑OS  
+*(Architecture, registres, MMIO, Forth, intégration kernel)*
+
+---
+
+## 🧠 1. Introduction : pourquoi APIC / IOAPIC / HPET ?
+
+Epona‑OS est déjà capable de :
+
+- lire les tables ACPI,  
+- scanner le PCI,  
+- accéder au MMIO,  
+- manipuler le framebuffer,  
+- gérer des tâches.
+
+Pour aller plus loin (scheduler préemptif, multitâche avancé, drivers NVMe, réseau, USB), il faut maîtriser :
+
+- **APIC** → interruptions locales CPU  
+- **I/O‑APIC** → interruptions des périphériques  
+- **HPET** → timer matériel haute précision
+
+Ce guide t’explique :
+
+- comment les détecter via ACPI,  
+- comment lire leurs registres,  
+- comment les manipuler en Forth,  
+- comment les intégrer dans ton kernel Rust.
+
+---
+
+# 🟥 2. APIC — Local Advanced Programmable Interrupt Controller
+
+
+
+
+
+## 🔍 2.1. Rôle du Local APIC
+
+Chaque CPU possède un **Local APIC** qui gère :
+
+- les interruptions locales (timer, thermal, performance),  
+- les IPI (Inter‑Processor Interrupts),  
+- le timer APIC (indispensable pour un scheduler préemptif),  
+- la gestion des priorités d’interruptions.
+
+Le Local APIC est accessible via **MMIO**, généralement à l’adresse :
+
+```
+0xFEE00000
+```
+
+Cette adresse est fournie par la table ACPI **MADT**.
+
+---
+
+## 🧩 2.2. Registres importants du Local APIC
+
+| Registre | Offset | Description |
+|----------|--------|-------------|
+| ID | 0x20 | ID du CPU |
+| Version | 0x30 | Version APIC |
+| TPR | 0x80 | Task Priority |
+| EOI | 0xB0 | End Of Interrupt |
+| Spurious Interrupt Vector | 0xF0 | Activation APIC |
+| LVT Timer | 0x320 | Configuration du timer |
+| Timer Initial Count | 0x380 | Valeur initiale |
+| Timer Current Count | 0x390 | Valeur courante |
+| Timer Divide | 0x3E0 | Diviseur |
+
+---
+
+## 🧪 2.3. Activer le Local APIC en Forth
+
+```
+hex
+FEE00000 F0 mmio-write   \ écrire le vecteur spurious + bit enable
+```
+
+---
+
+## 🧪 2.4. Lire l’ID APIC
+
+```
+hex
+FEE00000 20 mmio-read .
+```
+
+---
+
+## 🧪 2.5. Configurer le timer APIC
+
+### Mode périodique
+```
+hex
+FEE00000 3E0 3 mmio-write      \ diviseur = 16
+FEE00000 380 100000 mmio-write \ initial count
+FEE00000 320 200 mmio-write    \ vecteur 0x20 + mode périodique
+```
+
+---
+
+## 🧠 2.6. Utilisation dans Epona‑OS
+
+Le timer APIC te permet de créer un **scheduler préemptif** :
+
+- interruption toutes les X microsecondes,  
+- sauvegarde du contexte,  
+- changement de tâche,  
+- reprise.
+
+---
+
+# 🟦 3. I/O‑APIC — Interruptions des périphériques
+
+
+
+
+
+## 🔍 3.1. Rôle du I/O‑APIC
+
+Le **I/O‑APIC** gère les interruptions provenant :
+
+- du clavier,  
+- de la souris,  
+- du contrôleur USB,  
+- du NVMe,  
+- du réseau,  
+- du GPU.
+
+Il remplace le vieux **PIC 8259**.
+
+---
+
+## 🧩 3.2. Adresse MMIO du I/O‑APIC
+
+Elle est fournie par ACPI MADT :
+
+```
+"APIC" acpi-find .
+ioapic-base @ .
+```
+
+---
+
+## 🧩 3.3. Registres I/O‑APIC
+
+Le I/O‑APIC utilise deux registres MMIO :
+
+| Adresse | Fonction |
+|---------|----------|
+| base + 0 | Select Register |
+| base + 10 | Window Register |
+
+---
+
+## 🧪 3.4. Lire un registre I/O‑APIC en Forth
+
+```
+hex
+ioapic-base 0 mmio-write   \ sélectionner le registre
+ioapic-base 10 mmio-read . \ lire la valeur
+```
+
+---
+
+## 🧪 3.5. Exemple : lire le nombre d’entrées IRQ
+
+```
+hex
+ioapic-base 1 mmio-write
+ioapic-base 10 mmio-read .
+```
+
+---
+
+## 🧪 3.6. Remapper une IRQ vers un vecteur APIC
+
+Exemple : IRQ 1 (clavier) → vecteur 0x21
+
+```
+hex
+ioapic-base 0 mmio-write
+21 ioapic-base 10 mmio-write
+```
+
+---
+
+## 🧠 3.7. Utilisation dans Epona‑OS
+
+- gestion des interruptions clavier/souris,  
+- gestion des drivers NVMe, USB, réseau,  
+- gestion des MSI/MSI‑X (PCI),  
+- base du multitâche préemptif.
+
+---
+
+# 🟧 4. HPET — High Precision Event Timer
+
+
+
+
+
+## 🔍 4.1. Rôle du HPET
+
+Le **HPET** est un timer matériel haute précision :
+
+- résolution : nanosecondes,  
+- idéal pour mesurer le temps,  
+- utilisé pour calibrer le timer APIC.
+
+---
+
+## 🧩 4.2. Adresse MMIO du HPET
+
+Trouvée via ACPI :
+
+```
+"HPET" acpi-find .
+hpet-base @ .
+```
+
+---
+
+## 🧩 4.3. Registres HPET
+
+| Offset | Description |
+|--------|-------------|
+| 0x00 | Capabilities |
+| 0x10 | Main Counter |
+| 0x20 | Timer 0 Config |
+| 0x28 | Timer 0 Comparator |
+
+---
+
+## 🧪 4.4. Lire le compteur HPET
+
+```
+hex
+hpet-base 10 mmio-read .
+```
+
+---
+
+## 🧪 4.5. Activer le HPET
+
+```
+hex
+hpet-base 20 mmio-read
+1 or
+hpet-base 20 mmio-write
+```
+
+---
+
+## 🧠 4.6. Utilisation dans Epona‑OS
+
+- calibration du timer APIC,  
+- mesure de temps haute précision,  
+- base pour un futur `sleep`, `delay`, `timeout`.
+
+---
+
+# 🟪 5. Intégration complète dans Epona‑OS
+
+## 🔥 5.1. Pipeline complet pour un scheduler préemptif
+
+1. Lire ACPI (MADT, HPET)  
+2. Initialiser HPET  
+3. Calibrer APIC Timer  
+4. Activer APIC  
+5. Remapper I/O‑APIC  
+6. Installer IDT  
+7. Installer ISR pour vecteur 0x20  
+8. Sauvegarder contexte  
+9. Changer de tâche  
+10. Reprendre
+
+---
+
+## 🔥 5.2. Pipeline pour un driver NVMe
+
+1. Scanner PCI  
+2. Trouver classe 01h / sous‑classe 08h  
+3. Lire BAR0 → MMIO NVMe  
+4. Lire CAP, VS, CC, CSTS  
+5. Activer MSI/MSI‑X via I/O‑APIC  
+6. Utiliser APIC pour interruptions NVMe  
+7. Lire/écrire dans les queues NVMe
+
+---
+
+## 🔥 5.3. Pipeline pour un driver USB
+
+1. Scanner PCI  
+2. Trouver contrôleur XHCI  
+3. Lire BAR → MMIO XHCI  
+4. Lire les registres CAPLENGTH, HCSPARAMS  
+5. Activer MSI/MSI‑X  
+6. Utiliser APIC pour interruptions USB  
+7. Gérer les rings XHCI
+
+---
+
+# 🧠 6. Résumé final
+
+### APIC  
+Timer + interruptions CPU → **scheduler préemptif**.
+
+### I/O‑APIC  
+Interruptions des périphériques → **drivers NVMe, USB, réseau**.
+
+### HPET  
+Timer haute précision → **calibration + timing fiable**.
+
+### Epona‑OS  
+Ton OS possède déjà :
+
+- MMIO,  
+- PCI,  
+- ACPI,  
+- Forth,  
+- drivers HID/I2C,  
+- scheduler coopératif.
+
+Ce guide te donne les briques pour passer au **niveau OS professionnel**.
+
+---

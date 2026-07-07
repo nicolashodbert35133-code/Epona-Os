@@ -1,0 +1,257 @@
+Voici **un livret d’exercices HARDWARE Forth pour Epona‑OS**, conçu pour t’entraîner à manipuler **MMIO**, **PCI**, **ACPI**, **APIC**, **HPET**, **I/O‑APIC**, et les **drivers bas‑niveau**.  
+C’est un contenu **expert**, mais structuré pour être **progressif** et **pédagogique**, parfaitement adapté à TON OS.
+
+Je te fournis **30 exercices**, classés par modules hardware.  
+Chaque exercice est un **objectif concret**, réalisable directement dans ton terminal Forth Epona‑OS.
+
+---
+
+# 📘 Livret d’exercices HARDWARE — Forth Epona‑OS  
+*(MMIO, PCI, ACPI, APIC, HPET, IOAPIC, NVMe, XHCI, e1000)*
+
+---
+
+## 🟥 Chapitre 1 — MMIO (Memory‑Mapped I/O)
+
+### **Exercice 1 : Lire une adresse MMIO**  
+Objectif : lire un registre matériel  
+```
+hex
+E0000000 mmio-read .
+```
+
+### **Exercice 2 : Écrire une valeur MMIO**  
+Objectif : écrire dans un registre  
+```
+hex
+E0000000 00FF00 mmio-write
+```
+
+### **Exercice 3 : Lire un registre APIC**  
+Objectif : lire l’ID APIC  
+```
+hex
+FEE00000 20 mmio-read .
+```
+
+### **Exercice 4 : Lire un registre HPET**  
+Objectif : lire le main counter  
+```
+hpet-base 10 mmio-read .
+```
+
+### **Exercice 5 : Lire un registre I/O‑APIC**  
+Objectif : lire le nombre d’entrées IRQ  
+```
+hex
+ioapic-base 1 mmio-write
+ioapic-base 10 mmio-read .
+```
+
+---
+
+## 🟦 Chapitre 2 — PCI (bus, BAR, capabilities)
+
+### **Exercice 6 : Scanner le bus PCI**  
+Objectif : afficher tous les périphériques  
+```
+pci
+```
+
+### **Exercice 7 : Lire Vendor ID**  
+```
+0 1 0 0 pci-read .
+```
+
+### **Exercice 8 : Lire Device ID**  
+```
+0 1 0 2 pci-read .
+```
+
+### **Exercice 9 : Lire Class Code**  
+```
+0 1 0 8 pci-read .
+```
+
+### **Exercice 10 : Lire BAR0**  
+```
+0 1 0 16 pci-read .
+```
+
+### **Exercice 11 : Masquer les flags d’un BAR**  
+```
+bar0 FFFFFFF0 and .
+```
+
+### **Exercice 12 : Trouver un NVMe via PCI**  
+Objectif : identifier classe 01h / sous‑classe 08h  
+```
+pci \ repérer NVMe dans la liste
+```
+
+### **Exercice 13 : Lire les capabilities PCI**  
+Objectif : parcourir la liste chaînée  
+```
+: cap-list
+    0 1 0 52 pci-read
+    begin
+        dup 0= if drop exit then
+        dup .                     \ offset
+        0 1 0 swap pci-read .     \ ID
+        0 1 0 swap 1+ pci-read    \ next
+    again
+;
+cap-list
+```
+
+---
+
+## 🟧 Chapitre 3 — ACPI (MADT, HPET, tables)
+
+### **Exercice 14 : Afficher toutes les tables ACPI**  
+```
+acpi
+```
+
+### **Exercice 15 : Trouver la table MADT**  
+```
+"APIC" acpi-find .
+```
+
+### **Exercice 16 : Lire l’adresse du Local APIC**  
+```
+madT-local-apic-base @ .
+```
+
+### **Exercice 17 : Trouver la table HPET**  
+```
+"HPET" acpi-find .
+hpet-base @ .
+```
+
+### **Exercice 18 : Lire la fréquence HPET**  
+Objectif : lire capabilities HPET  
+```
+hpet-base 0 mmio-read .
+```
+
+---
+
+## 🟥 Chapitre 4 — APIC (Local APIC, timer)
+
+### **Exercice 19 : Activer le Local APIC**  
+```
+hex
+FEE00000 F0 mmio-read
+100 or
+FEE00000 F0 mmio-write
+```
+
+### **Exercice 20 : Lire l’ID APIC**  
+```
+hex
+FEE00000 20 mmio-read .
+```
+
+### **Exercice 21 : Configurer le diviseur du timer APIC**  
+```
+hex
+FEE00000 3E0 3 mmio-write
+```
+
+### **Exercice 22 : Charger une valeur initiale du timer**  
+```
+hex
+FEE00000 380 100000 mmio-write
+```
+
+### **Exercice 23 : Configurer le timer en mode périodique**  
+```
+hex
+FEE00000 320 200 mmio-write
+```
+
+---
+
+## 🟦 Chapitre 5 — I/O‑APIC (interruptions périphériques)
+
+### **Exercice 24 : Lire le nombre d’entrées IRQ**  
+```
+hex
+ioapic-base 1 mmio-write
+ioapic-base 10 mmio-read .
+```
+
+### **Exercice 25 : Lire le registre de redirection IRQ**  
+```
+hex
+ioapic-base 10 mmio-write
+ioapic-base 10 mmio-read .
+```
+
+### **Exercice 26 : Remapper IRQ1 vers vecteur 0x21**  
+```
+hex
+ioapic-base 0 mmio-write
+21 ioapic-base 10 mmio-write
+```
+
+---
+
+## 🟧 Chapitre 6 — HPET (High Precision Event Timer)
+
+### **Exercice 27 : Lire le main counter HPET**  
+```
+hpet-base 10 mmio-read .
+```
+
+### **Exercice 28 : Activer HPET**  
+```
+hpet-base 20 mmio-read
+1 or
+hpet-base 20 mmio-write
+```
+
+### **Exercice 29 : Mesurer un délai avec HPET**  
+Objectif : lire deux valeurs et calculer la différence  
+```
+hpet-base 10 mmio-read
+hpet-base 10 mmio-read -
+.
+```
+
+---
+
+## 🟫 Chapitre 7 — Drivers avancés (NVMe, XHCI, e1000)
+
+### **Exercice 30 : Trouver un NVMe via PCI**  
+Objectif : identifier classe 01h / sous‑classe 08h  
+```
+pci \ repérer NVMe
+```
+
+### **Exercice 31 : Lire CAP NVMe**  
+```
+nvme-base 0 mmio-read .
+```
+
+### **Exercice 32 : Lire CSTS NVMe**  
+```
+nvme-base 1C mmio-read .
+```
+
+### **Exercice 33 : Lire CAPLENGTH XHCI**  
+```
+xhci-base 0 mmio-read .
+```
+
+### **Exercice 34 : Lire HCSPARAMS XHCI**  
+```
+xhci-base 4 mmio-read .
+```
+
+### **Exercice 35 : Lire MAC e1000**  
+```
+e1000-base 5400 mmio-read .
+e1000-base 5404 mmio-read .
+```

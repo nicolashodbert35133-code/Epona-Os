@@ -1,0 +1,220 @@
+Voici **un ensemble d’exercices GUI Forth pour Epona‑OS**, conçus pour t’apprendre à manipuler **le framebuffer**, **les fenêtres**, **les icônes**, **le texte**, **les événements souris**, et **les applications graphiques** de TON OS.
+
+Ce sont des exercices **progressifs**, **techniques**, mais accessibles.  
+
+
+Je te propose **20 exercices**, organisés en 5 niveaux.
+
+---
+
+# 🎨 Exercices GUI — Forth Epona‑OS  
+*(FrameBuffer, fenêtres, texte, icônes, souris, apps)*
+
+---
+
+## 🟦 Niveau 1 — Framebuffer (bases)
+
+### **Exercice 1 — Dessiner un pixel**  
+Objectif : comprendre la primitive graphique la plus simple.  
+```
+100 100 pixel
+```
+
+### **Exercice 2 — Dessiner une ligne horizontale**  
+Objectif : utiliser une boucle pour dessiner.  
+```
+: ligne-horiz
+    200 100 do
+        i 150 pixel
+    loop
+;
+ligne-horiz
+```
+
+### **Exercice 3 — Dessiner une ligne verticale**  
+```
+: ligne-vert
+    200 100 do
+        150 i pixel
+    loop
+;
+ligne-vert
+```
+
+### **Exercice 4 — Dessiner un carré plein**  
+```
+: carre-plein
+    50 0 do
+        50 0 do
+            j i pixel
+        loop
+    loop
+;
+carre-plein
+```
+
+---
+
+## 🟩 Niveau 2 — Texte & couleurs
+
+### **Exercice 5 — Afficher du texte à l’écran**  
+```
+100 200 "Hello Epona-OS" text
+```
+
+### **Exercice 6 — Afficher du texte en plusieurs lignes**  
+```
+100 200 "Ligne 1" text
+100 220 "Ligne 2" text
+100 240 "Ligne 3" text
+```
+
+### **Exercice 7 — Changer la couleur du texte**  
+*(si ton GUI expose une primitive `color`)*  
+```
+red color
+100 200 "Texte rouge" text
+```
+
+### **Exercice 8 — Afficher un compteur graphique**  
+```
+: compteur
+    0 begin
+        dup 100 200 swap text
+        1+
+    again
+;
+compteur
+```
+
+---
+
+## 🟧 Niveau 3 — Fenêtres
+
+### **Exercice 9 — Ouvrir une fenêtre**  
+```
+window-open
+```
+
+### **Exercice 10 — Déplacer une fenêtre**  
+```
+200 300 window-move
+```
+
+### **Exercice 11 — Redimensionner une fenêtre**  
+*(si ton GUI expose `window-resize`)*  
+```
+400 300 window-resize
+```
+
+### **Exercice 12 — Créer une fenêtre avec du texte**  
+```
+window-open
+100 100 "Ma fenêtre" text
+```
+
+### **Exercice 13 — Fenêtre interactive (texte qui change)**  
+```
+: fenetre-interactive
+    window-open
+    begin
+        100 100 "Boucle graphique" text
+    again
+;
+fenetre-interactive
+```
+
+---
+
+## 🟥 Niveau 4 — Icônes & interface
+
+### **Exercice 14 — Charger une icône**  
+```
+"folder.ico" icon-load
+```
+
+### **Exercice 15 — Dessiner une icône**  
+```
+100 100 icon-draw
+```
+
+### **Exercice 16 — Créer une barre d’outils simple**  
+```
+: toolbar
+    "tool.ico" icon-load
+    10 10 icon-draw
+    50 10 icon-draw
+    90 10 icon-draw
+;
+toolbar
+```
+
+### **Exercice 17 — Bouton graphique simple**  
+```
+: bouton
+    200 200 pixel
+    201 200 pixel
+    202 200 pixel
+    200 201 pixel
+    200 202 pixel
+;
+bouton
+```
+
+---
+
+## 🟪 Niveau 5 — Souris & interactions
+
+### **Exercice 18 — Afficher la position de la souris**  
+*(si ton OS expose `mouse-x` et `mouse-y`)*  
+```
+: pos-souris
+    begin
+        mouse-x mouse-y
+        swap 100 300 swap text
+    again
+;
+pos-souris
+```
+
+### **Exercice 19 — Dessiner un pixel sous la souris**  
+```
+: paint-souris
+    begin
+        mouse-x mouse-y pixel
+    again
+;
+paint-souris
+```
+
+### **Exercice 20 — Créer un mini‑Paint**  
+```
+: mini-paint
+    window-open
+    begin
+        mouse-left? if
+            mouse-x mouse-y pixel
+        then
+    again
+;
+mini-paint
+```
+
+---
+
+# 🧠 Ce que tu maîtrises avec ces exercices
+
+- **FrameBuffer** : pixels, lignes, formes  
+- **Texte** : affichage, couleurs, mise en page  
+- **Fenêtres** : ouverture, déplacement, redimensionnement  
+- **Icônes** : chargement, dessin, interface  
+- **Souris** : position, clics, interactions  
+- **Applications graphiques** : mini‑paint, fenêtres dynamiques  
+
+Tu as maintenant une base solide pour créer :
+
+- un **éditeur graphique**,  
+- un **gestionnaire de fenêtres avancé**,  
+- un **système de widgets**,  
+- un **bureau interactif**,  
+- des **applications GUI complètes**.
