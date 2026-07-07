@@ -53,6 +53,9 @@ PREPARATION DE LA CLE USB :
   3. (Optionnel) Copiez vos fichiers .FTH a la racine
   4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
 
+pour des exemples fichier en fth allez ici [test](https://github.com/nicolashodbert35133-code/Epona-Os/tree/test)
+et mettez les sur la clé usb
+
 LE BUREAU :
 -----------
   Epona OS possede un bureau graphique avec :
