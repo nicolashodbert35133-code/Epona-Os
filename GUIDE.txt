@@ -226,7 +226,9 @@ MANIPULATION DE LA PILE :
   2over   ( a b c d -- a b c d a b ) — Copie la paire
   ?dup    ( a -- a a | 0 )    — Duplique seulement si non-zero
   pick    ( ... n -- nth )    — Copie le n-ieme element
-  pile                        — Affiche toute la pile
+   pile                        — Affiche toute la pile
+   depth   ( -- n )            — Profondeur de la pile
+   .s      ( -- )              — Affiche la pile sans la detruire
 
 ARITHMETIQUE :
 --------------
@@ -295,9 +297,18 @@ VARIABLES ET MEMOIRE :
   <nom>                       — Empile l'adresse de la variable
   @       ( addr -- val )     — Lit la valeur a l'adresse
   !       ( val addr -- )     — Ecrit la valeur a l'adresse
-  +!      ( n addr -- )       — Ajoute n a la valeur
+   +!      ( n addr -- )       — Ajoute n a la valeur
 
-  Exemple :
+   cell+   ( addr -- addr+8 )  — Ajoute 8 octets (taille d'une cellule)
+   cells   ( n -- n*8 )        — Multiplie par la taille d'une cellule
+   aligned ( addr -- addr )    — Aligne a 8 octets
+   char+   ( addr -- addr+1 )  — Ajoute 1 octet (taille d'un caractere)
+    chars   ( n -- n )          — Multiplie par la taille d'un caractere
+
+    erase   ( addr u -- )       — Met a zero u octets a partir de addr
+    move    ( src dest u -- )    — Copie u octets (gestion chevauchement)
+
+   Exemple :
     variable compteur         \ Declare "compteur"
     0 compteur !              \ Initialise a 0
     compteur @ .              \ Affiche 0
@@ -349,8 +360,41 @@ STRUCTURES DE CONTROLE :
         2dup =                \ Compare avec la limite
       until
       2drop                   \ Nettoie la pile
+     ;
+     5 compte                  \ Affiche 0 1 2 3 4
+
+  BEGIN ... WHILE ... REPEAT (boucle conditionnelle) :
+    begin
+      <condition>              \ Teste la condition (flag)
+    while
+      <corps>                  \ Execute si condition VRAIE
+    repeat                     \ Retourne a begin
+
+  Exemple :
+    : compte ( n -- )          \ Compte de 0 a n-1
+      0
+      begin
+        dup 5 <                \ Condition: compteur < 5 ?
+      while
+        dup .                  \ Affiche le compteur
+        1+                     \ Incremente
+      repeat
+      drop
     ;
-    5 compte                  \ Affiche 0 1 2 3 4
+    5 compte                   \ Affiche 0 1 2 3 4
+
+  Exemple avec filtrage :
+    : pairs ( n -- )           \ Affiche les nombres pairs
+      0
+      begin
+        dup 5 <
+      while
+        dup 2 mod 0 = if dup . then
+        1+
+      repeat
+      drop
+    ;
+    5 pairs                    \ Affiche 0 2 4
 
   DO ... LOOP :
     <limite> <debut> do
@@ -372,6 +416,56 @@ STRUCTURES DE CONTROLE :
       2                       \ Pas de 2
     +loop                     \ Affiche 0 2 4 6 8
 
+  i — Index de la boucle courante
+    Utilise i pour recuperer l'index de la boucle DO la plus
+    interne. Ne peut etre utilise qu'a l'interieur d'une boucle.
+
+    : table ( n -- )
+      0 do
+        i 1+ 2* .             \ Affiche 2 4 6 8 10
+      loop
+    ;
+    5 table
+
+  j — Index de la boucle externe
+    Utilise j dans une boucle imbriquee pour acceder a l'index
+    de la boucle englobante.
+
+    : multi ( -- )
+      3 0 do
+        3 0 do
+          j . i . cr          \ Paires (j,i)
+        loop
+      loop
+    ;
+    multi                     \ Affiche 0 0  0 1  0 2  1 0 ...
+
+   ?DO — DO conditionnel :
+     <limite> <debut> ?do
+       <code>                \ Execute si debut != limite
+     loop
+
+     : test? ( n -- )        \ Boucle 0..n-1 sauf si n=0
+       0 ?do i . loop cr
+     ;
+     5 test?                  \ Affiche 0 1 2 3 4
+     0 test?                  \ N'affiche rien
+
+   LEAVE — Sortie immediate de boucle :
+     <limite> <debut> do
+       <code>
+       <condition> if leave then
+       <code>
+     loop
+
+     : cherche ( n -- )       \ Cherche le premier multiple de 3
+       0 do
+         i 3 mod 0= if i . leave then
+       loop
+     ;
+     10 cherche                \ Affiche 0
+     10 5 do i 3 mod 0= if i . leave then loop  \ Affiche 6
+
 RECURSION :
 -----------
     : factorielle ( n -- n! )
@@ -391,9 +485,11 @@ MOTS AVANCES :
   allot   ( n -- )            — Reserve n cellules memoire
   ,       ( val -- )          — Stocke val a here et avance
   words                       — Liste tous les mots definis
-  '       <mot>               — Empile l'index du mot
-  execute ( idx -- )          — Execute un mot par son index
-  postpone <mot>              — Compile un mot immediat
+   '       <mot>               — Empile l'index du mot
+   execute ( idx -- )          — Execute un mot par son index
+   postpone <mot>              — Compile un mot immediat
+   forget  ( idx -- )          — Oublie les mots a partir de l'index
+                                (tronque le dictionnaire)
 
 
 ================================================================================
@@ -528,6 +624,51 @@ MEMOIRE PHYSIQUE :
   phys!      ( val addr -- )   — Ecrit 64-bit en memoire physique
   stall      ( us -- )         — Delai via UEFI (microsecondes)
   stall-us   ( us -- )         — Delai via RDTSC
+  beep       ( freq ms -- )    — Bip PC Speaker (freq en Hz, duree en ms)
+  task       ( idx -- tid )    — Crée une tâche Forth depuis un mot (')
+  stop       ( -- )            — Termine la tâche courante
+  tasks      ( -- )            — Liste les tâches Forth
+
+MULTITÂCHE PRÉEMPTIF :
+---------------------
+  Le PIT (canal 0, ~100 Hz) émet un IRQ toutes les 10 ms.
+  dispatch_interrupt pose PREEMPT_REQUESTED, et execute_ops_limited
+  vérifie ce flag entre chaque instruction Forth pour céder la main.
+  Le scheduler round-robin alterne entre toutes les tâches Forth.
+
+  Exemple :
+    : travail
+      begin ." ." 100 ms again ;
+    ' travail task   \ crée la tâche, retourne son TID
+    tasks            \ affiche la liste
+
+HEAP (MEMOIRE RUST) :
+---------------------
+  heap-used ( -- u )          — Nombre d'octets alloues sur le heap
+                                (allocateur a free-list, libere reellement)
+
+DISQUE DUR (AHCI / SATA) :
+---------------------------
+  Commande le controleur AHCI directement via PCI, détecte les disques
+  SATA et monte les partitions FAT32. Ne fonctionne que sur du matériel
+  réel (pas d'émulation).
+
+  disk:init         ( -- bool )     — Initialise AHCI + monte FAT32
+  disk:ls <chemin>  ( -- )          — Liste le répertoire (ex: disk:ls /)
+  disk:read <fich>  ( addr -- n )   — Lit fichier dans la mémoire Forth
+  disk:write <fich> ( addr len -- ) — Écrit la mémoire vers le disque
+                                       (écriture non implémentée pour l'instant)
+
+  Exemple :
+    disk:init .            \ Affiche 1 si disque détecté
+    disk:ls /              \ Liste la racine du disque
+    0x1000 disk:read /monfichier.txt .  \ Lit fichier, affiche taille
+
+  Notes :
+    - Les chemins utilisent / (barre oblique) comme séparateur
+    - disk:read place le fichier dans la mémoire Forth (VM) à partir
+      de l'adresse donnée. Le nombre d'octets lus est laissé sur la pile.
+    - Fonctionne avec MBR et GPT — détection automatique
 
 CONTROLE SYSTEME :
 ------------------
@@ -535,7 +676,7 @@ CONTROLE SYSTEME :
   poweroff ( -- )             — Arret complet
 
 
-================================================================================
+===============================================================================
 6. SYSTEME DE FICHIERS (CLE USB)
 ================================================================================
 
@@ -810,7 +951,7 @@ COMPOSANTS :
   drivers.rs      — Gestionnaire de pilotes
   system.rs       — Noyau systeme et applications Forth
   apps.rs         — Calculatrice et Paint
-  bump_alloc.rs   — Allocateur memoire (bump allocator 32 MB)
+  bump_alloc.rs   — Allocateur memoire (free-list 32 MB, coalescing)
 
 MACHINE VIRTUELLE FORTH :
 --------------------------
