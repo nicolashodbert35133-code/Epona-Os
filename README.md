@@ -18,6 +18,155 @@ Epona OS est un système d’exploitation celte libre, écrit en Rust et Forth
 
 Bienvenue dans Epona OS !
 
+
+
+## 🎯 À qui s’adresse Epona OS ?
+Epona OS vise une communauté très précise :
+
+- les **geeks** qui aiment comprendre comment marche un ordinateur,  
+- les **développeurs bas‑niveau** (Rust, ASM, Forth),  
+- les **makers** qui travaillent avec des microcontrôleurs, FPGA, cartes USB,  
+- les **bidouilleurs hardware** qui veulent parler directement à une puce,  
+- les passionnés d’OS qui veulent un système **simple, souverain, programmable**,  
+- les gens qui veulent **écrire du code machine sans IDE**,  
+- les curieux qui veulent un OS **hackable**, **modulaire**, **agentique**.
+
+Epona OS n’est pas un clone de Linux ou Windows.  
+C’est un **atelier matériel + langage système + environnement agentique**.
+
+---
+
+## ⚡ Ce qui rend Epona OS unique
+### **1. Forth natif intégré au système**  
+Epona OS n’a pas un “terminal”.  
+Il a un **langage Forth natif**, directement connecté au kernel.
+
+Tu peux :
+
+- manipuler la mémoire,  
+- appeler des drivers,  
+- écrire des scripts système,  
+- créer des widgets,  
+- piloter du hardware,  
+- tester des instructions machine,  
+- tout ça **sans aucune application externe**.
+
+**Forth = shell + IDE + debugger + console hardware.**
+
+---
+
+### **2. Accès direct au hardware via USB**
+Tu peux brancher :
+
+- un microcontrôleur,  
+- une puce custom,  
+- une carte FPGA,  
+- un device expérimental,  
+- un module électronique maison,
+
+et **parler directement à la puce** depuis Epona OS.
+
+Exemples :
+
+```
+usb:open-device
+usb:write-bytes
+usb:read-bytes
+```
+
+Pas de driver externe, pas de SDK, pas d’IDE.  
+Juste toi, la puce, et Forth.
+
+---
+
+### **3. Écrire du langage machine directement**
+Epona OS permet :
+
+- d’écrire du code machine,  
+- de l’exécuter,  
+- de le tracer,  
+- de le profiler,  
+- de le modifier en live.
+
+Tu peux créer :
+
+- un mini assembleur,  
+- un émulateur ISA,  
+- un simulateur de pipeline,  
+- un décodeur d’instructions,
+
+**directement dans Forth**, sans quitter l’OS.
+
+---
+
+### **4. Émulateur ISA intégré (en cours de programmation)**
+Tu peux charger un binaire :
+
+```
+emu:load
+emu:step
+emu:reg
+emu:mem
+```
+
+Et exécuter du code machine **dans ton OS**, sans dépendre d’un outil externe.
+
+---
+
+### **5. Un OS souverain, minimaliste, agentique**
+- Kernel Rust **fermé**, sécurisé, souverain  
+- API Forth **ouverte**, extensible   
+- Développeurs humains limités à Forth (sécurité + cohérence)  
+- Pas de compatibilité Windows/Linux → pas de lourdeur  
+- Pas de dépendances externes  
+- Pas de licences contraignantes  
+
+Epona OS est un OS **pour apprendre**, **expérimenter**, **créer**, **hacker**, **inventer**.
+
+---
+
+## 🧩 Pourquoi Epona OS est différent des autres OS
+| OS | Objectif | Accès hardware | Langage natif | Niveau |
+|----|----------|----------------|----------------|--------|
+| Windows | Utilisateur | Très limité | Aucun | Haut niveau |
+| Linux | Développeur | Moyen | Bash | Moyen |
+| Iona‑OS | OS massif | Standard PC | Rust | Complexe |
+| **Epona OS** | **Geeks / hardware / bas‑niveau** | **Direct USB / MMIO / PCI** | **Forth + ASM** | **Bas niveau / métal** |
+
+👉 **Epona OS est le seul OS moderne conçu pour coder directement sur le métal.**
+
+---
+
+## 🔧 Ce que tu peux faire avec Epona OS
+- écrire un driver USB en Forth,  
+- piloter une puce FPGA branchée en USB,  
+- envoyer des instructions machine à un microcontrôleur,  
+- créer un émulateur RISC‑V ou x86,  
+- écrire un mini assembleur,  
+- manipuler la mémoire physique,  
+- tracer des interruptions,  
+- créer des outils système en Forth,  
+- faire du prototypage hardware sans OS externe.
+
+---
+
+## 🧠 Pour les geeks : un OS qui ne vous limite pas
+Epona OS est pensé pour ceux qui veulent :
+
+- comprendre le hardware,  
+- écrire du code bas‑niveau,  
+- manipuler des registres,  
+- créer des drivers,  
+- expérimenter des architectures,  
+- jouer avec des puces,  
+- écrire du langage machine,  
+- créer des outils système.
+
+Si tu veux un OS pour “utiliser des applications”, il est fait pour toi.  
+Si tu veux un OS pour **créer**, **expérimenter**, **apprendre**, **hacker**, **inventer**,  
+alors Epona OS est fait pour toi.
+
+
 Ce guide vous explique comment utiliser le systeme, programmer en Forth,
 et acceder au materiel directement depuis votre clavier.
 
