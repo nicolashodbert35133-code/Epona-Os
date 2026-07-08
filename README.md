@@ -23,7 +23,7 @@ et acceder au materiel directement depuis votre clavier.
 
 Epona OS demarre depuis une cle USB et fonctionne sans Windows, sans Linux,
 sans aucun autre systeme. Il tourne directement sur le processeur.
-[BOOTX64.efi](https://github.com/nicolashodbert35133-code/Epona-Os/blob/BOOT/BOOTX64.efi)
+[BOOTX64.efi](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/EFI/BOOT/BOOTX64.efi)
 
 ================================================================================
 TABLE DES MATIERES
