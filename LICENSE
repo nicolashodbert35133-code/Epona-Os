@@ -9,6 +9,49 @@ présents dans ce dépôt sont sous licence MIT afin de permettre à la
 communauté de créer des applications, des drivers et des extensions
 pour Epona OS.
 
+# 🜁 **Licence Epona OS**  
+*(Version 1.0 — 2026)*
+
+## 1. Objet  
+Epona OS est un système d’exploitation fourni gratuitement.  
+Le noyau (kernel) et les composants internes écrits en Rust restent propriétaires et ne sont pas distribués sous forme de code source.  
+Les interfaces publiques Forth sont ouvertes et peuvent être utilisées pour développer des extensions, applications et drivers.
+
+## 2. Gratuité  
+L’utilisation, l’exécution et la distribution binaire d’Epona OS sont gratuites pour tout usage : personnel, éducatif, professionnel ou commercial.
+
+## 3. Propriété du noyau  
+Le code source du noyau Rust, des modules internes, du scheduler, des drivers système et des composants bas niveau reste la propriété exclusive de l’auteur.  
+Aucune redistribution, modification ou décompilation du noyau n’est autorisée.
+
+## 4. Extensions et contributions  
+Les développeurs peuvent créer et distribuer librement :  
+- des applications Forth,  
+- des drivers Forth,  
+- des bibliothèques Forth,  
+- des modules Forth,  
+- des scripts Forth,  
+en utilisant l’API publique documentée.
+
+Ces contributions restent la propriété de leurs auteurs.  
+Aucune obligation de licence particulière n’est imposée.
+
+## 5. Absence de garantie  
+Epona OS est fourni “tel quel”, sans garantie explicite ou implicite, y compris sans garantie de fonctionnement, de stabilité, de sécurité ou d’adéquation à un usage particulier.  
+L’utilisateur assume l’intégralité des risques liés à l’utilisation du logiciel.
+
+## 6. Absence de responsabilité  
+L’auteur ne pourra être tenu responsable de tout dommage direct ou indirect résultant de l’utilisation d’Epona OS, y compris perte de données, interruption de service, défaillance matérielle ou logicielle.
+
+## 7. Redistribution  
+La redistribution des binaires d’Epona OS est autorisée, à condition que :  
+- le noyau Rust ne soit pas modifié,  
+- la présente licence soit incluse,  
+- aucune prétention de propriété ou d’origine différente ne soit faite.
+
+## 8. Modifications futures  
+L’auteur se réserve le droit de modifier, étendre ou réviser cette licence dans les futures versions d’Epona OS.
+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
