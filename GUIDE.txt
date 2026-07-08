@@ -104,10 +104,17 @@ COMMANDES FICHIERS :
   touch <fichier> — Cree un fichier vide
   mkdir <dossier> — Cree un dossier
   rm <fichier>    — Supprime un fichier
-  save <fichier>  — Sauvegarde l'editeur principal
-  load <fichier>  — Charge un fichier dans un editeur
-  edit <fichier>  — Idem que load
-  newedit <fich>  — Ouvre dans un nouvel editeur
+   save <fichier>  — Sauvegarde l'editeur principal
+   load <fichier>  — Charge un fichier dans un editeur
+   edit <fichier>  — Idem que load
+   newedit <fich>  — Ouvre dans un nouvel editeur
+
+   Note : si le nom du fichier contient des espaces, mettez-le
+   entre guillemets :
+     load "mon fichier.fth"
+     exec "test final.fth"
+     save "mon projet v2.fth"
+     cd "Program Files"
 
 COMMANDES SYSTEME :
 -------------------
@@ -536,7 +543,21 @@ CANVAS FORTH (zone protegee 400x300) :
   rect    ( x y w h col -- )  — Rectangle dans le canvas
   ligne   ( x1 y1 x2 y2 col -- ) — Ligne dans le canvas
   effacer ( color -- )        — Efface le canvas
-  couleur ( r g b -- color )  — Compose une couleur RGB
+   couleur ( r g b -- color )  — Compose une couleur RGB
+
+WIDGETS (systeme d'UI fenetre) :
+--------------------------------
+   button:   ( x y w h ) "Label" [mot]  — Cree un bouton (interprete seulement)
+   button-push ( x y w h ) "Label" [mot] — Cree un bouton (compile ou interprete)
+   textfield: ( x y w h -- )             — Cree un champ texte
+   list:      ( x y w h -- )             — Cree une liste
+   list-add   ( addr len -- )            — Ajoute un element a la derniere liste
+   widgets-clear ( -- )                  — Vide tous les widgets
+   widgets-draw ( wx wy ww wh -- )       — Dessine tous les widgets
+
+   Le mot optionnel [mot] est execute au clic sur le bouton.
+   Les positions sont relatives a la zone de contenu de la fenetre.
+   Ces mots sont destines aux fenetres creees avec app:.
 
 ENTREES :
 ---------
@@ -647,28 +668,73 @@ HEAP (MEMOIRE RUST) :
   heap-used ( -- u )          — Nombre d'octets alloues sur le heap
                                 (allocateur a free-list, libere reellement)
 
-DISQUE DUR (AHCI / SATA) :
----------------------------
-  Commande le controleur AHCI directement via PCI, détecte les disques
-  SATA et monte les partitions FAT32. Ne fonctionne que sur du matériel
-  réel (pas d'émulation).
+DISQUE DUR (AHCI / SATA / NVMe) :
+---------------------------------
+   Epona OS supporte deux types de contrôleurs de stockage :
+     - AHCI  (SATA) — Contrôleur SATA classique (desktop/laptop)
+     - NVMe         — SSD modernes sur bus PCI Express
 
-  disk:init         ( -- bool )     — Initialise AHCI + monte FAT32
-  disk:ls <chemin>  ( -- )          — Liste le répertoire (ex: disk:ls /)
-  disk:read <fich>  ( addr -- n )   — Lit fichier dans la mémoire Forth
-  disk:write <fich> ( addr len -- ) — Écrit la mémoire vers le disque
-                                       (écriture non implémentée pour l'instant)
+   Il détecte automatiquement le contrôleur présent, initialise le
+   pilote correspondant et monte les partitions. Ne fonctionne que
+   sur du matériel réel (pas d'émulation).
 
-  Exemple :
-    disk:init .            \ Affiche 1 si disque détecté
-    disk:ls /              \ Liste la racine du disque
-    0x1000 disk:read /monfichier.txt .  \ Lit fichier, affiche taille
+   Formats supportés (détection automatique) :
+     - FAT32      — Système de fichiers Windows/clé USB
+     - NTFS       — Système de fichiers Windows (lecture seule)
+     - ext2/3/4   — Système de fichiers Linux (lecture seule)
 
-  Notes :
-    - Les chemins utilisent / (barre oblique) comme séparateur
-    - disk:read place le fichier dans la mémoire Forth (VM) à partir
-      de l'adresse donnée. Le nombre d'octets lus est laissé sur la pile.
-    - Fonctionne avec MBR et GPT — détection automatique
+   disk:init         ( -- bool )     — Initialise le stockage + monte le disque
+   disk:ls <chemin>  ( -- )          — Liste le répertoire (ex: disk:ls /)
+   disk:read <fich>  ( addr -- n )   — Lit fichier dans la mémoire Forth
+   disk:write <fich> ( addr len -- ) — Écrit la mémoire Forth vers le disque
+                                         (FAT32 uniquement ; NTFS/ext2 en lecture seule)
+
+   Exemples :
+      disk:init .            \ Affiche 1 si disque détecté
+      disk:ls /              \ Liste la racine du disque
+      0x1000 disk:read /monfichier.txt .  \ Lit fichier, affiche taille
+      \ Écrire sur le disque (FAT32 seulement) :
+      \ 0x1000 1024 disk:write /SORTIE.DAT
+
+NOUVEAUX MOTS FORTH (v2) :
+--------------------------
+   s" <texte>"   ( -- addr len ) — Chaîne en mémoire Forth
+                    Ex: s" hello" disk:write /TEST.TXT
+
+   again         ( -- )         — Retour au begin (boucle infinie)
+                    begin ... again  (utiliser exit pour sortir)
+
+DÉBOGUEUR FORTH :
+-----------------
+   trace         ( -- )         — Active/désactive le mode trace
+                                  (affiche chaque instruction avant exécution)
+   step          ( -- )         — Active le mode pas-à-pas
+                                  (exécute une instruction puis s'arrête)
+    .ops          ( -- )         — Affiche le bytecode compilé du dernier mot
+
+   break         ( -- )         — Liste les breakpoints
+   break <mot>   ( -- )         — Ajoute un breakpoint sur <mot>
+   unbreak <mot> ( -- )         — Supprime un breakpoint
+   watch         ( -- )         — Liste les variables surveillées
+   watch <var>   ( -- )         — Ajoute <var> aux variables surveillées
+   unwatch <var> ( -- )         — Retire <var> de la surveillance
+
+   Touches en mode step :
+     s ou Entrée  — Pas-à-pas (exécute l'instruction et s'arrête)
+     c            — Continue jusqu'au prochain breakpoint
+     t            — Active/désactive le mode trace
+     q            — Quitte le débogueur
+     p            — Affiche les 10 premières valeurs de la pile
+     h            — Aide (affiche les touches disponibles)
+
+ Notes :
+     - Les chemins utilisent / (barre oblique) comme séparateur
+     - disk:read place le fichier dans la mémoire Forth (VM) à partir
+       de l'adresse donnée. Le nombre d'octets lus est laissé sur la pile.
+     - Fonctionne avec MBR et GPT — détection automatique
+     - Le système de fichiers est détecté automatiquement au moment
+       de disk:init (teste FAT32 → NTFS → ext2 dans l'ordre)
+     - disk:init essaie d'abord AHCI (SATA), puis NVMe si AHCI est absent
 
 CONTROLE SYSTEME :
 ------------------
