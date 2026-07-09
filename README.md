@@ -231,6 +231,15 @@ SOURIS ET CLAVIER :
                   Fleches = deplacement, Espace = clic
                   1-5 = vitesse du curseur
 
+  Clavier PS/2 (fallback i8042) — initialise automatiquement :
+    - Scancode set 1 complet (lettres, chiffres, F1-F12, Home, End,
+      PgUp, PgDn, Ins, Del, fleches, pavé numerique, etc.)
+    - Modifieurs : Shift (G/D), Ctrl (G/D), Alt (G/D), Win (G/D)
+    - Toggle : Caps Lock, Num Lock, Scroll Lock
+    - Repeat rate : 10.9 Hz, delai 500 ms
+    - LEDs synchronisees avec l'etat interne
+    - Fallback automatique si le clavier UEFI ne repond pas
+
 RACCOURCIS GLOBAUX :
 --------------------
   F1            — Menu Demarrer
@@ -372,6 +381,7 @@ COMMENTAIRES :
   Les commentaires entre parentheses servent souvent a documenter
   l'effet d'un mot sur la pile :
     ( avant -- apres )
+
     ( n1 n2 -- somme )
 
 
@@ -398,6 +408,12 @@ MANIPULATION DE LA PILE :
    pile                        — Affiche toute la pile
    depth   ( -- n )            — Profondeur de la pile
    .s      ( -- )              — Affiche la pile sans la detruire
+
+MANIPULATION DE LA PILE DE RETOUR :
+-----------------------------------
+  >r      ( x -- )            — Transfere x sur la pile de retour (rstack)
+  r>      ( -- x )            — Recupere x depuis la pile de retour (rstack)
+  r@      ( -- x )            — Copie le sommet de la pile de retour (rstack)
 
 ARITHMETIQUE :
 --------------
@@ -705,7 +721,10 @@ CANVAS FORTH (zone protegee 400x300) :
   rect    ( x y w h col -- )  — Rectangle dans le canvas
   ligne   ( x1 y1 x2 y2 col -- ) — Ligne dans le canvas
   effacer ( color -- )        — Efface le canvas
-   couleur ( r g b -- color )  — Compose une couleur RGB
+  couleur ( r g b -- color )  — Compose une couleur RGB
+  fb:blit ( src_x src_y w h dst_x dst_y -- )
+                             — Copie un bloc w×h du framebuffer
+                               vers (dst_x,dst_y) (gère l'overlap)
 
 WIDGETS (systeme d'UI fenetre) :
 --------------------------------
@@ -729,8 +748,223 @@ ENTREES :
   souris? ( -- flag )         — 1 si souris detectee
   attendre ( ms -- )          — Pause en millisecondes
 
+XHCI (SOURIS USB 3.0) :
+-----------------------
+   xhci-init    ( -- ok? )     — Initialise le controleur XHCI et scanne les ports
+   xhci-souris  ( -- dx dy btn ) — Lit le delta souris et les boutons
+   xhci-souris? ( -- flag )    — 1 si une souris USB HID est detectee
+
+HDA (AUDIO HD) :
+-----------------
+   hda-init    ( -- ok? )     — Initialise le contrôleur HDA et détecte le codec audio
+   hda-play    ( addr len rate -- ok? )
+                               — Joue un buffer PCM 16-bit stéréo (44100 ou 48000 Hz)
+                                 addr = adresse mémoire Forth, len = taille en octets
+   hda-stop    ( -- )          — Arrête la lecture en cours
+   hda-volume  ( vol -- )      — Règle le volume (0..100)
+   hda-info    ( -- )          — Affiche les infos du codec audio (vendor, NIDs, volume...)
+   hda-beep    ( freq ms -- )  — Génère un bip à la fréquence freq (Hz) pendant ms ms
+   hda-status  ( -- playing? ) — 1 si un son est en cours de lecture
+
+   Note : xhci-init est appele automatiquement au demarrage.
+   Le polling XHCI est permanent dans la boucle principale.
+   Les mots xhci-souris/souris? lisent les dernieres donnees en memoire.
+
+I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
+--------------------------------------------
+   Le driver I2C HID detecte automatiquement les touchpads
+   connectes sur le bus I2C (controleur DesignWare).
+
+   Detection automatique au demarrage (via PCI ou ACPI).
+   Supporte les formats multitouch suivants :
+     - Microsoft Precision Touchpad (PTP)
+     - Synaptics
+     - ELAN
+     - Fallback simple 6-octets
+
+   Gestes reconnus (integration dans PointerManager) :
+     - Tap 1 doigt        → clic gauche
+     - Tap 2 doigts       → clic droit
+     - Tap 3 doigts       → clic milieu
+     - Glisser 1 doigt    → Drag (maintien + deplacement)
+     - Scroll 2/3 doigts  → defilement horizontal/vertical
+     - Pinch 2 doigts     → zoom (pincement/ecartement)
+     - Swipe              → balayage rapide (lift apres mouvement)
+
+   Primitives (interpretees depuis Forth) :
+     i2c.probe ( base -- )           — Scrute toutes les adresses HID
+                                       sur un controleur I2C
+     dw-i2c-init  ( base -- ok? )    — Initialise controleur I2C
+     dw-i2c-probe ( base addr -- ok? ) — Teste peripherique I2C
+     i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
+
+   Calibration :
+     - Marges de 20px sur chaque bord
+     - Dead zone de 3px (evite les micro-mouvements)
+     - Smoothing fenetre de 2 trames (filtrage du bruit)
+     - Ajustable dynamiquement via l'API Rust
+
+USB GENERIQUE (primitives usb:*) :
+-----------------------------------
+   usb:init      ( -- ok? )  — (Re)initialise le controleur XHCI et re-enumere tous les ports
+   usb:devices   ( -- n slot1 port1 speed1 vid1 pid1 conf1 ... )
+                             — Retourne le nombre de peripheriques puis 6 valeurs par device
+                               (au fond de la pile : n)
+   usb:control   ( slot_id bmReqType bReq wVal wIdx buf_addr buf_len -- actual )
+                             — Control transfer generique EP0
+                               Si bmReqType & 0x80 = IN, lit depuis buf_addr
+                               Sinon OUT avec les donnees a buf_addr
+   usb:read      ( slot_id buf_addr buf_len -- actual )
+                             — Lecture via interrupt IN (si peripherique configure)
+                               Fallback control IN (bmReqType=0x80, bReq=0)
+   usb:write     ( slot_id buf_addr buf_len -- actual )
+                             — Control OUT (bmReqType=0x00, bReq=0)
+
+   Les buffers Forth sont copies vers/depuis des pages physiques temporaires.
+   usb:read ne fonctionne en interrupt IN que pour les peripheriques avec
+   un transfer_ring configure (ex: souris HID).
+   Les primitives usb:* ne gerent pas encore le bulk generique ni la
+   configuration dynamique d'endpoints.
+
+   Exemple — lister les peripheriques USB :
+     usb:devices
+     dup . ." peripheriques USB" cr
+     0 ?do
+       drop drop drop drop drop drop
+     loop
+
+   Exemple — lire le descripteur de peripherique (device descriptor, 18 octets) :
+     \ slot_id=1, GET_DESCRIPTOR(device)=1, wVal=0x0100, wIdx=0
+     \ buf_addr=100 (memoire Forth), buf_len=18
+     1 0x80 6 0x0100 0 100 18 usb:control .
+     \ Lit les 18 premiers octets du buffer memoire Forth
+
+RÉSEAU (primitives net:) :
+---------------------------
+  Cartes supportées (détection automatique au net:init) :
+    - Intel e1000/e1000e    — 82540EM, 82574L, I217, I218, I219
+    - Realtek RTL8168/8111  — RTL8168, RTL8111, RTL8169, RTL8101E
+    - Realtek RTL8821CE     — Wi-Fi PCIe (firmware requis via net:firmware)
+
+  Primitives de base :
+    net:init    ( -- ok? )     — Initialise la première carte réseau trouvée
+    net:firmware ( addr len -- ok? )
+                                — Upload le firmware RTL8821CE depuis la mémoire Forth
+                                  (firmware rtw8821c_fw.bin depuis
+                                   github.com/endlessm/linux-firmware)
+    net:send    ( buf_addr len -- ok? )
+                                — Envoie un paquet Ethernet brut
+    net:recv    ( buf_addr maxlen -- actual )
+                                — Reçoit un paquet Ethernet
+    net:mac     ( -- mac_hi mac_lo )
+                                — Adresse MAC (48 bits sur 2 mots)
+    net:status  ( -- link_up? ) — 1 si le lien est actif
+    net:info    ( -- )          — Affiche les infos de la carte active
+    net:cards   ( -- n )        — Nombre de cartes réseau détectées
+
+  Pile réseau (ARP/IP/ICMP/UDP/TCP/DHCP/DNS) :
+    net:ip!     ( a b c d -- )  — Configure l'IP locale
+    net:ip@     ( -- a b c d )  — Lit l'IP locale
+    net:mask!   ( a b c d -- )  — Configure le masque de sous-réseau
+    net:gw!     ( a b c d -- )  — Configure la passerelle
+    net:dns!    ( a b c d -- )  — Configure le serveur DNS
+    net:ping    ( a b c d -- ms|-1 )
+                                — Ping une IP, retourne le temps en ms (-1 = timeout)
+    net:arp     ( a b c d -- ok? )
+                                — Résout une adresse MAC (ARP)
+    net:dhcp    ( -- ok? )      — Obtient une IP automatiquement
+    net:dns     ( name_addr name_len -- a b c d )
+                                — Résout un nom DNS (ex: "google.com")
+    net:poll    ( -- )          — Traite les paquets réseau entrants
+
+  UDP :
+    net:udp-send ( dst_a dst_b dst_c dst_d dst_port src_port buf_addr len -- ok? )
+                                — Envoie un paquet UDP
+    net:udp-recv ( buf_addr maxlen -- actual_len src_ip_packed src_port )
+                                — Reçoit un paquet UDP
+
+  TCP :
+    net:tcp-connect ( a b c d port -- sock|-1 )
+                                — Ouvre une connexion TCP
+    net:tcp-send ( sock buf_addr len -- ok? )
+                                — Envoie des données TCP
+    net:tcp-recv ( sock buf_addr maxlen -- actual )
+                                — Reçoit des données TCP
+    net:tcp-close ( sock -- )   — Ferme la connexion TCP
+
+  Utilitaires :
+    net:stack-info ( -- )       — Affiche la config IP/ARP/TCP
+    net:cards      ( -- n )     — Nombre de cartes (alias)
+
+  Exemple — configuration manuelle :
+    net:init 0= if ." Pas de carte" cr then
+    net:info
+    192 168 1 100 net:ip!
+    255 255 255 0 net:mask!
+    192 168 1 1 net:gw!
+    8 8 8 8 net:dns!
+
+  Exemple — DHCP :
+    net:dhcp if ." IP obtenue" cr net:stack-info then
+
+   Exemple — ping :
+    net:init drop
+    8 8 8 8 net:ping dup 0 < if ." timeout" else . ." ms" then cr
+
+GPU (ACCELERATION 2D — Intel/AMD) :
+-----------------------------------
+   Primitives de base :
+     gpu:init       ( -- ok? )     — Initialise le GPU detecte (Intel i915 ou AMD Radeon)
+     gpu:info       ( -- )          — Affiche les infos du GPU (modele, MMIO, blitter/sDMA)
+     gpu:accel?     ( -- flag )     — 1 si l'acceleration materielle 2D est active
+     gpu:resolution ( -- w h )      — Resolution courante de l'ecran
+
+   Double buffering :
+     gpu:fb-addr    ( -- addr )     — Adresse du back buffer (la ou on dessine)
+     gpu:fb-stride  ( -- stride )   — Stride en octets (largeur * 4 pour 32bpp)
+     gpu:flip       ( -- )          — Echange front/back buffer (affiche le back buffer)
+     gpu:vsync      ( -- )          — Attend le retour vertical (VBlank)
+
+   Remplissage et copie acceleres :
+     gpu:fill       ( x y w h color -- )
+                                    — Remplit un rectangle avec une couleur (32-bit 0xRRGGBB)
+                                      Utilise le blitter (Intel) ou sDMA (AMD) si disponible
+     gpu:blit       ( sx sy w h dx dy -- )
+                                    — Copie un rectangle (sx,sy) -> (dx,dy)
+                                      Gère le chevauchement (copie directionnelle)
+
+   Curseur materiel :
+     gpu:cursor     ( x y -- )      — Positionne le curseur materiel (64x64 ARGB)
+
+   Modesetting :
+     gpu:modeset    ( w h -- ok? )  — Change la resolution (limitee au mode UEFI actuel)
+
+   Fallback software :
+     Si le GPU n'est pas reconnu ou si le blitter ne demarre pas,
+     les operations gpu:fill, gpu:blit et gpu:flip utilisent
+     un fallback software qui opere directement sur le framebuffer.
+
+   Exemple — animation simple :
+     : carre-promeneur
+        gpu:init drop
+        0 0 100 100 0
+        begin
+            gpu:resolution gpu:fill      \ fond noir
+            2dup 50 50 0xFF4444 gpu:fill \ carre rouge
+            gpu:vsync gpu:flip
+            10 ms
+            \ deplacement
+            swap
+            3 + over gpu:resolution drop < if drop 0 then
+            swap
+            2 + over gpu:resolution nip < if drop 0 then
+            touche? 27 =
+        until
+        2drop
+     ;
+
 HORLOGE :
----------
+----------
   get-time ( -- sec min hour day month year )  — Lit l'heure RTC
   set-time ( year month day hour minute sec -- ) — Change l'heure
   rdtsc    ( -- ticks )       — Compteur CPU haute precision
@@ -831,10 +1065,47 @@ HEAP (MEMOIRE RUST) :
                                 (allocateur a free-list, libere reellement)
 
 DISQUE DUR (AHCI / SATA / NVMe) :
----------------------------------
+--------------------------------
    Epona OS supporte deux types de contrôleurs de stockage :
      - AHCI  (SATA) — Contrôleur SATA classique (desktop/laptop)
      - NVMe         — SSD modernes sur bus PCI Express
+
+   Primitives NVMe (accès bloc direct) :
+   -------------------------------------
+     nvme:init      ( -- ok? )     — Initialise le contrôleur NVMe et détecte les namespaces
+     nvme:read      ( idx lba count buf_addr -- actual_bytes )
+                                    — Lit count blocs depuis le namespace idx (0-based)
+                                      à partir du LBA lba dans la mémoire Forth à buf_addr
+     nvme:write     ( idx lba count buf_addr -- actual_bytes )
+                                    — Écrit count blocs depuis la mémoire Forth à buf_addr
+                                      vers le namespace idx au LBA lba
+
+   Primitives NVMe additionnelles (Rust → Forth) :
+   -----------------------------------------------
+     nvme_lba_size      ( -- size )     — Taille d'un LBA en octets (généralement 512)
+     nvme_total_lbas    ( -- total )    — Nombre total de LBAs du premier namespace
+     nvme_capacity      ( -- lo hi )    — Capacité totale en octets (2 valeurs pour 64-bit)
+     nvme_info_string   ( -- )          — Affiche les infos du disque NVMe (modèle, série, firmware)
+
+    Primitives AHCI (SATA) :
+    ------------------------
+      ahci:init      ( -- ok? )     — Initialise le contrôleur AHCI et détecte les ports
+      ahci:drives    ( -- n )       — Nombre de disques SATA détectés
+      ahci:read      ( idx lba count buf_addr -- ok? )
+                                     — Lit count blocs (512 octets) depuis le disque idx
+                                       à partir du LBA lba dans la mémoire Forth à buf_addr
+      ahci:write     ( idx lba count buf_addr -- ok? )
+                                     — Écrit count blocs depuis la mémoire Forth à buf_addr
+                                       vers le disque idx au LBA lba
+      ahci:info      ( -- )         — Affiche les infos de tous les disques AHCI (modèle,
+                                       firmware, série, capacité, taille de bloc)
+
+    Utilise le même mécanisme d'allocation de pages physiques que NVMe.
+    idx = index de disque AHCI (0 = premier disque SATA détecté).
+
+    Les primitives NVMe allouent/free des pages physiques pour le transfert DMA.
+    LBA = Logical Block Address (adresse de secteur, généralement 512 ou 4096 octets).
+    idx = index du namespace NVMe (0 = premier disque NVMe).
 
    Il détecte automatiquement le contrôleur présent, initialise le
    pilote correspondant et monte les partitions. Ne fonctionne que
@@ -850,32 +1121,6 @@ DISQUE DUR (AHCI / SATA / NVMe) :
    disk:read <fich>  ( addr -- n )   — Lit fichier dans la mémoire Forth
    disk:write <fich> ( addr len -- ) — Écrit la mémoire Forth vers le disque
                                          (FAT32 uniquement ; NTFS/ext2 en lecture seule)
-
-   Exemples :
-      disk:init .            \ Affiche 1 si disque détecté
-      disk:ls /              \ Liste la racine du disque
-      0x1000 disk:read /monfichier.txt .  \ Lit fichier, affiche taille
-      \ Écrire sur le disque (FAT32 seulement) :
-      \ 0x1000 1024 disk:write /SORTIE.DAT
-
-NOUVEAUX MOTS FORTH (v2) :
---------------------------
-   s" <texte>"   ( -- addr len ) — Chaîne en mémoire Forth
-                    Ex: s" hello" disk:write /TEST.TXT
-
-   again         ( -- )         — Retour au begin (boucle infinie)
-                    begin ... again  (utiliser exit pour sortir)
-
-DÉBOGUEUR FORTH :
------------------
-   trace         ( -- )         — Active/désactive le mode trace
-                                  (affiche chaque instruction avant exécution)
-   step          ( -- )         — Active le mode pas-à-pas
-                                  (exécute une instruction puis s'arrête)
-    .ops          ( -- )         — Affiche le bytecode compilé du dernier mot
-
-   break         ( -- )         — Liste les breakpoints
-   break <mot>   ( -- )         — Ajoute un breakpoint sur <mot>
    unbreak <mot> ( -- )         — Supprime un breakpoint
    watch         ( -- )         — Liste les variables surveillées
    watch <var>   ( -- )         — Ajoute <var> aux variables surveillées
@@ -1282,4 +1527,3 @@ R: Definissez un mot "principal" avec une boucle begin...until.
 ================================================================================
                     Epona OS — Fait avec passion en Rust
                     Interprete Forth integre — EponaForth
-================================================================================
