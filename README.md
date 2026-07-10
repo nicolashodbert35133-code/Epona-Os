@@ -933,11 +933,39 @@ GPU (ACCELERATION 2D — Intel/AMD) :
                                     — Copie un rectangle (sx,sy) -> (dx,dy)
                                       Gère le chevauchement (copie directionnelle)
 
-   Curseur materiel :
-     gpu:cursor     ( x y -- )      — Positionne le curseur materiel (64x64 ARGB)
+    Curseur materiel :
+      gpu:cursor     ( x y -- )      — Positionne le curseur materiel
+                                       Surface 64×64 ARGB (32-bit par pixel)
+                                       Image : flèche par défaut (hardcodée)
+                                       Hotspot : (0,0) - non configurable
+                                       Alpha : supporté par le matériel (ARGB)
+                                       Animations : non implémentées
 
-   Modesetting :
-     gpu:modeset    ( w h -- ok? )  — Change la resolution (limitee au mode UEFI actuel)
+   Modesetting natif (Intel Gen 9+ / AMD DCE) :
+     gpu:modeset    ( w h -- ok? )  — Change la resolution. Utilise le modesetting natif
+                                      (DPLL, CRTC, timings) si le GPU le supporte.
+                                      Résolutions standard: 640x480, 800x600, 1024x768,
+                                      1280x720, 1280x1024, 1366x768, 1440x900, 1600x900,
+                                      1680x1050, 1920x1080.
+                                      Les timings CEA/VESA sont pre-calcules.
+
+   Gestion multi-écran :
+     gpu:outputs        ( -- n )       — Nombre de sorties detectees
+     gpu:select-output  ( idx -- ok? ) — Selectionne la sortie active
+     gpu:output-info    ( idx -- w h enabled? )
+                                        — Infos d'une sortie (largeur, hauteur, active?)
+     gpu:output-enable  ( idx w h -- ok? )
+                                        — Active une sortie avec une resolution
+     gpu:output-disable ( idx -- )      — Desactive une sortie
+     gpu:output-flip    ( idx -- )      — Flip sur une sortie specifique
+     gpu:output-fb      ( idx -- addr stride )
+                                        — Adresse du framebuffer d'une sortie
+     gpu:output-edid    ( idx -- valid? )
+                                        — Lit l'EDID d'une sortie (1 si detecte)
+
+   Le driver detecte automatiquement les ecrans connectes (jusqu'a 4 sorties).
+   Chaque sortie a son propre framebuffer et peut avoir une resolution differente.
+   Les EDID sont lus via GMBUS (Intel) ou I2C engine (AMD).
 
    Fallback software :
      Si le GPU n'est pas reconnu ou si le blitter ne demarre pas,
@@ -963,6 +991,16 @@ GPU (ACCELERATION 2D — Intel/AMD) :
         2drop
      ;
 
+   Exemple — multi-ecran :
+     gpu:init drop
+     gpu:outputs . ." sorties" cr
+     \ Activer la sortie 1 en 1280x720
+     1 1280 720 gpu:output-enable .
+     \ Afficher les infos de la sortie 0
+     0 gpu:output-info ." x" . ." active=" . cr
+     \ Lire l'EDID de la sortie 0
+     0 gpu:output-edid if ." EDID detecte" else ." Pas d'EDID" then cr
+
 HORLOGE :
 ----------
   get-time ( -- sec min hour day month year )  — Lit l'heure RTC
@@ -980,12 +1018,23 @@ PCI (PERIPHERIQUES) :
   pci!     ( val bus dev func off -- ) — Ecrit config PCI
   pci-bar  ( bus dev func barn -- ... ) — Lit un BAR PCI
 
-ACPI :
-------
-  acpi-rsdp   ( -- addr )     — Adresse de la table RSDP
-  acpi-find   ( sig -- addr ) — Cherche une table ACPI par signature
-  acpi-hdr    ( addr -- sig len ) — Lit l'en-tete d'une table
-  acpi-tables ( -- n addr... ) — Liste toutes les tables
+ACPI (TABLES + POWER MANAGEMENT) :
+-----------------------------------
+  Primitives table :
+    acpi-rsdp   ( -- addr )     — Adresse de la table RSDP
+    acpi-find   ( sig -- addr ) — Cherche une table ACPI par signature
+    acpi-hdr    ( addr -- sig len ) — Lit l'en-tete d'une table
+    acpi-tables ( -- n addr... ) — Liste toutes les tables
+
+  Power management (via UEFI Runtime Services) :
+    reboot      ( -- )          — Redemarrage a chaud (WARM reset)
+    poweroff    ( -- )          — Arret complet (S5)
+
+  Non implémente :
+    - Sleep S3 (suspend to RAM)   → Nécessite manipulation DSDT/EC
+    - Battery (laptop)             → Nécessite EC/SMBus ACPI
+    - Wake events                  → Nécessite GPE/SCI
+    - CPU throttling/P-states      → Nécessite _PSS/_PPC dans DSDT
 
 SMBIOS :
 --------
@@ -1150,10 +1199,29 @@ CONTROLE SYSTEME :
 
 
 ===============================================================================
-6. SYSTEME DE FICHIERS (CLE USB)
-================================================================================
+6. SYSTEME DE FICHIERS (CLE USB + DISQUES DURS)
+===============================================================================
 
 Epona OS peut lire et ecrire sur la cle USB au format FAT32.
+
+Il supporte aussi les disques durs internes (SATA/AHCI, NVMe) :
+  - FAT32      — Lecture/ecriture
+  - NTFS       — Lecture seule (disques Windows)
+  - ext2/3/4   — Lecture seule (disques Linux)
+
+COMMANDES DISQUE DUR (disk:*) :
+--------------------------------
+  disk:init             — Init stockage + detecte FS auto
+  disk:ls <chemin>      — Liste un repertoire
+  disk:read <fichier>   — Lit fichier en memoire Forth
+    ( addr -- len )
+  disk:write <fichier>  — Ecrit la memoire vers disque
+    ( addr len -- )       (FAT32 seulement)
+
+  Exemple :
+    disk:init .
+    disk:ls /
+    disk:ls /home
 
 MOTS FORTH POUR LES FICHIERS :
 -------------------------------
@@ -1441,11 +1509,84 @@ MACHINE VIRTUELLE FORTH :
     VariableAddr(n) — Empile l'adresse d'une variable
     Exit            — Retour d'un mot
 
-  Securite :
-    - Limite de 10 millions d'instructions (anti-boucle infinie)
-    - Stack overflow detecte (4096 elements max)
-    - Mode securise (bloque les acces materiel dangereux)
-    - F9 = arret d'urgence avec dump sur USB
+   Securite :
+     - Mode securise (shell: secure on/off) : bloque les acces materiel
+       (MMIO, PCI, PORT, alloc, reboot, poweroff, etc.)
+     - Sandbox memoire : non implementee (pas d'isolation par tache)
+     - Sandbox fichiers : non implementee (toute tache peut lire/ecrire)
+     - Sandbox reseau   : non implementee
+     - Limite de 10 millions d'instructions (anti-boucle infinie)
+     - Stack overflow detecte (4096 elements max)
+     - F9 = arret d'urgence avec ecriture CRASH.TXT sur la cle USB
+
+   Multitache Forth :
+     Les taches Forth utilisent des snapshots de la VM (pile, rstack, IP).
+     Le dictionnaire est partage entre toutes les taches.
+
+     Primitives :
+       task <idx>  ( idx -- tid )   — Cree une tache a partir d'un mot
+                                       (par index dans "words")
+       stop        ( -- )           — Termine la tache courante
+       tasks       ( -- )           — Liste les taches
+
+     Ordonnancement :
+       Cooperatif (time-slicing, 2000 instructions/part)
+       Scheduling par priorite (round-robin)
+       Le shell principal reste tache 0
+       Les taches filles sont executees dans la boucle principale a cote du shell
+
+   Gestion des erreurs Forth :
+     - Arret sur overflow/underflow de pile (avec message)
+     - Arret sur mot inconnu
+     - F9 : break d'urgence (insere "[F9 BREAK]" dans le shell)
+     - Exceptions Forth : try/catch/throw implementes (voir section EXCEPTIONS)
+     - Logs système : buffer circulaire 128 entrées, horodaté (ticks_ms)
+       - Toute sortie Forth est aussi enregistrée dans le syslog
+       - Le crash dump (F9) inclut le syslog complet avec timestamps
+       - sys:log <msg>  — écrit dans le syslog ET dans BOOT.LOG sur USB
+     - Le dump de crash (F9) ecrit l'etat de la VM sur USB
+
+   Exceptions Forth (try / catch / throw) :
+     Syntaxe (mots compiles) :
+       try
+         ... code protege ...
+         (si erreur : n throw)
+         0 (pas d'erreur)
+       catch
+         ... gestionnaire (n sur la pile) ...
+       endtry
+
+     throw ( n -- )  — Lance une exception avec le code n.
+                       Restaure la pile au niveau du try correspondant,
+                       place n sur la pile et saute dans le bloc catch.
+
+     Exemple :
+       : test
+         try
+           42 throw
+           0
+         catch
+           ." Erreur attrapee: " . cr
+         endtry
+       ;
+
+     Exemple — division securisee :
+       : div-safe ( a b -- result | err )
+         try
+           ?dup 0= if 1 throw then
+           /
+           0
+         catch
+           drop drop ." Division par zero!" cr
+         endtry
+       ;
+
+     Notes :
+       - try/catch/endtry sont des mots compiles (pas interpretes)
+       - throw fonctionne en compile ET en interprete
+       - Les try peuvent etre imbriques
+       - throw restaure la pile ET la pile de retour au niveau du try
+       - Si aucun catch ne correspond : erreur "Throw non rattrape"
 
 
 ================================================================================
@@ -1527,3 +1668,4 @@ R: Definissez un mot "principal" avec une boucle begin...until.
 ================================================================================
                     Epona OS — Fait avec passion en Rust
                     Interprete Forth integre — EponaForth
+================================================================================
