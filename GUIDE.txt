@@ -136,6 +136,15 @@ COMMANDES SYSTEME :
   log             — Affiche le journal systeme
   words           — Liste tous les mots Forth disponibles
   secure on|off   — Active/desactive le mode securise
+  file-allow      ( addr len -- )  — Ajoute un chemin a la whitelist fichiers
+  file-revoke-all ( -- )           — Vide la whitelist fichiers
+  mem-bounds      ( low high -- )  — Restreint la memoire accessible
+  net-allow       ( -- )           — Active le reseau
+  net-revoke      ( -- )           — Desactive le reseau
+                                     par @ ! +! a [low..high[
+                                     Utilise 0 4096 mem-bounds pour tout
+                                     debloquer, ou 0 256 mem-bounds pour
+                                     un petit espace de travail.
 
 COMMANDES MATERIEL :
 --------------------
@@ -614,8 +623,11 @@ I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
    connectes sur le bus I2C (controleur DesignWare).
 
    Detection automatique au demarrage (via PCI ou ACPI).
+   IDs ACPI recherches : AMDI0010, AMD0010, AMDI0019, AMDI0510,
+                         ELAN071A, ELAN0000, SYNA0000, MSFT0001,
+                         PNP0C50, APP0006, APP000D, APP000E
    Supporte les formats multitouch suivants :
-     - Microsoft Precision Touchpad (PTP)
+     - Microsoft Precision Touchpad (PTP) — aussi Apple Magic Trackpad
      - Synaptics
      - ELAN
      - Fallback simple 6-octets
@@ -629,18 +641,35 @@ I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
      - Pinch 2 doigts     → zoom (pincement/ecartement)
      - Swipe              → balayage rapide (lift apres mouvement)
 
-   Primitives (interpretees depuis Forth) :
+   Primitives bas niveau I2C (interpretees depuis Forth) :
      i2c.probe ( base -- )           — Scrute toutes les adresses HID
                                        sur un controleur I2C
      dw-i2c-init  ( base -- ok? )    — Initialise controleur I2C
      dw-i2c-probe ( base addr -- ok? ) — Teste peripherique I2C
      i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
 
-   Calibration :
-     - Marges de 20px sur chaque bord
-     - Dead zone de 3px (evite les micro-mouvements)
-     - Smoothing fenetre de 2 trames (filtrage du bruit)
-     - Ajustable dynamiquement via l'API Rust
+   Nouvelles primitives I2C HID (274-279) :
+     i2c:status    ( -- found initialized )
+                             — 1 si touchpad trouve et initialise
+     i2c:read      ( -- x y left right )
+                             — Lit l'etat courant du touchpad
+                               (x,y en coordonnees 12-bit 0..4095)
+     i2c:gesture   ( -- type dx dy )
+                             — Lit le geste en cours
+                               0=none 1=tap 2=drag 3=scroll
+                               4=pinch 5=swipe 6=rightclick 7=middleclick
+     i2c:cal-set   ( margin_x margin_y dead_zone smoothing -- )
+                             — Regle la calibration dynamiquement
+     i2c:cal-get   ( -- margin_x margin_y dead_zone smoothing )
+                             — Lit la calibration courante
+     i2c:contacts  ( -- n ) — Nombre de contacts actifs
+
+   Calibration (dynamic via i2c:cal-set / i2c:cal-get) :
+     - Marges (margin_x, margin_y) : 0..2000, defaut 20px
+     - Dead zone (dead_zone) : 0..20, defaut 3px
+       Supprime les micro-mouvements en dessous du seuil
+     - Smoothing (smoothing) : 0..8, defaut 2
+       Filtre exponentiel (0=aucun, 8=tres lisse)
 
 USB GENERIQUE (primitives usb:*) :
 -----------------------------------
@@ -658,11 +687,43 @@ USB GENERIQUE (primitives usb:*) :
    usb:write     ( slot_id buf_addr buf_len -- actual )
                              — Control OUT (bmReqType=0x00, bReq=0)
 
-   Les buffers Forth sont copies vers/depuis des pages physiques temporaires.
-   usb:read ne fonctionne en interrupt IN que pour les peripheriques avec
-   un transfer_ring configure (ex: souris HID).
-   Les primitives usb:* ne gerent pas encore le bulk generique ni la
-   configuration dynamique d'endpoints.
+    Les buffers Forth sont copies vers/depuis des pages physiques temporaires.
+    usb:read utilise xhci_interrupt_in (legacy, souris HID detectee auto).
+    Pour lire depuis n'importe quel endpoint Interrupt/Bulk configure,
+    utiliser usb:bulk-read avec l'ep_addr souhaite.
+
+    usb:bulk-read   ( slot_id ep_addr buf_addr buf_len -- actual )
+                              — Lecture bulk IN depuis l'endpoint specifie
+                                (buf_addr = memoire Forth, buf_len = max octets a lire)
+    usb:bulk-write  ( slot_id ep_addr buf_addr buf_len -- actual )
+                              — Ecriture bulk OUT vers l'endpoint specifie
+                                (buf_addr = memoire Forth contenant les donnees)
+
+     Les endpoints bulk sont configures automatiquement lors de l'init USB
+     pour les peripheriques de stockage MSD (cf. section USB MSD ci-dessous).
+
+    usb:config-ep  ( slot_id ep_addr attr mps interval -- ok? )
+                              — Configure dynamiquement un endpoint sur un
+                                peripherique deja enumere
+                                ep_addr   = bEndpointAddress (bit7=dir, bits3:0=num)
+                                attr      = bmAttributes (0=control, 1=isoch,
+                                            2=bulk, 3=interrupt)
+                                mps       = wMaxPacketSize
+                                interval  = bInterval
+                                L'appel cree le transfer ring, remplit le
+                                contexte XHCI et envoie Configure Endpoint.
+    usb:stop-ep   ( slot_id ep_addr -- ok? )
+                              — Stoppe un endpoint (avant reconfiguration)
+    usb:reset-ep  ( slot_id ep_addr -- ok? )
+                              — Reset un endpoint
+
+    Exemple — configurer un endpoint Interrupt IN sur EP1 d'un HID :
+      1 0x81 0x03 8 10 usb:config-ep .
+      \ slot=1, ep_addr=0x81 (EP1 IN), attr=0x03 (Interrupt),
+      \ mps=8, interval=10ms -> ok?
+    Exemple — lire depuis l'endpoint Interrupt IN configure :
+      1 0x81 100 8 usb:bulk-read .
+      \ slot=1, ep_addr=0x81, buf=100, len=8 -> actual
 
    Exemple — lister les peripheriques USB :
      usb:devices
@@ -675,7 +736,40 @@ USB GENERIQUE (primitives usb:*) :
      \ slot_id=1, GET_DESCRIPTOR(device)=1, wVal=0x0100, wIdx=0
      \ buf_addr=100 (memoire Forth), buf_len=18
      1 0x80 6 0x0100 0 100 18 usb:control .
-     \ Lit les 18 premiers octets du buffer memoire Forth
+      \ Lit les 18 premiers octets du buffer memoire Forth
+
+USB MASS STORAGE (primitives usb:msd-*) :
+------------------------------------------
+   Primitives pour utiliser des cles USB et disques externes via le
+   protocole BOT (Bulk-Only Transport) + commandes SCSI.
+
+   usb:msd-probe  ( -- n )   — Detecte et initialise tous les peripheriques MSD
+                                Retourne le nombre de disques MSD trouves
+   usb:msd-info   ( idx -- slot_id bulk_in_ep bulk_out_ep lba_size total_lbas )
+                              — Infos d'un peripherique MSD par index (0-based)
+   usb:msd-read   ( idx lba count buf_addr -- ok? )
+                              — Lit 'count' blocs depuis le disque MSD 'idx'
+                                au LBA 'lba' dans la memoire Forth a 'buf_addr'
+   usb:msd-write  ( idx lba count buf_addr -- ok? )
+                              — Ecrit 'count' blocs depuis la memoire Forth
+                                vers le disque MSD 'idx' au LBA 'lba'
+
+   Les blocs font 'lba_size' octets (typiquement 512).
+   Les peripheriques MSD sont automatiquement detectes pendant usb:init
+   si un pilote est enregistre via sys:register.
+   Utiliser usb:msd-probe apres usb:init pour scanner et initialiser le BOT.
+
+   Exemple — lister et lire un bloc :
+     usb:init .
+     usb:msd-probe .
+     \ Affiche les infos du premier disque
+     0 usb:msd-info
+     ." Slot: " . ." BulkIn: " . ." BulkOut: " .
+     ." LBA size: " . ." Total LBAs: " . cr
+     \ Lit le premier bloc (512 octets) a l'adresse memoire 1000
+     0 0 1 1000 usb:msd-read .
+     \ Affiche les 16 premiers octets en hexa
+     16 0 do 1000 i + c@ . loop cr
 
 RÉSEAU (primitives net:) :
 ---------------------------
@@ -730,9 +824,27 @@ RÉSEAU (primitives net:) :
                                 — Reçoit des données TCP
     net:tcp-close ( sock -- )   — Ferme la connexion TCP
 
+  HTTP client (via TCP) :
+    net:http-get ( host_addr host_len path_addr path_len -- data_addr data_len status )
+                                — Effectue une requête HTTP GET.
+                                  host = chaîne en mémoire Forth (ex: "example.com")
+                                  path = chaîne en mémoire Forth (ex: "/index.html")
+                                  Retourne : addr = offset dans la mémoire Forth où se trouve
+                                  le corps de la réponse, len = taille, status = code HTTP
+                                  (200, 404, etc.) ou -1 si erreur.
+                                  Port 80 implicite. IPv4 uniquement.
+                                  La réponse est stockée dans la mémoire Forth étendue.
+
   Utilitaires :
     net:stack-info ( -- )       — Affiche la config IP/ARP/TCP
     net:cards      ( -- n )     — Nombre de cartes (alias)
+
+  Fonctionnalités réseau avancées (non implémentées — prévues) :
+    - TLS/SSL (chiffrement) : nécessite des primitives cryptographiques
+      (AES, RSA, SHA-256). Non disponible sans bibliothèque externe.
+    - WebSocket : upgrade HTTP + trames. Peut être implémenté sur TCP existant.
+    - DHCPv6 : nécessite une pile IPv6 complète.
+    - IPv6 RA / NDP / SLAAC : pile IPv6 complète à implémenter.
 
   Exemple — configuration manuelle :
     net:init 0= if ." Pas de carte" cr then
@@ -749,6 +861,19 @@ RÉSEAU (primitives net:) :
     net:init drop
     8 8 8 8 net:ping dup 0 < if ." timeout" else . ." ms" then cr
 
+   Exemple — HTTP GET :
+    net:init drop
+    net:dhcp drop
+    \ Créer la chaîne hôte en mémoire Forth
+    create host ," example.com"
+    create path ," /"
+    \ Requête HTTP
+    host 11 path 1 net:http-get ( -- data_addr data_len status )
+    cr ." Status: " . cr
+    ." Réponse (" . ." octets) :" cr
+    \ Afficher les 200 premiers octets
+    ( addr len ) over + swap do i @ emit loop cr
+
 GPU (ACCELERATION 2D — Intel/AMD) :
 -----------------------------------
    Primitives de base :
@@ -763,21 +888,42 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:flip       ( -- )          — Echange front/back buffer (affiche le back buffer)
      gpu:vsync      ( -- )          — Attend le retour vertical (VBlank)
 
-   Remplissage et copie acceleres :
+   Remplissage, lignes et copie accelerés :
      gpu:fill       ( x y w h color -- )
                                     — Remplit un rectangle avec une couleur (32-bit 0xRRGGBB)
                                       Utilise le blitter (Intel) ou sDMA (AMD) si disponible
      gpu:blit       ( sx sy w h dx dy -- )
                                     — Copie un rectangle (sx,sy) -> (dx,dy)
                                       Gère le chevauchement (copie directionnelle)
+     gpu:line       ( x1 y1 x2 y2 color -- )
+                                    — Trace une ligne diagonale (Bresenham).
+                                      Suit les diagonales parfaites sans escalier visible.
+                                      Couleur 32-bit 0xRRGGBB.
 
-    Curseur materiel :
-      gpu:cursor     ( x y -- )      — Positionne le curseur materiel
-                                       Surface 64×64 ARGB (32-bit par pixel)
-                                       Image : flèche par défaut (hardcodée)
-                                       Hotspot : (0,0) - non configurable
-                                       Alpha : supporté par le matériel (ARGB)
-                                       Animations : non implémentées
+   Alpha blending (software) :
+     gpu:blend      ( x y w h color alpha -- )
+                                    — Rectangle alpha-blende. alpha=0..255
+                                      Effectue un vrai blend (A*color + (255-A)*dest) pixel par pixel.
+                                      Permet des fenêtres translucides, surbrillance, ombres.
+
+   Texte acceleré :
+     gpu:text       ( x y addr len color scale -- )
+                                    — Dessine une chaîne depuis la mémoire Forth.
+                                      La chaîne est lue depuis addr..addr+len (ASCII/UTF-8).
+                                      scale=1 (8×8) ou 2 (16×16). Couleur 0xRRGGBB.
+
+   Curseurs :
+     gpu:cursor     ( x y -- )      — Positionne le curseur materiel (Intel/AMD).
+                                      Surface 64×64 ARGB fixe. Hotspot (0,0).
+                                      Utilise le planificateur de curseur hardware.
+
+     gpu:cursor-set ( addr w h hot_x hot_y -- )
+                                    — Définit un curseur logiciel ARGB avec hotspot.
+                                      addr = pointeur vers pixels 32-bit (0xAARRGGBB) en mémoire Forth.
+                                      w,h = dimensions. hot_x,hot_y = point chaud relatif.
+                                      Les pixels alpha=0 sont transparents, alpha=255 opaques.
+                                      Alpha intermédiaire = blend. Appelé apres gpu:cursor.
+                                      Revenir au curseur par défaut : addr=0.
 
    Modesetting natif (Intel Gen 9+ / AMD DCE) :
      gpu:modeset    ( w h -- ok? )  — Change la resolution. Utilise le modesetting natif
@@ -801,14 +947,23 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:output-edid    ( idx -- valid? )
                                         — Lit l'EDID d'une sortie (1 si detecte)
 
-   Le driver detecte automatiquement les ecrans connectes (jusqu'a 4 sorties).
-   Chaque sortie a son propre framebuffer et peut avoir une resolution differente.
-   Les EDID sont lus via GMBUS (Intel) ou I2C engine (AMD).
+    Le driver detecte automatiquement les ecrans connectes (jusqu'a 4 sorties)
+    au moment de gpu:init. Chaque sortie a son propre framebuffer et peut avoir
+    une resolution differente.
+    Les EDID sont lus via GMBUS (Intel) ou I2C engine (AMD).
+
+    Limitations :
+      - Hotplug non implante : la detection est figee apres gpu:init
+      - gpu:output-edid retourne seulement un booleen (EDID detecte ou non) ;
+        les infos detaillees (timings, nom moniteur, fabricant) ne sont pas
+        exposees depuis le Forth
 
    Fallback software :
      Si le GPU n'est pas reconnu ou si le blitter ne demarre pas,
      les operations gpu:fill, gpu:blit et gpu:flip utilisent
      un fallback software qui opere directement sur le framebuffer.
+     Les operations gpu:line, gpu:blend, gpu:text et le curseur logiciel
+     (gpu:cursor-set) sont toujours en software.
 
    Exemple — animation simple :
      : carre-promeneur
@@ -829,15 +984,49 @@ GPU (ACCELERATION 2D — Intel/AMD) :
         2drop
      ;
 
-   Exemple — multi-ecran :
-     gpu:init drop
-     gpu:outputs . ." sorties" cr
-     \ Activer la sortie 1 en 1280x720
-     1 1280 720 gpu:output-enable .
-     \ Afficher les infos de la sortie 0
-     0 gpu:output-info ." x" . ." active=" . cr
-     \ Lire l'EDID de la sortie 0
-     0 gpu:output-edid if ." EDID detecte" else ." Pas d'EDID" then cr
+    Exemple — multi-ecran :
+      gpu:init drop
+      gpu:outputs . ." sorties" cr
+      \ Activer la sortie 1 en 1280x720
+      1 1280 720 gpu:output-enable .
+      \ Afficher les infos de la sortie 0
+      0 gpu:output-info ." x" . ." active=" . cr
+      \ Lire l'EDID de la sortie 0
+      0 gpu:output-edid if ." EDID detecte" else ." Pas d'EDID" then cr
+
+    Exemple — trait de diagonale :
+      gpu:init drop
+      \ Ligne diagonale du coin (10,10) à (300,200)
+      10 10 300 200 0x00FF00 gpu:line
+      gpu:vsync gpu:flip
+
+    Exemple — fenêtre translucide (blend) :
+      gpu:init drop
+      \ Fond noir
+      gpu:resolution 0x000000 gpu:fill
+      \ Rectangle rouge semi-transparent
+      50 50 200 150 0xFF0000 128 gpu:blend
+      gpu:vsync gpu:flip
+
+    Exemple — texte depuis Forth :
+      gpu:init drop
+      \ Stocker une chaîne en mémoire Forth (create)
+      create hello ," Hello Epona !"
+      \ Dessiner le texte à (40,40) en blanc taille 2
+      40 40 hello 12 0xFFFFFF 2 gpu:text
+      gpu:vsync gpu:flip
+
+    Exemple — curseur ARGB personnalisé :
+      \ Créer un curseur rouge 16x16 en mémoire Forth
+      create cur-rouge
+      0xFF0000 , 0xFF0000 , 0xFF0000 , 0xFF0000 ,   \ ligne 0
+      0xFF0000 , 0x000000 , 0x000000 , 0xFF0000 ,   \ ligne 1
+      0xFF0000 , 0x000000 , 0x000000 , 0xFF0000 ,   \ ligne 2
+      0xFF0000 , 0xFF0000 , 0xFF0000 , 0xFF0000 ,   \ ligne 3
+      \ Appliquer (adresse, 4, 4, hotspot_x=1, hotspot_y=1)
+      cur-rouge 4 4 1 1 gpu:cursor-set
+      \ Positionner
+      100 100 gpu:cursor
 
 HORLOGE :
 ----------
@@ -1068,6 +1257,61 @@ MOTS FORTH POUR LES FICHIERS :
                                 ( addr -- len )
   sys:write <fichier>         — Ecrit la memoire dans un fichier
                                 ( addr len -- )
+
+PRIMITIVES FAT32 BAS NIVEAU (fat:*) :
+--------------------------------------
+  Primitives pour manipuler directement la table FAT, les clusters
+  et les entrées de répertoire (FAT32 uniquement). Ne fonctionne
+  qu'après un disk:init réussi sur une partition FAT32.
+
+  fat:info          ( -- bps spc fat_lba data_lba root_clus fat_sz num_fats )
+                    — Infos bas niveau du système FAT32 monté
+                      bps = bytes per sector, spc = sectors per cluster
+                      fat_lba = LBA de la FAT table
+                      data_lba = LBA de la zone de données
+                      root_clus = cluster du répertoire racine
+                      fat_sz = taille de la FAT en secteurs
+                      num_fats = nombre de copies de la FAT (généralement 2)
+  fat:root-clus     ( -- cluster )
+                    — Cluster du répertoire racine
+  fat:cluster-lba   ( cluster -- lba )
+                    — Convertit un numéro de cluster en LBA absolu
+  fat:read-entry    ( cluster -- value )
+                    — Lit l'entrée FAT du cluster (valeur 0..0x0FFFFFFF)
+                      0x0FFFFFF8+ = fin de chaîne (EOC)
+  fat:write-entry   ( cluster value -- ok? )
+                    — Écrit une entrée dans la FAT (dangereux !)
+  fat:eoc?          ( value -- flag )
+                    — 1 si la valeur correspond à une fin de chaîne (EOC)
+  fat:read-cluster  ( cluster buf_addr -- ok? )
+                    — Lit un cluster complet dans la mémoire Forth à buf_addr
+  fat:write-cluster ( cluster buf_addr -- ok? )
+                    — Écrit la mémoire Forth vers un cluster (dangereux !)
+  fat:alloc-cluster ( -- cluster|0 )
+                    — Alloue un nouveau cluster libre dans la FAT
+  fat:alloc-chain   ( count -- first_cluster|0 )
+                    — Alloue une chaîne de count clusters consécutifs libres
+  fat:free-chain    ( cluster -- )
+                    — Libère une chaîne de clusters (marque tous libres)
+  fat:dir-entries   ( cluster buf_addr -- n [name_addr name_len size is_dir ...] )
+                    — Liste le contenu d'un répertoire par cluster racine
+                      Les noms sont stockés dans la mémoire Forth à buf_addr,
+                      chaque entrée retourne (name_addr, name_len, size, is_dir)
+                      sur la pile. n = nombre d'entrées.
+
+  Attention : fat:write-entry, fat:write-cluster, fat:alloc-cluster,
+  fat:alloc-chain, fat:free-chain sont des opérations dangereuses qui
+  peuvent corrompre le système de fichiers. Utiliser avec précaution.
+
+  Exemple — parcourir la FAT table :
+    disk:init .
+    fat:info drop drop drop drop drop drop ." FAT size: " . ." sectors" cr
+    fat:read-entry . cr
+
+  Exemple — lire le premier cluster du répertoire racine :
+    fat:root-clus 2000 fat:read-cluster .
+    \ Lit 16 cellules mémoire à partir de 2000
+    16 0 do 2000 i + @ . loop cr
 
 CHARGEMENT AUTOMATIQUE :
 -------------------------
@@ -1348,9 +1592,19 @@ MACHINE VIRTUELLE FORTH :
     Exit            — Retour d'un mot
 
    Securite :
-     - Mode securise (shell: secure on/off) : bloque les acces materiel
-       (MMIO, PCI, PORT, alloc, reboot, poweroff, etc.)
-     - Sandbox memoire : non implementee (pas d'isolation par tache)
+    - Mode securise (shell: secure on/off) : bloque les acces materiel
+      (MMIO, PCI, PORT, alloc, reboot, poweroff, etc.) et restreint
+      la memoire accessible par @ ! +! a [0..256[
+    - Sandbox memoire : mem-bounds ( low high -- ) pour limiter la plage
+      d'adresses accessibles par @ ! +!. Quand secure on est active,
+      les bornes sont automatiquement restreintes a [0..256[.
+    - Sandbox fichiers : file-allow ajoute un prefixe de chemin autorise
+      pour disk:ls/read/write et sys:load/read/write. Quand secure on est
+      active, seuls les chemins sous /SAFE/ sont autorises.
+      file-revoke-all vide la whitelist (refuse tout acces).
+    - Sandbox reseau : toutes les primitives net:* sont bloquees quand
+      net_enabled est faux. secure on appelle automatiquement net-revoke.
+      net-allow/reactif net-revoke controlent l'acces au reseau.
      - Sandbox fichiers : non implementee (toute tache peut lire/ecrire)
      - Sandbox reseau   : non implementee
      - Limite de 10 millions d'instructions (anti-boucle infinie)
