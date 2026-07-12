@@ -4,7 +4,7 @@
 \ ════════════════════════════════════════════════════════════════════════
 \                  EPONA OS — GUIDE DÉVELOPPEUR
 \          Écrire des drivers, programmes et utilitaires
-\                    en EponaForth (version 2025)
+\                    en EponaForth (version 2026)
 \ ════════════════════════════════════════════════════════════════════════
 \
 \ Ce fichier est à la fois :
