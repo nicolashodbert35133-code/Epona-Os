@@ -228,8 +228,13 @@ COMMENTAIRES :
   Les commentaires entre parentheses servent souvent a documenter
   l'effet d'un mot sur la pile :
     ( avant -- apres )
-
     ( n1 n2 -- somme )
+
+  Note : les parentheses ( et ) sont toujours des tokens séparés,
+  même sans espace autour :
+    (valider)     → valide : ( valider )
+    2dup(avant)   → valide : 2dup ( avant )
+    1+(n)rnd      → valide : 1+ ( n ) rnd
 
 
 ================================================================================
@@ -261,6 +266,10 @@ MANIPULATION DE LA PILE DE RETOUR :
   >r      ( x -- )            — Transfere x sur la pile de retour (rstack)
   r>      ( -- x )            — Recupere x depuis la pile de retour (rstack)
   r@      ( -- x )            — Copie le sommet de la pile de retour (rstack)
+
+  Note : les indices de boucle DO/LOOP sont stockés sur une pile séparée
+  (loop_rstack). i et j sont donc immunisés contre >r/r> : vous pouvez
+  utiliser >r à l'intérieur d'une boucle sans corrompre i ou j.
 
 ARITHMETIQUE :
 --------------
@@ -308,8 +317,8 @@ LOGIQUE BINAIRE (BITS) :
 
 AFFICHAGE :
 -----------
-  .       ( n -- )            — Affiche un nombre
-  u.      ( u -- )            — Affiche en non-signe
+  .       ( n -- )            — Affiche un nombre (signé)
+  u.      ( u -- )            — Affiche en non-signé
   cr                          — Retour a la ligne
   space                       — Affiche un espace
   spaces  ( n -- )            — Affiche n espaces
@@ -323,9 +332,34 @@ AFFICHAGE :
     cr ." Bonjour!" cr        — Affiche Bonjour! avec retours a la ligne
     hex 255 . decimal         — Affiche 0xFF
 
+LITTERAUX NUMERIQUES :
+-----------------------
+  Les nombres sont signés (i64). Les grands hexadécimaux sont
+  interprétés en non-signé puis convertis en signé :
+    0xFFFFFFFF        = 4294967295 → -1 (tous les bits à 1)
+    0x8000000000000000 = i64::MIN  (bit de poids fort seul)
+    0x7FFFFFFFFFFFFFFF = i64::MAX
+  C'est délibéré : -1 = 0xFFFFFFFFFFFFFFFF (masque tous bits).
+  Pour afficher en non-signé, utilisez u. au lieu de .
+
 VARIABLES ET MEMOIRE :
 ----------------------
   variable <nom>              — Declare une variable
+  nop                         — Ne fait rien (no operation)
+  true                        — Empile -1 (vrai en Forth)
+  false                       — Empile 0 (faux en Forth)
+  bl                          — Empile 32 (code ASCII espace)
+  tab                         — Empile 9 (code ASCII tabulation)
+
+  Note sur l'adressage :
+    - L'« adresse » d'une variable est un index dans memory[] (Vec<i64>)
+    - Les variables sont stockees dans BTreeMap<String,usize>, la valeur
+      etant self.variables.len() au moment de l'insertion
+    - L'ordre alphabetique du BTreeMap n'affecte PAS l'index car il est
+      fixe par or_insert() a l'insertion (position d'allocation)
+    - Deux variables ne peuvent pas avoir le meme nom
+    - Redéclarer une variable conserve l'index existant (or_insert)
+
   <nom>                       — Empile l'adresse de la variable
   @       ( addr -- val )     — Lit la valeur a l'adresse
   !       ( val addr -- )     — Ecrit la valeur a l'adresse
@@ -448,9 +482,13 @@ STRUCTURES DE CONTROLE :
       2                       \ Pas de 2
     +loop                     \ Affiche 0 2 4 6 8
 
-  i — Index de la boucle courante
-    Utilise i pour recuperer l'index de la boucle DO la plus
-    interne. Ne peut etre utilise qu'a l'interieur d'une boucle.
+   i — Index de la boucle courante
+     Utilise i pour recuperer l'index de la boucle DO la plus
+     interne. Ne peut etre utilise qu'a l'interieur d'une boucle.
+     i fonctionne meme dans les mots appeles depuis la boucle
+     (loop_rstack n'est pas affecte par Call/Exit). Exemple :
+       : affiche-i  i . ;
+       5 0 do  affiche-i  loop    \ Affiche 0 1 2 3 4
 
     : table ( n -- )
       0 do
@@ -499,7 +537,7 @@ STRUCTURES DE CONTROLE :
      10 5 do i 3 mod 0= if i . leave then loop  \ Affiche 6
 
 RECURSION :
------------
+----------
     : factorielle ( n -- n! )
       dup 1 <= if
         drop 1
@@ -509,19 +547,48 @@ RECURSION :
     ;
     5 factorielle .           \ Affiche 120
 
+    Note technique : recurse compile Op::Recurse, qui sera remplacé
+    par Op::Call à la fin du mot. Si Op::Recurse survit (clone partiel,
+    snapshot), le moteur d'exécution l'interprète comme un appel
+    récursif au mot courant au lieu de planter.
+
 MOTS AVANCES :
 --------------
   create <nom>                — Cree un mot qui empile une adresse
   does>                       — Definit le comportement d'un mot cree
+  immediate                   — Rend le dernier mot defini immediat
   here                        — Adresse memoire courante
   allot   ( n -- )            — Reserve n cellules memoire
   ,       ( val -- )          — Stocke val a here et avance
   words                       — Liste tous les mots definis
-   '       <mot>               — Empile l'index du mot
+   '       <mot>               — Empile l'index du mot (dictionary index).                                Dans Epona, l'index est aussi l'execution token (xt).                                Cela differe du Forth standard ou ' retourne une                                adresse memoire (xt). C'est coherent avec le modele                                interne : execute utilise le meme index.
    execute ( idx -- )          — Execute un mot par son index
    postpone <mot>              — Compile un mot immediat
    forget  ( idx -- )          — Oublie les mots a partir de l'index
-                                (tronque le dictionnaire)
+                                 Nettoie aussi les variables, la string_pool
+                                 et remet here a 0.
+                                 (tronque le dictionnaire)
+
+  Note sur string_pool :
+    - Les noms de mots sont stockes dans string_pool (Vec<u8>), alloue
+      sequentiellement sans GC.
+    - Apres des centaines de redefinitions, des noms orphelins s'accumulent
+      (fuite memoire faible, ~ quelques KB).
+    - forget (voir ci-dessus) vide le pool.
+    - En usage normal (quelques dizaines de mots), la fuite est negligeable.
+
+  Note sur create/does> :
+    - create <nom> en mode immédiat (hors definition) fonctionne.
+    - create ... does> ... ; dans une definition compile le mot
+      correctement.
+    - create sans does> dans un mot defini (defining word) :
+        : mkvar create , ;    \ mkvar est un mot créateur
+        mkvar x               \ crée x qui pousse son adresse
+        42 x !                \ stocke 42 dans x
+      Les mots createurs avec does> fonctionnent aussi :
+        : carre create dup * does> swap ! ;
+        carre x   \ crée x = 9
+      Le mot cree execute le code does> a chaque appel.
 
 
 ================================================================================
@@ -538,13 +605,22 @@ les acces dangereux pendant l'apprentissage.
 MEMOIRE (RAM) :
 ---------------
   mem-map ( -- total free )   — Pages memoire totales et libres
-                                1 page = 4096 octets (4 KB)
+                               1 page = 4096 octets (4 KB)
+
+  alloc ( size -- addr|-1 )   — Alloue size octets dans la mémoire Forth
+                                Retourne l'adresse de début, ou -1 si
+                                la mémoire Forth est pleine (MAX_MEM=4096).
 
   Exemple :
     mem-map                   \ Empile total et free
     swap                      \ Met total au sommet
     4 * 1024 / .              \ Affiche total en MB
     4 * 1024 / .              \ Affiche libre en MB
+
+    256 alloc                 \ Alloue 256 octets dans la mémoire Forth
+    dup 0< if
+      ." Erreur alloc" cr
+    then
 
 ECRAN (FRAMEBUFFER) :
 ---------------------
@@ -585,6 +661,10 @@ WIDGETS (systeme d'UI fenetre) :
 
    Le mot optionnel [mot] est execute au clic sur le bouton.
    Les positions sont relatives a la zone de contenu de la fenetre.
+   Les clics sont propages automatiquement par windows_handle_click
+   dans main.rs, qui appelle widgets_handle_mouse(mx, my, btn, wx, wy)
+   sur le ForthVm. Le callback du bouton est execute de façon synchrone.
+   Les etats de survol (state=1) sont mis a jour automatiquement.
    Ces mots sont destines aux fenetres creees avec app:.
 
 ENTREES :
@@ -593,7 +673,8 @@ ENTREES :
   touche? ( -- char|0 )       — Lit une touche (non-bloquant)
   souris  ( -- x y btn )      — Position et bouton souris
   souris? ( -- flag )         — 1 si souris detectee
-  attendre ( ms -- )          — Pause en millisecondes
+   attendre ( ms -- )          — Pause en millisecondes (basee sur RDTSC, pas de calibration CPU necessaire)
+   ms      ( ms -- )           — Alias de attendre
 
 XHCI (SOURIS USB 3.0) :
 -----------------------
@@ -1593,8 +1674,13 @@ MACHINE VIRTUELLE FORTH :
 
    Securite :
     - Mode securise (shell: secure on/off) : bloque les acces materiel
-      (MMIO, PCI, PORT, alloc, reboot, poweroff, etc.) et restreint
+      (MMIO, PCI, PORT, alloc-phys, reboot, poweroff, etc.) et restreint
       la memoire accessible par @ ! +! a [0..256[
+    - Primitives bloquees en mode securise :
+      ports I/O (in/out), MMIO (mmio@ mmio!), PCI (pci@ pci!),
+      MSR (msr@ msr!), CPUID, RAM physique (phys@ phys!),
+      reboot, poweroff, alloc-phys, free-phys,
+      memcpy raw (move), memset raw (erase), beep (ports PC speaker)
     - Sandbox memoire : mem-bounds ( low high -- ) pour limiter la plage
       d'adresses accessibles par @ ! +!. Quand secure on est active,
       les bornes sont automatiquement restreintes a [0..256[.
@@ -1607,7 +1693,8 @@ MACHINE VIRTUELLE FORTH :
       net-allow/reactif net-revoke controlent l'acces au reseau.
      - Sandbox fichiers : non implementee (toute tache peut lire/ecrire)
      - Sandbox reseau   : non implementee
-     - Limite de 10 millions d'instructions (anti-boucle infinie)
+      - Limite de instructions configurable (10M par défaut, 0 = illimité)
+        Voir max_instructions dans ForthVm.
      - Stack overflow detecte (4096 elements max)
      - F9 = arret d'urgence avec ecriture CRASH.TXT sur la cle USB
 
@@ -1754,8 +1841,19 @@ R: Definissez un mot "principal" avec une boucle begin...until.
   UEFI    — Unified Extensible Firmware Interface
             Firmware moderne qui remplace le BIOS traditionnel
   USB     — Universal Serial Bus
-  Watchdog — Timer materiel qui redemarre le PC s'il n'est pas
+   Watchdog — Timer materiel qui redemarre le PC s'il n'est pas
             rafraichi regulierement (desactive par Epona OS)
+
+NOTES D'ARCHITECTURE INTERNE :
+-------------------------------
+  CallFrame (execute_ops_limited) :
+    Le moteur d'execution utilisait un pointeur brut *const [Op] vers
+    les ops du dictionnaire. Si un mot Forth modifiait self.dictionary
+    (compile, ConstantCreate, CreateWord...), le Vec se reallouait
+    et le pointeur devenait pendant (dangereux).
+    Fix : remplace par CallFrame::DictWord(dict_idx, return_ip) +
+    current_dict: Option<usize>. Les ops sont re-resolues depuis le
+    dictionnaire a chaque iteration (safe, perte negligeable).
 
 ================================================================================
                     Epona OS — Fait avec passion en Rust
