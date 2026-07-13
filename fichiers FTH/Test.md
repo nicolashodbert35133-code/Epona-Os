@@ -1,3 +1,858 @@
+# Ajout au DEVGUIDE.FTH — Roadmap Langage
+
+À insérer après la **Partie F** et avant la conclusion finale du fichier.
+
+---
+
+```forth
+\ ════════════════════════════════════════════════════════════════════════
+\                PARTIE G — ROADMAP LANGAGE
+\         Les 20 mots à ajouter à EponaForth (dans l'ordre)
+\ ════════════════════════════════════════════════════════════════════════
+\
+\ Ce tableau liste les 20 prochains mots Forth à implémenter,
+\ classés par phase et ordre d'implémentation recommandé.
+\
+\ Chaque mot est accompagné de :
+\   - Sa phase (1=fondations, 2=confort, 3=productivité, 4=écosystème)
+\   - Sa difficulté d'implémentation dans interpreter.rs
+\   - Le nombre de nouveaux Op bytecode nécessaires
+\   - Son impact sur la plateforme
+\
+\ ════════════════════════════════════════════════════════════════════════
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G1. TABLEAU RÉCAPITULATIF
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ ┌────┬──────────────────────────┬───────┬────────────┬───────────┬─────────────────────┐
+\ │  # │ Mot                      │ Phase │ Difficulté │ Nouv. Op  │ Impact              │
+\ ├────┼──────────────────────────┼───────┼────────────┼───────────┼─────────────────────┤
+\ │  1 │ see                      │   1   │ Faible     │     0     │ Diagnostic          │
+\ │  2 │ value / to               │   1   │ Moyenne    │     2     │ Confort langage     │
+\ │  3 │ defer / is               │   1   │ Moyenne    │     1     │ Callbacks/drivers   │
+\ │  4 │ case/of/endof/endcase    │   1   │ Moyenne    │     0     │ Lisibilité          │
+\ │  5 │ [char] / char            │   1   │ Triviale   │     0     │ Confort             │
+\ ├────┼──────────────────────────┼───────┼────────────┼───────────┼─────────────────────┤
+\ │  6 │ \n dans ."               │   2   │ Triviale   │     0     │ Chaînes             │
+\ │  7 │ abort"                   │   2   │ Faible     │     1     │ Sécurité drivers    │
+\ │  8 │ include / require        │   2   │ Faible     │     0     │ Modules             │
+\ │  9 │ [if] / [then]            │   2   │ Faible     │     0     │ Portabilité         │
+\ │ 10 │ type                     │   2   │ Triviale   │     0     │ Chaînes             │
+\ ├────┼──────────────────────────┼───────┼────────────┼───────────┼─────────────────────┤
+\ │ 11 │ ,"                       │   3   │ Faible     │     0     │ Données             │
+\ │ 12 │ count                    │   3   │ Triviale   │     0     │ Chaînes             │
+\ │ 13 │ compare                  │   3   │ Faible     │     0     │ Chaînes             │
+\ │ 14 │ search                   │   3   │ Moyenne    │     0     │ Chaînes             │
+\ │ 15 │ marker                   │   3   │ Moyenne    │     0     │ Dev cycle           │
+\ ├────┼──────────────────────────┼───────┼────────────┼───────────┼─────────────────────┤
+\ │ 16 │ buffer:                  │   4   │ Triviale   │     0     │ Drivers             │
+\ │ 17 │ struct / field           │   4   │ Moyenne    │     0     │ Structures          │
+\ │ 18 │ enum                     │   4   │ Triviale   │     0     │ Clarté              │
+\ │ 19 │ [defined]                │   4   │ Triviale   │     0     │ Conditionnement     │
+\ │ 20 │ word-info                │   4   │ Triviale   │     0     │ Diagnostic          │
+\ └────┴──────────────────────────┴───────┴────────────┴───────────┴─────────────────────┘
+\
+\ Total nouveaux Op nécessaires : 4 (Op::ValueAddr, Op::ToValue,
+\                                     Op::CallDeferred, Op::AbortQuote)
+\ Mots implémentables sans nouveau Op : 16/20 (80%)
+\
+\ ────────────────────────────────────────────────────────────────────
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G2. PHASE 1 — FONDATIONS MANQUANTES
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Ces 5 mots sont les plus urgents. Ils débloquent les suivants
+\ et corrigent des manques fondamentaux du langage.
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #1 — see                                                          │
+\ │ Phase 1  |  Difficulté : Faible  |  Nouveaux Op : 0              │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Affiche le bytecode d'un mot compilé.                             │
+\ │ Outil de diagnostic #1 — indispensable pour déboguer.            │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   see carre                                                       │
+\ │   → : carre                                                       │
+\ │   →   [0] CallPrim(5)  \ dup                                      │
+\ │   →   [1] CallPrim(2)  \ *                                        │
+\ │   →   [2] Exit                                                    │
+\ │   → ;                                                             │
+\ │                                                                   │
+\ │ Implémentation : lecture seule du dictionnaire.                   │
+\ │ Aucun nouveau Op. Pur mode immédiat.                              │
+\ │                                                                   │
+\ │ Exemple d'implémentation Forth (une fois see dispo en Rust) :    │
+\ │                                                                   │
+\ │   : see-word ( dict_idx -- )                                      │
+\ │     dup word-info                                                 │
+\ │     .ops ;                                                        │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #2 — value / to                                                   │
+\ │ Phase 1  |  Difficulté : Moyenne  |  Nouveaux Op : 2             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Variables nommées avec lecture directe et écriture via "to".     │
+\ │ Pattern le plus utilisé en Forth moderne.                         │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   10 value largeur                                                │
+\ │   largeur .            → 10                                       │
+\ │   20 to largeur                                                   │
+\ │   largeur .            → 20                                       │
+\ │                                                                   │
+\ │ Différence avec variable :                                        │
+\ │   variable v  10 v !  v @ .    ← lourd                           │
+\ │   10 value v  v .              ← naturel                         │
+\ │   20 to v     v .              ← modifiable                      │
+\ │                                                                   │
+\ │ Nouveaux Op nécessaires :                                         │
+\ │   Op::ValueAddr(usize)   — empile la valeur stockée              │
+\ │   Op::ToValue(usize)     — stocke le sommet dans l'adresse       │
+\ │                                                                   │
+\ │ Usage dans les drivers :                                          │
+\ │   0 value uart-base                                               │
+\ │   : uart:init ( base -- ok? )                                     │
+\ │     to uart-base                                                  │
+\ │     uart-base 0 <> ;                                              │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #3 — defer / is                                                   │
+\ │ Phase 1  |  Difficulté : Moyenne  |  Nouveaux Op : 1             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Polymorphisme Forth — mots dont l'implémentation est              │
+\ │ assignée dynamiquement. Mécanisme de callbacks et hooks.         │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   defer on-key            \ déclare un hook clavier              │
+\ │   : default-key drop ;    \ handler par défaut                   │
+\ │   ' default-key is on-key \ assigner                             │
+\ │   on-key                  \ appelle default-key                  │
+\ │                                                                   │
+\ │   : my-key ." touche: " . cr ;                                    │
+\ │   ' my-key is on-key      \ réassigner                           │
+\ │   65 on-key               \ → "touche: 65"                       │
+\ │                                                                   │
+\ │ Nouveau Op nécessaire :                                           │
+\ │   Op::CallDeferred(usize) — appelle le mot stocké à l'adresse    │
+\ │                                                                   │
+\ │ Applications clés :                                               │
+\ │   defer draw-screen   \ hook de rendu remplaçable                │
+\ │   defer handle-irq    \ handler d'interruption                   │
+\ │   defer on-connect    \ callback réseau                          │
+\ │   defer on-key        \ callback clavier                         │
+\ │   defer on-click      \ callback souris                          │
+\ │                                                                   │
+\ │ Pattern driver avec defer :                                       │
+\ │   defer uart:on-receive                                           │
+\ │   : uart-default-handler ( char -- ) drop ;                       │
+\ │   ' uart-default-handler is uart:on-receive                       │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #4 — case / of / endof / endcase                                  │
+\ │ Phase 1  |  Difficulté : Moyenne  |  Nouveaux Op : 0             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Structure de sélection multi-cas. Remplace les if/else imbriqués.│
+\ │ 100% implémentable au niveau du compilateur, sans nouveau Op.    │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   : classer ( n -- )                                              │
+\ │     case                                                          │
+\ │       1 of ." un"      endof                                      │
+\ │       2 of ." deux"    endof                                      │
+\ │       3 of ." trois"   endof                                      │
+\ │       dup ." autre: " .    \ clause default                       │
+\ │     endcase ;                                                     │
+\ │                                                                   │
+\ │ Sémantique :                                                      │
+\ │   case       — sauvegarde la valeur testée                        │
+\ │   n of       — si top == n : drop, exécuter, jump endcase        │
+\ │   endof      — jump vers endcase                                  │
+\ │   endcase    — drop la valeur (si aucun of n'a matché)           │
+\ │                                                                   │
+\ │ Utilisation dans les drivers :                                    │
+\ │   : handle-event ( event -- )                                     │
+\ │     case                                                          │
+\ │       EVT-CONNECT    of net-connect    endof                      │
+\ │       EVT-DISCONNECT of net-disconnect endof                      │
+\ │       EVT-DATA       of net-recv-data  endof                      │
+\ │       drop \ ignorer les autres                                   │
+\ │     endcase ;                                                     │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #5 — [char] / char                                                │
+\ │ Phase 1  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Empile le code ASCII d'un caractère sans connaître le code.      │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   char A .               → 65                                     │
+\ │   char / .               → 47                                     │
+\ │   : affiche-A   [char] A emit ;                                   │
+\ │   : est-slash?  [char] / = ;                                      │
+\ │                                                                   │
+\ │ char      — mode immédiat : empile le code ASCII                 │
+\ │ [char]    — mode compilation : compile un Push(code)             │
+\ │                                                                   │
+\ │ Exemples pratiques :                                              │
+\ │   : est-chiffre? ( c -- flag )                                    │
+\ │     dup [char] 0 >= swap [char] 9 <= and ;                        │
+\ │                                                                   │
+\ │   : est-lettre? ( c -- flag )                                     │
+\ │     dup [char] a >= swap [char] z <= and ;                        │
+\ │                                                                   │
+\ │   : newline  [char] \n emit ;  \ si \n supporté                  │
+\ └───────────────────────────────────────────────────────────────────┘
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G3. PHASE 2 — CONFORT DÉVELOPPEUR
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Ces 5 mots améliorent significativement la qualité de vie
+\ du développeur sans toucher au cœur du runtime.
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #6 — \n dans ."                                                   │
+\ │ Phase 2  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Séquences d'échappement dans les chaînes littérales.             │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   ." Ligne 1\nLigne 2\n"                                          │
+\ │   ." Tabulation :\tvaleur"                                        │
+\ │   ." Guillemet : \""                                              │
+\ │   ." Backslash : \\"                                              │
+\ │                                                                   │
+\ │ Séquences à supporter :                                           │
+\ │   \n  → 0x0A (LF)                                                 │
+\ │   \r  → 0x0D (CR)                                                 │
+\ │   \t  → 0x09 (TAB)                                                │
+\ │   \\  → 0x5C (backslash)                                          │
+\ │   \"  → 0x22 (guillemet)                                          │
+\ │   \0  → 0x00 (null)                                               │
+\ │                                                                   │
+\ │ Implémentation : post-traitement du texte collecté dans          │
+\ │ le parsing de ." et s" dans compile().                            │
+\ │                                                                   │
+\ │ Impact : tous les messages d'erreur et logs deviennent           │
+\ │ plus lisibles. Économise des cr partout.                          │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #7 — abort"                                                       │
+\ │ Phase 2  |  Difficulté : Faible  |  Nouveaux Op : 1              │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Arrêt conditionnel avec message d'erreur.                         │
+\ │ Indispensable pour les drivers et la validation des paramètres.  │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   : check-port ( port -- )                                        │
+\ │     dup 0 < abort" Port negatif interdit !"                       │
+\ │     dup 65535 > abort" Port hors limites !"                       │
+\ │     drop ;                                                        │
+\ │                                                                   │
+\ │   : open-file ( addr len -- handle )                              │
+\ │     find-file                                                     │
+\ │     dup 0 = abort" Fichier non trouve !"                          │
+\ │   ;                                                               │
+\ │                                                                   │
+\ │ Sémantique :                                                      │
+\ │   flag abort" message"                                            │
+\ │   Si flag != 0 → affiche le message, arrête l'exécution          │
+\ │   Si flag == 0 → continue normalement                             │
+\ │                                                                   │
+\ │ Nouveau Op :                                                      │
+\ │   Op::AbortQuote(u32, u16)  — (off, len) dans string_pool        │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #8 — include / require                                            │
+\ │ Phase 2  |  Difficulté : Faible  |  Nouveaux Op : 0             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Chargement de fichiers Forth avec protection contre les doublons.│
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   include UTILS.FTH       \ charge toujours                      │
+\ │   require UTILS.FTH       \ charge seulement si pas déjà fait    │
+\ │   require UTILS.FTH       \ no-op (déjà chargé)                  │
+\ │                                                                   │
+\ │ Différence avec sys:load :                                        │
+\ │   sys:load — chargement direct, pas de tracking                  │
+\ │   include  — alias de sys:load avec affichage                    │
+\ │   require  — vérifie loaded_files avant de charger               │
+\ │                                                                   │
+\ │ Structure nécessaire dans ForthVm :                               │
+\ │   pub loaded_files: Vec<String>                                   │
+\ │                                                                   │
+\ │ Pattern pour les bibliothèques :                                  │
+\ │   \ En tête de MYLIB.FTH :                                        │
+\ │   require UTILS.FTH       \ dépendance                           │
+\ │   require NET.FTH         \ autre dépendance                     │
+\ │   \ Corps de la bibliothèque...                                   │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #9 — [if] / [else] / [then]                                       │
+\ │ Phase 2  |  Difficulté : Faible  |  Nouveaux Op : 0             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Compilation conditionnelle — le code est inclus ou ignoré         │
+\ │ selon une condition évaluée au moment de la compilation.          │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   [defined] gpu:init [if]                                         │
+\ │     : init-display  gpu:init drop ;                               │
+\ │   [else]                                                          │
+\ │     : init-display  ." Pas de GPU" cr ;                           │
+\ │   [then]                                                          │
+\ │                                                                   │
+\ │   0 [if]                                                          │
+\ │     ." Ce code est compile mais jamais execute"                   │
+\ │   [then]                                                          │
+\ │                                                                   │
+\ │ Sémantique :                                                      │
+\ │   flag [if] ... [else] ... [then]                                 │
+\ │   Le flag est consommé. Si 0, la branche [if] est ignorée.       │
+\ │   Tout se passe au niveau tokeniseur (skip de tokens).            │
+\ │                                                                   │
+\ │ Combinaison puissante avec [defined] :                            │
+\ │   [defined] net:init [if]                                         │
+\ │     require NETLIB.FTH                                            │
+\ │   [then]                                                          │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #10 — type                                                        │
+\ │ Phase 2  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Affiche une chaîne depuis la mémoire Forth.                       │
+\ │ Compagnon indispensable de s"                                     │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   s" Bonjour Epona !" type   → Bonjour Epona !                   │
+\ │   100 10 type                → 10 octets depuis l'adresse 100    │
+\ │                                                                   │
+\ │ Effet sur la pile :  ( addr len -- )                              │
+\ │                                                                   │
+\ │ Avec count :                                                      │
+\ │   create msg ," Hello"                                            │
+\ │   msg count type             → Hello                              │
+\ │                                                                   │
+\ │ Dans les drivers pour les messages d'état :                       │
+\ │   : driver:info ( -- )                                            │
+\ │     s" Version: 1.0.0" type cr                                    │
+\ │     s" Statut: " type                                             │
+\ │     driver:status if                                              │
+\ │       s" OK" type                                                 │
+\ │     else                                                          │
+\ │       s" ERREUR" type                                             │
+\ │     then cr ;                                                     │
+\ └───────────────────────────────────────────────────────────────────┘
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G4. PHASE 3 — PRODUCTIVITÉ UTILISATEUR
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Ces 5 mots complètent le traitement des chaînes et du cycle
+\ de développement (chargement, test, nettoyage).
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #11 — ,"                                                          │
+\ │ Phase 3  |  Difficulté : Faible  |  Nouveaux Op : 0             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Stocke une chaîne comptée directement dans la mémoire Forth       │
+\ │ au moment de la compilation (dans create).                        │
+\ │                                                                   │
+\ │ Utilisation :                                                      │
+\ │   create bonjour ," Bonjour Epona !"                              │
+\ │   bonjour count type    → Bonjour Epona !                         │
+\ │                                                                   │
+\ │ Format en mémoire :                                               │
+\ │   [longueur][octet0][octet1]...[octetN]                           │
+\ │    (1 cellule) (N cellules)                                       │
+\ │                                                                   │
+\ │ Combinaison avec count et type :                                  │
+\ │   create err-msg ," Erreur: peripherique absent"                  │
+\ │   : afficher-erreur  err-msg count type cr ;                      │
+\ │                                                                   │
+\ │ Usage dans les drivers pour les messages prédéfinis :             │
+\ │   create uart-name ," UART 16550A"                                │
+\ │   create uart-vers ," 1.0"                                        │
+\ │   : uart:version  uart-name count type cr ;                       │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #12 — count                                                       │
+\ │ Phase 3  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Convertit une chaîne comptée (addr) en (addr+1 len).             │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   create msg ," Bonjour"                                          │
+\ │   msg count type         → Bonjour                                │
+\ │   msg count .            → 7 (longueur)                           │
+\ │                                                                   │
+\ │ Effet sur la pile :  ( addr -- addr+1 len )                       │
+\ │   addr    = adresse du premier octet (la longueur)               │
+\ │   addr+1  = adresse du premier caractère                         │
+\ │   len     = valeur de l'octet de longueur                        │
+\ │                                                                   │
+\ │ Implémentation (1 ligne Forth si @ et 1+ disponibles) :          │
+\ │   : count ( addr -- addr+1 len )                                  │
+\ │     dup 1+ swap @ ;                                               │
+\ │                                                                   │
+\ │ Ou comme primitive Rust (idx 290) pour la performance.           │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #13 — compare                                                     │
+\ │ Phase 3  |  Difficulté : Faible  |  Nouveaux Op : 0             │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Compare deux chaînes lexicographiquement.                         │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   s" abc" s" abc" compare .   → 0  (égal)                        │
+\ │   s" abc" s" abd" compare .   → -1 (avant)                       │
+\ │   s" abd" s" abc" compare .   → 1  (après)                       │
+\ │   s" ab"  s" abc" compare .   → -1 (plus court)                  │
+\ │                                                                   │
+\ │ Effet sur la pile : ( addr1 len1 addr2 len2 -- n )               │
+\ │   n = -1 si str1 < str2                                           │
+\ │   n =  0 si str1 = str2                                           │
+\ │   n =  1 si str1 > str2                                           │
+\ │                                                                   │
+\ │ Dérivés utiles :                                                  │
+\ │   : str= ( a1 l1 a2 l2 -- flag ) compare 0= ;                    │
+\ │   : str< ( a1 l1 a2 l2 -- flag ) compare 0< ;                    │
+\ │   : str> ( a1 l1 a2 l2 -- flag ) compare 0> ;                    │
+\ │                                                                   │
+\ │ Usage dans les drivers :                                          │
+\ │   : find-driver ( name_addr len -- driver | -1 )                  │
+\ │     \ Chercher dans la liste des drivers par nom                  │
+\ │   ;                                                               │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #14 — search                                                      │
+\ │ Phase 3  |  Difficulté : Moyenne  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Recherche une sous-chaîne dans une chaîne.                        │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   s" Hello World" s" World" search                                │
+\ │   → addr 5 -1   (trouvé à l'offset 6)                            │
+\ │                                                                   │
+\ │   s" Hello World" s" xyz" search                                  │
+\ │   → addr 11 0   (non trouvé)                                      │
+\ │                                                                   │
+\ │ Effet sur la pile :                                               │
+\ │   ( haystack hlen needle nlen -- addr rlen flag )                 │
+\ │   addr  = adresse où la sous-chaîne commence                     │
+\ │   rlen  = longueur restante depuis addr                           │
+\ │   flag  = -1 si trouvé, 0 si non trouvé                          │
+\ │                                                                   │
+\ │ Usage dans les parseurs de protocoles :                           │
+\ │   : http-find-header ( name nlen buf blen -- val_addr val_len )   │
+\ │     search 0= if 0 0 exit then                                    │
+\ │     \ Extraire la valeur après ':'                                │
+\ │   ;                                                               │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #15 — marker                                                      │
+\ │ Phase 3  |  Difficulté : Moyenne  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Crée un point de restauration du dictionnaire.                    │
+\ │ Permet de "nettoyer" les définitions temporaires.                 │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   marker ---clean---       \ créer le point de retour             │
+\ │   : temp-word ... ;        \ définitions temporaires              │
+\ │   : autre-temp ... ;                                              │
+\ │   ---clean---              \ supprimer tout depuis le marker      │
+\ │                                                                   │
+\ │ Après ---clean--- :                                               │
+\ │   temp-word  → "Mot inconnu" (supprimé)                          │
+\ │                                                                   │
+\ │ Usage typique — tests isolés :                                    │
+\ │   marker ---test-begin---                                         │
+\ │   \ ... définitions de test ...                                   │
+\ │   lancer-tests                                                    │
+\ │   ---test-begin---    \ nettoyer après les tests                  │
+\ │                                                                   │
+\ │ Usage dans les drivers — hot reload :                             │
+\ │   marker ---driver-v1---                                          │
+\ │   include MONDRIVER.FTH                                           │
+\ │   \ ... utiliser le driver ...                                    │
+\ │   ---driver-v1---     \ décharger pour recharger une v2           │
+\ │   include MONDRIVER-V2.FTH                                        │
+\ └───────────────────────────────────────────────────────────────────┘
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G5. PHASE 4 — ÉCOSYSTÈME DRIVERS ET APPLICATIONS
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Ces 5 mots construisent l'infrastructure pour des drivers
+\ et des applications plus structurés.
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #16 — buffer:                                                     │
+\ │ Phase 4  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Alloue un buffer nommé de N cellules dans la mémoire Forth.      │
+\ │ Combinaison de create + allot, avec initialisation à zéro.        │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   512 buffer: secteur     \ buffer de 512 cellules               │
+\ │   64  buffer: ligne       \ buffer de 64 cellules                │
+\ │                                                                   │
+\ │   secteur 512 erase       \ mettre à zéro                        │
+\ │   0 0 1 secteur ahci:read .  \ lire un secteur                   │
+\ │   secteur 16 hexdump      \ afficher                              │
+\ │                                                                   │
+\ │ Différence avec create + allot :                                  │
+\ │   512 buffer: buf          ← met à zéro, plus lisible            │
+\ │   create buf 512 allot     ← équivalent, moins expressif         │
+\ │                                                                   │
+\ │ Usage intensif dans les drivers :                                 │
+\ │   512 buffer: uart-rx-buf  \ buffer de réception                 │
+\ │   512 buffer: uart-tx-buf  \ buffer d'envoi                      │
+\ │   16  buffer: i2c-reg-buf  \ buffer de registres I2C             │
+\ │   4096 buffer: dma-buf     \ buffer DMA en mémoire Forth         │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #17 — struct / field / end-struct                                 │
+\ │ Phase 4  |  Difficulté : Moyenne  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Structures de données nommées avec champs accessibles.            │
+\ │ Indispensable pour modéliser des registres matériels.             │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   struct point                                                    │
+\ │     field .x                                                      │
+\ │     field .y                                                      │
+\ │   end-struct                                                      │
+\ │                                                                   │
+\ │   point buffer: mon-point                                         │
+\ │   42 mon-point .x !                                               │
+\ │   99 mon-point .y !                                               │
+\ │   mon-point .x @ .   → 42                                         │
+\ │   mon-point .y @ .   → 99                                         │
+\ │                                                                   │
+\ │ Usage pour les registres matériels :                              │
+\ │   struct uart-regs                                                │
+\ │     field .thr       \ Transmit Holding Register                 │
+\ │     field .ier       \ Interrupt Enable Register                  │
+\ │     field .iir       \ Interrupt Identification Register          │
+\ │     field .lcr       \ Line Control Register                      │
+\ │     field .mcr       \ Modem Control Register                     │
+\ │     field .lsr       \ Line Status Register                       │
+\ │   end-struct                                                      │
+\ │                                                                   │
+\ │   : uart-lsr@ ( base -- val )  .lsr + inb ;                      │
+\ │   : uart-tx!  ( val base -- )  .thr + outb ;                     │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #18 — enum                                                        │
+\ │ Phase 4  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Énumérations nommées — constantes séquentielles.                  │
+\ │ Améliore la lisibilité des codes d'état et d'événement.           │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   0 enum STATE-IDLE                                               │
+\ │     enum STATE-INIT                                               │
+\ │     enum STATE-RUNNING                                            │
+\ │     enum STATE-ERROR                                              │
+\ │   drop                                                            │
+\ │                                                                   │
+\ │   STATE-IDLE .    → 0                                             │
+\ │   STATE-RUNNING . → 2                                             │
+\ │                                                                   │
+\ │ Usage dans les drivers pour les états :                           │
+\ │   0 enum DRV-UNINIT                                               │
+\ │     enum DRV-PROBED                                               │
+\ │     enum DRV-READY                                                │
+\ │     enum DRV-ERROR                                                │
+\ │   drop                                                            │
+\ │                                                                   │
+\ │   variable driver-state                                           │
+\ │   DRV-UNINIT driver-state !                                       │
+\ │                                                                   │
+\ │   : driver-ready? ( -- flag )                                     │
+\ │     driver-state @ DRV-READY = ;                                  │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #19 — [defined] / [undefined]                                     │
+\ │ Phase 4  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Test d'existence d'un mot au moment de la compilation.            │
+\ │ Permet d'écrire du code adaptatif selon les drivers présents.    │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   [defined] gpu:init [if]                                         │
+\ │     ." GPU disponible" cr                                         │
+\ │     gpu:init drop                                                 │
+\ │   [then]                                                          │
+\ │                                                                   │
+\ │   [undefined] uart:init [if]                                      │
+\ │     ." Chargement driver UART..." cr                              │
+\ │     sys:load UART.FTH                                             │
+\ │   [then]                                                          │
+\ │                                                                   │
+\ │ Effet sur la pile :                                               │
+\ │   [defined] nom   → empile -1 si le mot existe, 0 sinon          │
+\ │   [undefined] nom → empile -1 si le mot n'existe pas, 0 sinon    │
+\ │                                                                   │
+\ │ Combinaison avec require pour un chargement conditionnel :        │
+\ │   [undefined] net:init [if]                                       │
+\ │     require NET.FTH                                               │
+\ │   [then]                                                          │
+\ │                                                                   │
+\ │   [defined] hda-init [if]                                         │
+\ │     hda-init drop                                                 │
+\ │     48000 value SAMPLE-RATE                                       │
+\ │   [else]                                                          │
+\ │     44100 value SAMPLE-RATE                                       │
+\ │   [then]                                                          │
+\ └───────────────────────────────────────────────────────────────────┘
+\
+\ ┌───────────────────────────────────────────────────────────────────┐
+\ │ #20 — word-info                                                   │
+\ │ Phase 4  |  Difficulté : Triviale  |  Nouveaux Op : 0            │
+\ ├───────────────────────────────────────────────────────────────────┤
+\ │ Affiche les métadonnées d'un mot du dictionnaire.                 │
+\ │ Complément de see pour l'inspection et le diagnostic.             │
+\ │                                                                   │
+\ │ Utilisation :                                                     │
+\ │   word-info carre                                                 │
+\ │   → carre : idx=42 compile (3 ops)                                │
+\ │                                                                   │
+\ │   word-info net:init                                              │
+\ │   → net:init : idx=200 primitive #200                             │
+\ │                                                                   │
+\ │   word-info if                                                    │
+\ │   → if : idx=5 primitive #5 IMMEDIATE                             │
+\ │                                                                   │
+\ │   word-info tableau                                               │
+\ │   → tableau : idx=87 compile (2 ops) DEFINING data_addr=1024     │
+\ │                                                                   │
+\ │ Informations affichées :                                          │
+\ │   - Index dans le dictionnaire                                    │
+\ │   - Type : primitive ou compilé                                   │
+\ │   - Numéro de primitive (si applicable)                           │
+\ │   - Nombre d'ops (si compilé)                                     │
+\ │   - Flag IMMEDIATE                                                │
+\ │   - Flag DEFINING (create/does>)                                  │
+\ │   - Adresse des données (create_data si non nul)                  │
+\ │                                                                   │
+\ │ Utilisation dans le développement :                               │
+\ │   word-info mon-driver    \ vérifier qu'il est bien compilé      │
+\ │   word-info defer-hook    \ vérifier que c'est bien un defer      │
+\ │   word-info ma-valeur     \ retrouver l'adresse d'une value       │
+\ └───────────────────────────────────────────────────────────────────┘
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G6. PLANNING D'IMPLÉMENTATION
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Chaque semaine ajoute une couche cohérente et testable.
+\
+\ ┌────────────┬──────────────────────────────────────────────────────┐
+\ │ Semaine 1  │ see, char, [char], type, word-info                   │
+\ │            │ Outils de diagnostic + confort immédiat              │
+\ │            │ Difficulté : triviale à faible                       │
+\ │            │ Aucun nouveau Op                                      │
+\ ├────────────┼──────────────────────────────────────────────────────┤
+\ │ Semaine 2  │ value/to, enum, buffer:, [defined]                   │
+\ │            │ Structures de données + conditionnement              │
+\ │            │ Difficulté : triviale à moyenne                      │
+\ │            │ 2 nouveaux Op (ValueAddr, ToValue)                   │
+\ ├────────────┼──────────────────────────────────────────────────────┤
+\ │ Semaine 3  │ case/of/endof/endcase, abort"                        │
+\ │            │ Contrôle de flux + sécurité                          │
+\ │            │ Difficulté : faible à moyenne                        │
+\ │            │ 1 nouveau Op (AbortQuote)                            │
+\ ├────────────┼──────────────────────────────────────────────────────┤
+\ │ Semaine 4  │ defer/is, include/require, [if]/[then]               │
+\ │            │ Polymorphisme + modules + portabilité                │
+\ │            │ Difficulté : faible à moyenne                        │
+\ │            │ 1 nouveau Op (CallDeferred)                          │
+\ ├────────────┼──────────────────────────────────────────────────────┤
+\ │ Semaine 5  │ ,", count, compare, search                           │
+\ │            │ Traitement de chaînes complet                        │
+\ │            │ Difficulté : triviale à moyenne                      │
+\ │            │ Aucun nouveau Op                                      │
+\ ├────────────┼──────────────────────────────────────────────────────┤
+\ │ Semaine 6  │ marker, struct/field, \n dans ."                     │
+\ │            │ Outillage avancé + confort final                     │
+\ │            │ Difficulté : faible à moyenne                        │
+\ │            │ Aucun nouveau Op                                      │
+\ └────────────┴──────────────────────────────────────────────────────┘
+\
+\ Bilan total :
+\   20 mots ajoutés sur 6 semaines
+\   4 nouveaux Op (minimum nécessaire)
+\   16 mots sans modification du bytecode
+\   Testables avec TESTS.FTH à chaque étape
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G7. IMPACT PAR DOMAINE
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ === DIAGNOSTIC ET DEBUG ===
+\   see          → comprendre le bytecode généré
+\   word-info    → inspecter les métadonnées
+\   +"           → messages d'erreur multi-lignes
+\   abort"       → arrêt propre avec message
+\
+\ === DRIVERS ===
+\   value/to     → état du driver proprement typé
+\   defer/is     → callbacks et hooks remplaçables
+\   buffer:      → buffers DMA nommés
+\   struct/field → modélisation des registres
+\   enum         → états et codes d'erreur lisibles
+\   abort"       → validation des paramètres
+\
+\ === APPLICATIONS ===
+\   case/of      → state machines lisibles
+\   [defined]    → adaptation selon les drivers présents
+\   include      → chargement modulaire
+\   type         → affichage de chaînes dynamiques
+\   compare      → comparaison de chaînes
+\   search       → parseurs de protocoles
+\
+\ === MODULES ET BIBLIOTHÈQUES ===
+\   require      → dépendances sans doublons
+\   marker       → hot reload et tests isolés
+\   [if]/[then]  → code conditionnel à la compilation
+\   [defined]    → détection de fonctionnalités
+\
+\ === DONNÉES ===
+\   ,"           → chaînes prédéfinies dans create
+\   count        → interface chaîne comptée
+\   struct/field → structures de données
+\   enum         → constantes ordonnées
+\   buffer:      → tableaux nommés
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ G8. COMPATIBILITÉ AVEC TESTS.FTH
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Chaque semaine d'implémentation devrait être validée par
+\ une section supplémentaire dans TESTS.FTH.
+\
+\ Sections à ajouter dans l'ordre :
+
+\ Section 30 — see et word-info (semaine 1)
+\ : test-see
+\   ." [30.1] see et word-info... "
+\   section
+\   \ Vérifier que see ne crash pas sur un mot existant
+\   ok  \ see carre → pas de crash
+\   \ Vérifier que word-info retourne des infos
+\   ok  \ word-info carre → affichage sans crash
+\   section-end ;
+
+\ Section 31 — value / to (semaine 2)
+\ : test-value
+\   section
+\   ." [31.1] value / to... "
+\   10 value test-val
+\   test-val 10 assert=
+\   20 to test-val
+\   test-val 20 assert=
+\   -1 to test-val
+\   test-val -1 assert=
+\   section-end ;
+
+\ Section 32 — defer / is (semaine 2)
+\ defer test-defer-word
+\ : test-defer
+\   section
+\   ." [32.1] defer / is... "
+\   : retourne-42 42 ;
+\   ' retourne-42 is test-defer-word
+\   test-defer-word 42 assert=
+\   : retourne-99 99 ;
+\   ' retourne-99 is test-defer-word
+\   test-defer-word 99 assert=
+\   section-end ;
+
+\ Section 33 — case/of/endcase (semaine 3)
+\ : test-case-word ( n -- m )
+\   case
+\     1 of 10 endof
+\     2 of 20 endof
+\     3 of 30 endof
+\     0
+\   endcase ;
+\
+\ : test-case
+\   section
+\   ." [33.1] case/of/endcase... "
+\   1 test-case-word 10 assert=
+\   2 test-case-word 20 assert=
+\   3 test-case-word 30 assert=
+\   4 test-case-word 0  assert=
+\   section-end ;
+
+\ Section 34 — buffer: (semaine 2)
+\ 16 buffer: test-buffer
+\
+\ : test-buffer-word
+\   section
+\   ." [34.1] buffer:... "
+\   42 test-buffer !
+\   test-buffer @ 42 assert=
+\   99 test-buffer 1 + !
+\   test-buffer 1 + @ 99 assert=
+\   section-end ;
+
+\ ════════════════════════════════════════════════════════════════════════
+\              FIN DE LA PARTIE G — ROADMAP LANGAGE
+\ ════════════════════════════════════════════════════════════════════════
+
+cr
+." ════════════════════════════════════════════════════════" cr
+."  Roadmap langage chargee." cr
+."  20 mots documentes, 6 semaines de travail." cr
+."  4 nouveaux Op necessaires au total." cr
+." ════════════════════════════════════════════════════════" cr
+```
+
+---
+
+## Ce que cette partie G ajoute au guide
+
+| Section | Contenu |
+|---|---|
+| **G1** | Tableau récapitulatif complet avec ASCII art |
+| **G2** | Phase 1 — 5 fiches détaillées (see, value/to, defer/is, case, char) |
+| **G3** | Phase 2 — 5 fiches détaillées (\n, abort", include, [if], type) |
+| **G4** | Phase 3 — 5 fiches détaillées (",", count, compare, search, marker) |
+| **G5** | Phase 4 — 5 fiches détaillées (buffer:, struct, enum, [defined], word-info) |
+| **G6** | Planning semaine par semaine avec bilan des Op |
+| **G7** | Impact par domaine (drivers, apps, modules, données) |
+| **G8** | Sections TESTS.FTH à ajouter pour valider chaque semaine |
+
+Chaque fiche contient : utilisation, effet sur la pile, exemples pratiques dans le contexte drivers/apps, et notes d'implémentation.
 \ ════════════════════════════════════════════════════════════════════════
 \                    TESTS.FTH — Suite de tests Epona OS
 \                    EponaForth — Validation du runtime
