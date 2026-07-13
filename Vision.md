@@ -92,5 +92,78 @@ Innovations clés :
 | Scénario | Objectif |
 |:--|:--|
 | **Optimiste** | v3.0 : JIT x86‑64, 500+ mots Forth, communauté active |
+```
+```
+# 🐴 Vision of Epona OS
+## What is Epona OS today
+An operating system **UEFI bare-metal** written in **Rust**, with a **interpreter Forth** integrated.  
+It starts on real hardware — without Linux, without Windows, without anything.
+```
+Nude metal → UEFI → Rust → Forth → Graphic desk
+290+ primitives material
+7 Forth Libraries
+GPU, USB, network, disc, audio
+Pre-emptive multitasking
+Automated test suite
+```
+Epona OS is already a technical feat: very few projects in the world reach this level of maturity.
+---
+## 🔮 The three possible horizons
+### 🎓 **Future A — Educational platform**
+Epona OS becomes **The best tool to learn how a computer works**, metal to software.  
+Each file `. FTH` is an interactive course: text, exercises, solutions.  
+The student types a line and sees the material react.
+> No other project allows you to “touch the metal” so directly.
+---
+### 🖥️ **Future B — OS autonomous**
+Epona OS is moving towards a **system usable on a daily basis** : write code, browse files, communicate on the network.  
+Objective : simplicity, transparency, total control.
+Targeted functionalities :
+- Logged native file system  
+- Rich Shell with Pipes and Redirects  
+- Full text editor  
+- Fluid window manager  
+- HTTP server, SSH client, NTP  
+- WAV player and FM synthesizer  
+---
+### ⚡ **Future C — Platform Forth**
+Epona OS becomes **the best modern Forth bare-metal implementation**.  
+A professional environment for embedded development and system research.
+Key innovations :
+- Intel/AMD native GPU  
+- Full TCP/UDP network battery  
+- USB 3.0 XHCI, NVMe, HDA audio  
+- Preemptive multitasking with mutex  
+- JIT x86‐64 for hot loops  
+- Cross-compilation ARM  
+- Local vocabulary and variables  
+---
+## 🧭 Strategic Recommendation
+**Short term (1-3 months)** : combine visions A + C  
+- Create 3‐4 interactive courses  
+- Add local variables and vocabularies  
+- Demonstrate a 3D raycaster and an HTTP server  
+**Medium term (3-6 months)** : publish, observe, choose direction.  
+**Long term (6-12 months)** : build the community.
+---
+## 🌍 What Makes Epona OS Unique
+1. **Forth** — battery-powered, direct, minimalist language, ideal for metal.  
+2. **Interactive** — each order acts on the material in real time.  
+3. **Understandable** — readable and complete source code.  
+4. **Educational** — concrete learning of the functioning of a PC.  
+5. **Autonomous** — no external dependency, no POSIX, no libc.
+---
+## ⚠️ The dangers to avoid
+- **Feature creep** : add endless instead of polishing.  
+- **Single Developer Syndrome** : document, test, open.  
+- **Absence of users** : publish early, show demos.  
+- **Material compatibility** : test on several machines.
+---
+## 🌠 Vision at two years old
+| Scenario | Objective |
+|:--|:--|
+| **Optimistic** | v3.0 : JIT x86‐64, 500+ words Forth, active community |
+| **Realistic** | v2.5 : mature language, exemplary documentation, educational adoption |
+| **Minimum viable** | v2.2 : ISO bootable, publication GitHub, first contributions |
 | **Réaliste** | v2.5 : langage mature, documentation exemplaire, adoption éducative |
 | **Minimum viable** | v2.2 : ISO bootable, publication GitHub, premières contributions |
