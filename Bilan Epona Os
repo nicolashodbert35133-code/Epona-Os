@@ -1,0 +1,354 @@
+Parfait — c'est du travail solide. Faisons le bilan complet de l'état d'EponaForth maintenant.
+
+---
+
+# Bilan complet — EponaForth aujourd'hui
+
+## Ce qui est implémenté et fonctionnel
+
+### Runtime de base
+| Composant | État |
+|---|---|
+| Compilateur Forth | ✅ |
+| Bytecode Op | ✅ |
+| Pile / Rstack / loop_rstack | ✅ séparés |
+| Dictionnaire 2048 mots | ✅ |
+| Mémoire Forth 4096 cellules | ✅ |
+| Exceptions try/catch/throw | ✅ |
+| Récursion | ✅ |
+| Mode immédiat / compilation | ✅ |
+| Débogueur step/trace/break | ✅ |
+| Sécurité sandbox | ✅ |
+
+### Langage
+| Mot | État |
+|---|---|
+| 285 primitives matériel | ✅ |
+| 20 mots roadmap (see, value, defer...) | ✅ |
+| case/of/endof/endcase | ✅ |
+| include/require | ✅ |
+| [if]/[else]/[then]/[defined] | ✅ |
+| struct/field/enum | ✅ |
+| buffer: / marker | ✅ |
+| abort" | ✅ |
+| type/count/compare/search | ✅ |
+
+### Bibliothèques
+| Fichier | Contenu | État |
+|---|---|---|
+| FIXED.FTH | Virgule fixe Q20.12, vecteurs 2D, physique, traceur | ✅ |
+| MUTEX.FTH | Mutex, spinlock, sémaphore, channel, rwlock, barrier | ✅ |
+| TESTS.FTH | 29 sections, 180+ assertions | ✅ |
+| DEVGUIDE.FTH | Documentation complète avec exemples | ✅ |
+
+### Multitâche
+| Composant | État |
+|---|---|
+| Scheduler round-robin | ✅ |
+| Préemption PIT ~100Hz | ✅ |
+| critical_depth anti-préemption | ✅ |
+| Timeout anti-deadlock 100k | ✅ |
+| Sections critiques imbriquées | ✅ |
+
+### Matériel
+| Catégorie | Primitives | État |
+|---|---|---|
+| GPU Intel/AMD | 22 primitives | ✅ |
+| USB XHCI + MSD | 15 primitives | ✅ |
+| Réseau TCP/UDP/HTTP | 27 primitives | ✅ |
+| AHCI/NVMe | 12 primitives | ✅ |
+| FAT32 bas niveau | 12 primitives | ✅ |
+| Audio HDA | 7 primitives | ✅ |
+| I2C HID touchpad | 9 primitives | ✅ |
+| PCI/ACPI/SMBIOS | 14 primitives | ✅ |
+| Ports I/O x86 | 6 primitives | ✅ |
+| MSR/CPUID | 3 primitives | ✅ |
+
+---
+
+# Ce qui manque encore — par priorité
+
+## Priorité 1 — Ce qui bloquerait les utilisateurs
+
+### 1.1 — STDLIB.FTH
+
+C'est le manque le plus visible. Les utilisateurs qui chargent Epona n'ont aucune bibliothèque de base.
+
+```forth
+\ Ce qui devrait être disponible sans rien charger :
+: max3 ( a b c -- max )  max max ;
+: clamp ( n lo hi -- n' )  rot min max ;
+: within ( n lo hi -- flag )  rot tuck > -rot < and ;
+: hex. ( n -- )  hex . decimal ;
+: 0.r ( n width -- )  \ affiche avec zéros de remplissage
+: bounds ( addr len -- end addr )  over + swap ;
+: /string ( addr len n -- addr' len' )  \ avance dans une chaîne
+```
+
+### 1.2 — Virgule flottante dans les chaînes
+
+Actuellement impossible :
+
+```forth
+." Temperature: " 3141 f.from-milli f. cr
+\ → Temperature: 3.141  ✓
+
+\ Mais impossible de faire :
+s" Temperature: " f>str append   \ ← n'existe pas
+```
+
+Il manque `f>str` pour convertir une valeur fixe en chaîne.
+
+### 1.3 — `ms` dans une tâche ne yield pas
+
+```forth
+: ma-tache
+  begin
+    100 ms     \ ← spin loop, monopolise le CPU pendant 100ms
+    ." tick" cr
+  again ;
+```
+
+Le `ms` actuel fait une boucle `spin_loop`, il ne cède pas la main aux autres tâches. Il faudrait un `ms` qui yield :
+
+```rust
+20 => { // attendre / ms
+    if let Some(ms) = self.stack.pop() {
+        let deadline = ticks_ms() + ms as u64;
+        while ticks_ms() < deadline {
+            // Vérifier l'emergency break
+            if self.emergency_break { break; }
+            // Vérifier la préemption
+            if crate::interrupts::PREEMPT_REQUESTED
+                .load(Ordering::SeqCst)
+            {
+                // Sauvegarder et rendre la main
+                // ... VmSnapshot avec deadline restante ...
+                break;
+            }
+            core::hint::spin_loop();
+        }
+    }
+}
+```
+
+---
+
+## Priorité 2 — Ce qui enrichirait l'écosystème
+
+### 2.1 — BOOT.FTH de production
+
+Un fichier de démarrage structuré :
+
+```forth
+\ BOOT.FTH — Epona OS
+cr ." Epona OS — EponaForth" cr
+
+\ Charger la bibliothèque standard
+require STDLIB.FTH
+require FIXED.FTH
+require MUTEX.FTH
+
+\ Détecter et initialiser le matériel
+[defined] gpu:init [if]
+  gpu:init if
+    ." GPU: " gpu:info
+  else
+    ." GPU: fallback software" cr
+  then
+[then]
+
+[defined] hda-init [if]
+  hda-init if
+    ." Audio: HDA OK" cr
+  else
+    ." Audio: absent" cr
+  then
+[then]
+
+[defined] net:init [if]
+  net:init if
+    net:dhcp if
+      ." Reseau: DHCP OK " net:stack-info
+    else
+      ." Reseau: DHCP echec" cr
+    then
+  else
+    ." Reseau: pas de carte" cr
+  then
+[then]
+
+\ Charger les drivers utilisateur
+[defined] sys:probe [if]
+  sys:probe
+[then]
+
+\ Charger le programme utilisateur si présent
+[defined] disk:init [if]
+  disk:init if
+    [undefined] principal [if]
+      require MAIN.FTH
+    [then]
+  then
+[then]
+
+cr ." Systeme pret." cr
+```
+
+### 2.2 — EVENTS.FTH (système d'événements)
+
+Avec `defer` maintenant disponible, un vrai système d'événements :
+
+```forth
+\ EVENTS.FTH
+
+defer on-key-press     \ ( char -- )
+defer on-key-release   \ ( char -- )
+defer on-mouse-move    \ ( x y -- )
+defer on-mouse-click   \ ( x y btn -- )
+defer on-tick          \ ( ms -- )
+defer on-resize        \ ( w h -- )
+defer on-quit          \ ( -- )
+
+: default-nop  drop ;
+: default-nop2 drop drop ;
+: default-nop3 drop drop drop ;
+
+' default-nop  is on-key-press
+' default-nop  is on-key-release
+' default-nop2 is on-mouse-move
+' default-nop3 is on-mouse-click
+' default-nop  is on-tick
+' default-nop2 is on-resize
+' default-nop  is on-quit
+
+: event-loop ( -- )
+  begin
+    \ Clavier
+    touche? dup 0<> if on-key-press else drop then
+    \ Souris
+    souris? if
+      souris on-mouse-move
+    then
+    \ Tick
+    ticks on-tick
+    \ Dessin
+    16 ms
+    \ Quitter ?
+    exit-requested? if on-quit 1 else 0 then
+  until ;
+```
+
+### 2.3 — GUIKIT.FTH (toolkit UI)
+
+Au-dessus des widgets existants :
+
+```forth
+\ GUIKIT.FTH
+
+: ui:window ( x y w h title -- )
+  \ Fenêtre avec barre de titre
+  2over 2over 0x2C3E50 rect          \ fond
+  2over swap drop over 20 0x1A252F rect  \ barre titre
+  2over 5 + swap 5 + swap 10 0xECF0F1 gpu:text
+;
+
+: ui:button ( x y w h label -- pressed? )
+  \ Bouton avec état hover
+  souris >r >r
+  2over 2over
+  r@ r> \ x y btn
+  \ Vérifier hover
+  3 pick over >= 5 pick over >= and
+  4 pick over 5 pick + <= and
+  3 pick over 4 pick + <= and
+  swap drop
+  if
+    r@ 1 = if 0x2980B9 else 0x3498DB then
+  else
+    0x2C3E50
+  then
+  r> drop
+  rect
+  \ Label centré
+  \ ...
+  0  \ non pressé pour l'instant
+;
+```
+
+---
+
+## Priorité 3 — Simulation et jeux
+
+### 3.1 — CHIP-8 complet
+
+Le squelette est dans DEVGUIDE.FTH. Il faut compléter la table des opcodes et les 16 chiffres de la police.
+
+### 3.2 — SNAKE.FTH (utilise FIXED.FTH + EVENTS.FTH)
+
+```forth
+require FIXED.FTH
+require EVENTS.FTH
+
+\ Snake utilise :
+\ - FIXED.FTH pour les positions précises
+\ - EVENTS.FTH pour le clavier
+\ - Canvas pour le rendu
+\ - Un tableau circulaire pour le corps
+```
+
+### 3.3 — RAYCAST.FTH (Wolfenstein-like)
+
+Avec FIXED.FTH disponible, un raycaster est faisable :
+
+```forth
+require FIXED.FTH
+
+\ fsin/fcos pour les angles
+\ fmap pour projeter les murs
+\ gpu:fill pour les colonnes
+\ 320×200 pixels effectifs
+
+: raycast-column ( x player_x player_y angle -- )
+  \ Pour chaque colonne x :
+  \ 1. Calculer le rayon
+  \ 2. Trouver l'intersection avec le mur
+  \ 3. Calculer la hauteur projetée
+  \ 4. Dessiner la colonne
+;
+```
+
+---
+
+## Ce que je te suggère de faire maintenant
+
+### Option A — STDLIB.FTH
+
+Le fichier manquant le plus important. Je peux te le rédiger maintenant. Il contiendrait :
+
+- Mots de chaînes (`/string`, `bounds`, `>number`, `number>`)
+- Mots de tableau (`[]`, `matrix[]`)
+- Mots d'affichage (`0.r`, `hex.`, `f>str`)
+- Mots de date/heure (`time>str`, `date>str`)
+- Mots d'inspection (`?`, `??`)
+- Mots utilitaires (`noop`, `true`, `false`, `bl`, `tab`)
+
+### Option B — EVENTS.FTH + GUIKIT.FTH
+
+Pour que les applications aient une base UI solide avec le système d'événements `defer/is`.
+
+### Option C — Corriger `ms` pour yielder
+
+La correction Rust la plus utile maintenant que le multitâche est là. Un seul mot à modifier dans `exec_primitive`.
+
+### Option D — CHIP-8 complet
+
+Terminer le simulateur CHIP-8 du DEVGUIDE.FTH. C'est la démo technique la plus impressionnante pour montrer EponaForth.
+
+### Option E — SNAKE.FTH
+
+Premier vrai jeu complet utilisant FIXED.FTH + EVENTS.FTH.
+
+---
+
+Qu'est-ce qui t'intéresse le plus comme prochaine étape ?
