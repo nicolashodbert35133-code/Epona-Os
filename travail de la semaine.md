@@ -1884,5 +1884,327 @@ if self.critical_depth == 0 {
     self.task_save = Some(VmSnapshot { ... });
     return Err("Preempt");
 }
+
+# Modification Rust pour MUTEX.FTH — Explication Complète
+
+## Le problème
+
+MUTEX.FTH utilise `critical-begin` et `critical-end` pour empêcher le scheduler de préempter une tâche pendant une section critique. Mais ces mots doivent **communiquer avec le runtime Rust** pour que le scheduler les respecte.
+
+Sans cette modification, le scheduler peut interrompre une tâche **au milieu** d'un `mutex:lock`, ce qui casse la synchronisation.
+
+---
+
+## Ce qui se passe actuellement sans la modification
+
+```
+Tâche A                          Tâche B
+────────                         ────────
+mutex:lock
+  critical-begin                 
+  @  ← lit la variable           
+  ══ PRÉEMPTION ICI ══           
+                                 mutex:lock
+                                   critical-begin
+                                   @ ← lit AUSSI "libre"
+                                   ! ← écrit "verrouillé"
+                                   critical-end
+  ! ← écrit "verrouillé"        
+  critical-end                   
+
+→ Les deux tâches croient avoir le verrou !
+→ CORRUPTION DE DONNÉES
+```
+
+## Ce qui se passe AVEC la modification
+
+```
+Tâche A                          Tâche B
+────────                         ────────
+mutex:lock
+  critical-begin
+    → critical_depth = 1
+  @  ← lit la variable
+  ══ PRÉEMPTION DEMANDÉE ══
+  ══ MAIS critical_depth > 0 ══
+  ══ → REPORTÉE ══
+  ! ← écrit "verrouillé"
+  critical-end
+    → critical_depth = 0
+  ══ PRÉEMPTION MAINTENANT ══
+                                 mutex:lock
+                                   @ ← lit "verrouillé"
+                                   → attend...
+
+→ Une seule tâche a le verrou = CORRECT
+```
+
+---
+
+## Les 3 modifications à faire
+
+### Modification 1 — Ajouter le champ dans ForthVm
+
+```rust
+// Dans la struct ForthVm, ajouter le champ :
+
+pub struct ForthVm {
+    pub stack: Vec<i64>,
+    pub rstack: Vec<usize>,
+    pub dictionary: Vec<Word>,
+    // ... tous les champs existants ...
+    
+    // ── NOUVEAU : section critique pour MUTEX.FTH ──
+    pub critical_depth: u32,
+}
+```
+
+**Pourquoi :** C'est un compteur qui indique si la tâche courante est dans une section critique. Le scheduler le consulte avant de préempter.
+
+- `0` = la tâche peut être préemptée normalement
+- `1` = la tâche est dans une section critique, ne pas préempter
+- `2+` = sections critiques imbriquées (rare mais supporté)
+
+C'est un compteur (pas un booléen) parce que les sections critiques peuvent être imbriquées :
+
+```forth
+critical-begin        \ depth = 1
+  critical-begin      \ depth = 2
+  critical-end        \ depth = 1, toujours protégé !
+critical-end          \ depth = 0, préemption autorisée
+```
+
+### Modification 2 — Initialiser à 0 dans ForthVm::new()
+
+```rust
+impl ForthVm {
+    pub fn new() -> Self {
+        let mut vm = Self {
+            stack: Vec::with_capacity(MAX_STACK),
+            rstack: Vec::with_capacity(MAX_RSTACK),
+            // ... tout le code existant ...
+            
+            // ── NOUVEAU ──
+            critical_depth: 0,
+        };
+        vm.init_primitives();
+        vm
+    }
+}
+```
+
+**Pourquoi :** Au démarrage, aucune section critique n'est active.
+
+### Modification 3 — Enregistrer les deux primitives
+
+Dans `init_primitives()`, ajouter à la fin (après la primitive 284) :
+
+```rust
+fn init_primitives(&mut self) {
+    // ... tout le code existant ...
+    // ... après la dernière primitive (284 = net:http-get) ...
+
+    // ── Primitives synchronisation (310-311) ──────────────────
+    self.add_primitive("critical-begin", 310, false);
+    self.add_primitive("critical-end",   311, false);
+}
+```
+
+**Pourquoi :** Ça enregistre les deux mots dans le dictionnaire Forth. Quand MUTEX.FTH appelle `critical-begin`, le runtime sait qu'il faut exécuter la primitive 310.
+
+Les indices 310-311 sont choisis pour laisser de la place après les primitives existantes (285-309 libres pour d'autres usages).
+
+### Modification 4 — Implémenter les deux primitives
+
+Dans `exec_primitive()`, ajouter les deux cases :
+
+```rust
+fn exec_primitive(&mut self, idx: usize) {
+    // ... tout le code existant ...
+    // ... dans le match idx { ... } ...
+
+    310 => {
+        // critical-begin ( -- )
+        // Incrémente le compteur de section critique.
+        // Tant que critical_depth > 0, le scheduler ne préempte pas.
+        self.critical_depth += 1;
+    }
+    
+    311 => {
+        // critical-end ( -- )
+        // Décrémente le compteur. Quand il atteint 0,
+        // la préemption redevient possible.
+        if self.critical_depth > 0 {
+            self.critical_depth -= 1;
+        }
+        // Le "if > 0" évite un underflow si quelqu'un appelle
+        // critical-end sans critical-begin (erreur utilisateur).
+    }
+
+    _ => {
+        // ... le cas par défaut existant ...
+    }
+}
+```
+
+**Pourquoi le `if > 0` :** Protection contre un code Forth buggé qui ferait plus de `critical-end` que de `critical-begin`. Sans cette protection, `critical_depth` deviendrait `u32::MAX` (4294967295) et la tâche ne serait plus jamais préemptée.
+
+### Modification 5 — Modifier le bloc de préemption dans execute_ops_limited
+
+C'est la modification **la plus importante**. C'est ici que le scheduler décide de préempter ou non.
+
+**Code actuel :**
+
+```rust
+fn execute_ops_limited(&mut self, ops: &[Op], mut ip: usize,
+    mut call_stack: Vec<(*const [Op], usize)>, max_instr: u32)
+    -> Result<(), &'static str>
+{
+    // ... début de la boucle ...
+
+    while ip < cur!().len()
+        && !self.exit_requested
+        && !self.emergency_break
+    {
+        // ... compteur d'instructions ...
+
+        // ═══════════════════════════════════
+        // BLOC DE PRÉEMPTION — CODE ACTUEL
+        // ═══════════════════════════════════
+        if max_instr > 0 && crate::interrupts::PREEMPT_REQUESTED
+            .load(core::sync::atomic::Ordering::SeqCst)
+        {
+            crate::interrupts::PREEMPT_REQUESTED
+                .store(false, core::sync::atomic::Ordering::SeqCst);
+            self.task_save = Some(VmSnapshot {
+                ops: ops.to_vec(),
+                ip,
+                call_stack,
+                remaining: max_instr.saturating_sub(instructions_count),
+            });
+            return Err("Preempt");
+        }
+
+        // ... suite de la boucle ...
+    }
+}
+```
+
+**Code modifié :**
+
+```rust
+        // ═══════════════════════════════════
+        // BLOC DE PRÉEMPTION — CODE MODIFIÉ
+        // ═══════════════════════════════════
+        if max_instr > 0 && crate::interrupts::PREEMPT_REQUESTED
+            .load(core::sync::atomic::Ordering::SeqCst)
+        {
+            // ── NOUVEAU : vérifier la section critique ──
+            if self.critical_depth == 0 {
+                // Pas en section critique → préemption autorisée
+                crate::interrupts::PREEMPT_REQUESTED
+                    .store(false, core::sync::atomic::Ordering::SeqCst);
+                self.task_save = Some(VmSnapshot {
+                    ops: ops.to_vec(),
+                    ip,
+                    call_stack,
+                    remaining: max_instr.saturating_sub(instructions_count),
+                });
+                return Err("Preempt");
+            }
+            // else : en section critique → on NE préempte PAS
+            // Le flag PREEMPT_REQUESTED reste à true.
+            // Il sera traité à la prochaine itération
+            // quand critical_depth retombera à 0.
+        }
+```
+
+**Ce qui change :**
+- Avant : dès que `PREEMPT_REQUESTED` est true, la tâche est interrompue
+- Après : si `critical_depth > 0`, la tâche **continue** malgré la demande de préemption
+
+**Détail important :** On ne reset PAS `PREEMPT_REQUESTED` quand on refuse la préemption. Le flag reste à `true` pour être traité dès que la section critique se termine. Sinon, la tâche pourrait monopoliser le CPU indéfiniment.
+
+---
+
+## Protection anti-abus
+
+Un code Forth buggé pourrait faire `critical-begin` sans jamais faire `critical-end`, bloquant le scheduler pour toujours. Pour se protéger, ajouter un timeout :
+
+```rust
+        if max_instr > 0 && crate::interrupts::PREEMPT_REQUESTED
+            .load(core::sync::atomic::Ordering::SeqCst)
+        {
+            if self.critical_depth == 0 {
+                // Préemption normale
+                crate::interrupts::PREEMPT_REQUESTED
+                    .store(false, core::sync::atomic::Ordering::SeqCst);
+                self.task_save = Some(VmSnapshot {
+                    ops: ops.to_vec(),
+                    ip,
+                    call_stack,
+                    remaining: max_instr.saturating_sub(instructions_count),
+                });
+                return Err("Preempt");
+            } else if instructions_count > 100_000 {
+                // ── PROTECTION : section critique trop longue ──
+                // Force la préemption après 100k instructions
+                // même en section critique (anti-deadlock)
+                use core::fmt::Write;
+                let _ = write!(&mut self.print_buffer,
+                    "WARN: section critique trop longue, preemption forcee\n");
+                self.critical_depth = 0;  // Reset forcé
+                crate::interrupts::PREEMPT_REQUESTED
+                    .store(false, core::sync::atomic::Ordering::SeqCst);
+                self.task_save = Some(VmSnapshot {
+                    ops: ops.to_vec(),
+                    ip,
+                    call_stack,
+                    remaining: max_instr.saturating_sub(instructions_count),
+                });
+                return Err("Preempt");
+            }
+            // else : en section critique, pas encore timeout → continuer
+        }
+```
+
+La limite de 100 000 instructions est largement suffisante pour une section critique normale (qui devrait faire moins de 100 instructions).
+
+---
+
+## Résumé — les 5 endroits à modifier
+
+```
+interpreter.rs
+│
+├── struct ForthVm {
+│     + pub critical_depth: u32,        ← Modification 1
+│   }
+│
+├── fn new() -> Self {
+│     + critical_depth: 0,              ← Modification 2
+│   }
+│
+├── fn init_primitives() {
+│     + "critical-begin" → 310          ← Modification 3
+│     + "critical-end"   → 311
+│   }
+│
+├── fn exec_primitive(idx) {
+│     + 310 => critical_depth += 1      ← Modification 4
+│     + 311 => critical_depth -= 1
+│   }
+│
+└── fn execute_ops_limited() {
+      // bloc PREEMPT_REQUESTED
+      + if self.critical_depth == 0 {   ← Modification 5
+      +   // préempter
+      + } else if instructions > 100k {
+      +   // forcer (anti-deadlock)
+      + }
+    }
+```
+
+Une fois ces 5 modifications faites, MUTEX.FTH fonctionne correctement et les sections critiques Forth sont respectées par le scheduler Rust.
 // sinon : reporter la préemption
 ```
