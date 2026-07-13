@@ -204,48 +204,6 @@ PREPARATION DE LA CLE USB :
   3. (Optionnel) Copiez vos fichiers .FTH a la racine
   4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
 
-================================================================================
-                        EPONA OS — GUIDE COMPLET
-              Systeme d'exploitation bare-metal UEFI en Rust
-            avec interprete Forth integre (EponaForth)
-================================================================================
-
-Bienvenue dans Epona OS !
-
-Ce guide vous explique comment utiliser le systeme, programmer en Forth,
-et acceder au materiel directement depuis votre clavier.
-
-Epona OS demarre depuis une cle USB et fonctionne sans Windows, sans Linux,
-sans aucun autre systeme. Il tourne directement sur le processeur.
-
-================================================================================
-TABLE DES MATIERES
-================================================================================
-
-  1. DEMARRAGE ET INTERFACE
-  2. LE TERMINAL (SHELL)
-  3. INTRODUCTION AU FORTH
-  4. REFERENCE DU LANGAGE FORTH
-  5. ACCES AU MATERIEL
-  6. SYSTEME DE FICHIERS (CLE USB)
-  7. L'EDITEUR DE CODE (IDE)
-  8. APPLICATIONS INTEGREES
-  9. EXEMPLES COMPLETS
- 10. ARCHITECTURE DU SYSTEME
- 11. QUESTIONS FREQUENTES
- 12. GLOSSAIRE
-
-================================================================================
-1. DEMARRAGE ET INTERFACE
-================================================================================
-
-PREPARATION DE LA CLE USB :
----------------------------
-  1. Formatez une cle USB en FAT32
-  2. Copiez le fichier BOOTX64.EFI dans le dossier EFI\BOOT\
-  3. (Optionnel) Copiez vos fichiers .FTH a la racine
-  4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
-
 LE BUREAU :
 -----------
   Epona OS possede un bureau graphique avec :
@@ -528,15 +486,28 @@ AFFICHAGE :
   cr                          — Retour a la ligne
   space                       — Affiche un espace
   spaces  ( n -- )            — Affiche n espaces
-  emit    ( c -- )            — Affiche un caractere (code ASCII)
-  ." texte"                   — Affiche une chaine de texte
-  hex                         — Passe en mode hexadecimal
+   emit    ( c -- )            — Affiche un caractere (code ASCII)
+   type    ( addr len -- )     — Affiche une chaine depuis la mémoire
+                                 Compagnon de s". Ex: s" Bonjour" type
+  count   ( addr -- addr+1 n ) — Décompresse une chaine comptée
+                                 Ex: create msg ," Hello"
+                                     msg count type   \ Affiche Hello
+  compare ( a1 n1 a2 n2 -- c ) — Compare deux chaînes
+                                 c=0: egal, c=-1: a1<a2, c=1: a1>a2
+  search  ( a1 n1 a2 n2 -- a3 n3 f )
+                                 Cherche sous-chaîne a2/n2 dans a1/n1
+                                 f=-1 : trouvé (a3 pointe le match, n3 = reste)
+                                 f=0  : pas trouvé (a3=a1, n3=n1)
+    ." texte"                   — Affiche une chaine de texte
+   abort" message"             — Si flag ≠ 0, affiche "ABORT: message" et arrete
+   hex                         — Passe en mode hexadecimal
   decimal                     — Revient en mode decimal
 
-  Exemples :
-    65 emit                   — Affiche 'A'
-    cr ." Bonjour!" cr        — Affiche Bonjour! avec retours a la ligne
-    hex 255 . decimal         — Affiche 0xFF
+   Exemples :
+     65 emit                   — Affiche 'A'
+     cr ." Bonjour!" cr        — Affiche Bonjour! avec retours a la ligne
+     hex 255 . decimal         — Affiche 0xFF
+     dup 0 < abort" Negatif !" — Arrete si negatif
 
 LITTERAUX NUMERIQUES :
 -----------------------
@@ -760,20 +731,69 @@ RECURSION :
 
 MOTS AVANCES :
 --------------
-  create <nom>                — Cree un mot qui empile une adresse
-  does>                       — Definit le comportement d'un mot cree
+   create <nom>                — Cree un mot qui empile une adresse
+   buffer: <nom>              — Crée un buffer nommé (taille en cellules sur la pile)
+                                 Ex: 512 buffer: secteur
+                                 secteur 512 erase   \ Efface le buffer
+   struct <nom>               — Déclare le début d'une structure (empile offset=0)
+   field <nom>                — Déclare un champ (crée un mot qui ajoute l'offset)
+   end-struct                 — Termine la structure (laisse la taille sur la pile)
+                                 Ex: struct point
+                                       field .x
+                                       field .y
+                                     end-struct
+                                     point buffer: mon-point
+                                     42 mon-point .x !
+                                      99 mon-point .y !
+   enum <nom>                    — Crée une énumération (valeur+1 auto)
+                                  Ex: 0 enum ROUGE
+                                        enum VERT
+                                        enum BLEU
+                                      drop
+                                      BLEU .   \ → 2
+   does>                       — Definit le comportement d'un mot cree
   immediate                   — Rend le dernier mot defini immediat
   here                        — Adresse memoire courante
   allot   ( n -- )            — Reserve n cellules memoire
   ,       ( val -- )          — Stocke val a here et avance
-  words                       — Liste tous les mots definis
+  ," <texte>"                 — Stocke une chaine a here (longueur + octets)
+                                Ex: create msg ," Bonjour"
+                                msg 1+ type pour afficher la chaine
+   words                       — Liste tous les mots definis
+   word-info <mot>             — Affiche les infos d'un mot (type, ops, flags)
+   critical-begin               — Début de section critique (désactive préemption)
+   critical-end                 — Fin de section critique (réactive préemption)
+                                  Utilisé par MUTEX.FTH pour la synchronisation
+                                  entre tâches. S'imbrique. Timeout à 100k instr.
+
+   noop                         — No operation
+   true / false                 — Constantes -1 et 0
+   bl / tab                     — Constantes 32 et 9
+   max3 / min3 / clamp          — Algèbre à 3 arguments
+   within / between             — Tests d'intervalle
+   bounds / /string             — Manipulation de chaînes
+   [] / c[] / matrix[]          — Indexation de tableaux
+   0.r                          — Affichage avec zéros de remplissage
+   hex.                         — Affiche en hexadécimal
+   ? / ??                       — Inspection mémoire
+   >number / number>            — Conversion chaîne ↔ nombre
+   f>str                        — Conversion virgule fixe → chaîne
+   time>str / date>str          — Formatage date/heure
+   times / for / map            — Itération
+   array:create / array:push / array:pop  — Tableaux dynamiques
+
    '       <mot>               — Empile l'index du mot (dictionary index).                                Dans Epona, l'index est aussi l'execution token (xt).                                Cela differe du Forth standard ou ' retourne une                                adresse memoire (xt). C'est coherent avec le modele                                interne : execute utilise le meme index.
    execute ( idx -- )          — Execute un mot par son index
    postpone <mot>              — Compile un mot immediat
-   forget  ( idx -- )          — Oublie les mots a partir de l'index
-                                 Nettoie aussi les variables, la string_pool
-                                 et remet here a 0.
-                                 (tronque le dictionnaire)
+  forget  ( idx -- )          — Oublie les mots a partir de l'index
+                                  Nettoie aussi les variables, la string_pool
+                                  et remet here a 0.
+                                  (tronque le dictionnaire)
+  marker <nom>                — Crée un point de restauration
+                                  Ex: marker debut
+                                  : test 42 . ;
+                                  debut  \ supprime test
+                                  (restaure dictionnaire/here/variables)
 
   Note sur string_pool :
     - Les noms de mots sont stockes dans string_pool (Vec<u8>), alloue
@@ -795,6 +815,129 @@ MOTS AVANCES :
         : carre create dup * does> swap ! ;
         carre x   \ crée x = 9
       Le mot cree execute le code does> a chaque appel.
+
+
+   see <mot>                    — Affiche la definition et le bytecode du mot.
+                                  Equivalent a decompiler le mot.
+
+   char <caractere>             — Empile le code ASCII du caractere.
+                                  Exemple : char A .  — Affiche 65
+
+   value <nom>                  — Declare une valeur (variable initialisee
+                                  par la valeur au sommet de la pile).
+                                  A la difference de variable, value retourne
+                                  directement la valeur (pas l'adresse).
+                                  Exemple :
+                                    42 value reponse
+                                    reponse .          \ Affiche 42
+                                    100 to reponse     \ Change la valeur
+                                    reponse .          \ Affiche 100
+
+   to <nom>                     — Modifie la valeur d'une valeur declaree
+                                  avec value. Prend la nouvelle valeur sur
+                                  la pile.
+                                  Exemple : 42 to reponse
+
+   defer <nom>                  — Declare un mot differe (deferred word).
+                                  S'utilise comme un mot normal, mais on
+                                  peut changer sa definition avec is.
+                                  Exemple :
+                                    defer ma-fonction
+                                    : dire-bonjour ." Bonjour !" ;
+                                    ' dire-bonjour is ma-fonction
+                                    ma-fonction      \ Affiche "Bonjour !"
+                                    : dire-salut ." Salut !" ;
+                                    ' dire-salut is ma-fonction
+                                    ma-fonction      \ Affiche "Salut !"
+
+   is <nom>                     — Assigne une nouvelle definition a un
+                                  mot declare avec defer. Prend l'execution
+                                  token (') sur la pile.
+                                  Exemple : ' nouveau-mot is mon-defer
+
+   [char]                       — Version compilee de char. Utilisable
+                                   a l'interieur d'une definition :
+                                   : affiche-A [char] A emit ;
+   [defined] <mot>              — Teste si un mot existe (flag -1/0)
+   [undefined] <mot>            — Teste si un mot n'existe pas (flag -1/0)
+                                   S'utilise avec [if]/[else]/[then] :
+                                    [defined] gpu:init [if]
+                                      ." GPU disponible" cr
+                                    [then]
+
+   CASE ... OF ... ENDOF ... ENDCASE :
+     Structure de selection multiple.
+     Syntaxe :
+       <valeur> case
+         <val1> of ... endof
+         <val2> of ... endof
+         <valn> of ... endof
+         (optionnel) ...         \ cas par defaut
+       endcase
+
+     Exemple :
+       : jour-semaine ( n -- )
+         case
+           1 of ." Lundi" endof
+           2 of ." Mardi" endof
+           3 of ." Mercredi" endof
+           4 of ." Jeudi" endof
+           5 of ." Vendredi" endof
+           ." Weekend"
+         endcase
+       ;
+       3 jour-semaine           \ Affiche "Mercredi"
+
+     Note : les valeurs sont testees une par une avec =. Le premier
+     'of' dont la condition est vraie execute son bloc puis saute
+     directement a endcase (endof compile un saut). Si aucun 'of'
+     ne correspond, le code eventuel entre le dernier endof et
+      endcase est execute (cas par defaut).
+
+
+   [if] / [else] / [then] (compilation conditionnelle) :
+      Permet de compiler du code differemment selon une condition.
+      Utile pour adapter le code a la plateforme ou a la configuration.
+      Fonctionne en mode interprete ET en mode compilation.
+
+      Syntaxe :
+        <flag> [if]
+          ... code si flag vrai ...
+        [else]
+          ... code si flag faux ...
+        [then]
+
+      Exemple :
+        1 [if]
+          : saluer ." Bonjour !" ;
+        [else]
+          : saluer ." Hello !" ;
+        [then]
+        \ Si le flag est 1, seul le premier mot est compile.
+        \ Si le flag est 0, seul le second mot est compile.
+
+      Note : les branches [if]/[else]/[then] sont evaluees au moment
+      de la compilation (tokeniseur). Aucun bytecode n'est genere
+      pour les branches ignorees.
+
+
+SÉQUENCES D'ÉCHAPPEMENT DANS ." ET s" :
+-----------------------------------------
+   Les chaînes dans ." et s" peuvent contenir des séquences
+   d'échappement commençant par \ :
+
+   \n      — Nouvelle ligne (retour à la ligne)
+   \t      — Tabulation
+   \\      — Antislash litteral
+   \"      — Guillemet litteral
+
+   Exemple :
+     ." Ligne 1\nLigne 2\tTabulation" cr
+     \ Affiche :
+     \ Ligne 1
+     \ Ligne 2    Tabulation
+
+     s" Chemin : C:\\Users\\Nom"   \ stocke sans couper la chaîne
 
 
 ================================================================================
@@ -852,7 +995,7 @@ CANVAS FORTH (zone protegee 400x300) :
   effacer ( color -- )        — Efface le canvas
   couleur ( r g b -- color )  — Compose une couleur RGB
   fb:blit ( src_x src_y w h dst_x dst_y -- )
-                             — Copie un bloc w×h du framebuffer
+                             — Copie un bloc w —h du framebuffer
                                vers (dst_x,dst_y) (gère l'overlap)
 
 WIDGETS (systeme d'UI fenetre) :
@@ -1197,11 +1340,11 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:text       ( x y addr len color scale -- )
                                     — Dessine une chaîne depuis la mémoire Forth.
                                       La chaîne est lue depuis addr..addr+len (ASCII/UTF-8).
-                                      scale=1 (8×8) ou 2 (16×16). Couleur 0xRRGGBB.
+                                      scale=1 (8 —8) ou 2 (16 —16). Couleur 0xRRGGBB.
 
    Curseurs :
      gpu:cursor     ( x y -- )      — Positionne le curseur materiel (Intel/AMD).
-                                      Surface 64×64 ARGB fixe. Hotspot (0,0).
+                                      Surface 64 —64 ARGB fixe. Hotspot (0,0).
                                       Utilise le planificateur de curseur hardware.
 
      gpu:cursor-set ( addr w h hot_x hot_y -- )
@@ -1539,11 +1682,14 @@ COMMANDES DISQUE DUR (disk:*) :
 
 MOTS FORTH POUR LES FICHIERS :
 -------------------------------
-  sys:load <fichier>          — Charge et compile un fichier Forth
-  sys:read <fichier>          — Lit un fichier en memoire
-                                ( addr -- len )
-  sys:write <fichier>         — Ecrit la memoire dans un fichier
-                                ( addr len -- )
+   include <fichier>           — Charge et compile un fichier Forth
+   require <fichier>           — Comme include mais ne charge qu'une fois
+                                 (ignore le fichier si deja charge)
+   sys:load <fichier>          — Charge et compile un fichier Forth (identique a include)
+   sys:read <fichier>          — Lit un fichier en memoire
+                                 ( addr -- len )
+   sys:write <fichier>         — Ecrit la memoire dans un fichier
+                                 ( addr len -- )
 
 PRIMITIVES FAT32 BAS NIVEAU (fat:*) :
 --------------------------------------
@@ -2062,10 +2208,8 @@ NOTES D'ARCHITECTURE INTERNE :
     dictionnaire a chaque iteration (safe, perte negligeable).
 
 ================================================================================
-================================================================================
                     Epona OS — Fait avec passion en Rust
                     Interprete Forth integre — EponaForth
 ================================================================================
-                    Epona OS — Fait avec passion en Rust
                     Interprete Forth integre — EponaForth
 ================================================================================
