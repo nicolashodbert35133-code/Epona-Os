@@ -183,17 +183,5 @@ Key innovations:
 - **Single‑developer syndrome** — documentation and tests are essential.  
 - **No users** — publish early, show demos, gather feedback.  
 - **Hardware compatibility** — test on multiple machines.
-
----
-
-## 🌠 **Two‑year vision**
-
-| Scenario | Outcome |
-|:--|:--|
-| **Optimistic** | v3.0: x86‑64 JIT, 500+ Forth words, active community |
-| **Realistic** | v2.5: mature language, excellent documentation, educational adoption |
-| **Minimum viable** | v2.2: ISO image, GitHub release, first contributors |
-
-
 Souhaites‑tu que je t’aide à **formater cette page pour GitHub** (titres, badges, liens, sections “Contribuer” et “Licence”) ou à **rédiger le README principal** ?  
 Tu peux choisir : mise en page GitHub ou rédiger README.
