@@ -2,19 +2,24 @@
                         EPONA OS — GUIDE COMPLET
               Systeme d'exploitation bare-metal UEFI en Rust
             avec interprete Forth integre (EponaForth)
-================================================================================
+================================================================================
 
-Bienvenue dans Epona OS !
+
+Bienvenue dans Epona OS !
+
 
 Ce guide vous explique comment utiliser le systeme, programmer en Forth,
-et acceder au materiel directement depuis votre clavier.
+et acceder au materiel directement depuis votre clavier.
+
 
 Epona OS demarre depuis une cle USB et fonctionne sans Windows, sans Linux,
-sans aucun autre systeme. Il tourne directement sur le processeur.
+sans aucun autre systeme. Il tourne directement sur le processeur.
+
 
 ================================================================================
 TABLE DES MATIERES
-================================================================================
+================================================================================
+
 
   1. DEMARRAGE ET INTERFACE
   2. LE TERMINAL (SHELL)
@@ -27,18 +32,21 @@ TABLE DES MATIERES
   9. EXEMPLES COMPLETS
  10. ARCHITECTURE DU SYSTEME
  11. QUESTIONS FREQUENTES
- 12. GLOSSAIRE
+ 12. GLOSSAIRE
+
 
 ================================================================================
 1. DEMARRAGE ET INTERFACE
-================================================================================
+================================================================================
+
 
 PREPARATION DE LA CLE USB :
 ---------------------------
   1. Formatez une cle USB en FAT32
   2. Copiez le fichier BOOTX64.EFI dans le dossier EFI\BOOT\
   3. (Optionnel) Copiez vos fichiers .FTH a la racine
-  4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
+  4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
+
 
 LE BUREAU :
 -----------
@@ -46,7 +54,8 @@ LE BUREAU :
   - Des icones a gauche (double-clic pour ouvrir)
   - Une barre des taches en bas
   - Un bouton "Epona OS" (ou touche F1) pour le menu
-  - L'heure en bas a droite
+  - L'heure en bas a droite
+
 
   Icones disponibles :
     Terminal    — Console de commandes et Forth
@@ -54,7 +63,8 @@ LE BUREAU :
     PCI         — Explorateur de peripheriques
     Calc        — Calculatrice
     Paint       — Zone de dessin
-    Aide        — Guide rapide
+    Aide        — Guide rapide
+
 
 SOURIS ET CLAVIER :
 -------------------
@@ -62,12 +72,14 @@ SOURIS ET CLAVIER :
   - Touchpad (AbsolutePointer UEFI)
   - Souris USB (SimplePointer UEFI + USB HID natif)
   - Souris PS/2 (fallback i8042)
-  - I2C HID (touchpad natif, driver DesignWare)
+  - I2C HID (touchpad natif, driver DesignWare)
+
 
   Si aucune souris n'est detectee :
     F12         — Active le mode "souris clavier"
                   Fleches = deplacement, Espace = clic
-                  1-5 = vitesse du curseur
+                  1-5 = vitesse du curseur
+
 
   Clavier PS/2 (fallback i8042) — initialise automatiquement :
     - Scancode set 1 complet (lettres, chiffres, F1-F12, Home, End,
@@ -76,14 +88,16 @@ SOURIS ET CLAVIER :
     - Toggle : Caps Lock, Num Lock, Scroll Lock
     - Repeat rate : 10.9 Hz, delai 500 ms
     - LEDs synchronisees avec l'etat interne
-    - Fallback automatique si le clavier UEFI ne repond pas
+    - Fallback automatique si le clavier UEFI ne repond pas
+
 
 RACCOURCIS GLOBAUX :
 --------------------
   F1            — Menu Demarrer
   F2            — Basculer AZERTY / QWERTY
   F9            — ARRET D'URGENCE (stoppe le Forth, ecrit CRASH.TXT)
-  F12           — Mode souris clavier
+  F12           — Mode souris clavier
+
 
 RACCOURCIS EDITEUR :
 --------------------
@@ -93,16 +107,19 @@ RACCOURCIS EDITEUR :
   F6            — Sauvegarder sur cle USB
   F7            — Charger depuis cle USB
   Echap         — Fermer la fenetre
-  PgUp / PgDn   — Defiler le code
+  PgUp / PgDn   — Defiler le code
+
 
 
 ================================================================================
 2. LE TERMINAL (SHELL)
-================================================================================
+================================================================================
+
 
 Le terminal est la fenetre principale. Vous pouvez y taper :
   - Des commandes shell (ls, cat, exec...)
-  - Du code Forth directement (5 3 + .)
+  - Du code Forth directement (5 3 + .)
+
 
 COMMANDES FICHIERS :
 --------------------
@@ -116,7 +133,8 @@ COMMANDES FICHIERS :
    save <fichier>  — Sauvegarde l'editeur principal
    load <fichier>  — Charge un fichier dans un editeur
    edit <fichier>  — Idem que load
-   newedit <fich>  — Ouvre dans un nouvel editeur
+   newedit <fich>  — Ouvre dans un nouvel editeur
+
 
    Note : si le nom du fichier contient des espaces, mettez-le
    entre guillemets :
@@ -144,7 +162,8 @@ COMMANDES SYSTEME :
                                      par @ ! +! a [low..high[
                                      Utilise 0 4096 mem-bounds pour tout
                                      debloquer, ou 0 256 mem-bounds pour
-                                     un petit espace de travail.
+                                     un petit espace de travail.
+
 
 COMMANDES MATERIEL :
 --------------------
@@ -157,55 +176,68 @@ COMMANDES MATERIEL :
   mmio <addr>     — Lit un registre MMIO 32-bit
   mmio <addr> <v> — Ecrit une valeur MMIO 32-bit
   i2c probe <b>   — Scrute les peripheriques I2C
-  i2c read <b> <d> <r> [len] — Lit un registre I2C
+  i2c read <b> <d> <r> [len] — Lit un registre I2C
+
 
 
 ================================================================================
 3. INTRODUCTION AU FORTH
-================================================================================
+================================================================================
+
 
 Forth est un langage a pile (stack). C'est l'un des langages les plus
 simples et les plus puissants qui existent. Il a ete cree en 1970 par
-Charles Moore pour controler des telescopes.
+Charles Moore pour controler des telescopes.
+
 
 PRINCIPE DE BASE :
 ------------------
   En Forth, on ecrit les nombres AVANT les operations.
-  Les nombres sont empiles, puis les mots les consomment.
+  Les nombres sont empiles, puis les mots les consomment.
+
 
   Au lieu d'ecrire :    5 + 3       (notation classique)
-  On ecrit :            5 3 +       (notation polonaise inverse)
+  On ecrit :            5 3 +       (notation polonaise inverse)
+
 
   La "pile" est comme une pile d'assiettes :
   - On pose des valeurs dessus (push)
-  - On prend celles du dessus (pop)
+  - On prend celles du dessus (pop)
+
 
 PREMIER EXEMPLE :
 -----------------
-  Tapez dans le terminal :
+  Tapez dans le terminal :
 
-    5 3 + .
 
-  Resultat : 8
+    5 3 + .
+
+
+  Resultat : 8
+
 
   Explication :
     5     — Empile 5          Pile : [5]
     3     — Empile 3          Pile : [5, 3]
     +     — Additionne        Pile : [8]
-    .     — Affiche et retire Pile : [] (vide)
+    .     — Affiche et retire Pile : [] (vide)
+
 
 AUTRES EXEMPLES :
 -----------------
     10 2 * .          — Affiche 20 (10 fois 2)
     100 30 - .        — Affiche 70 (100 moins 30)
     15 4 / .          — Affiche 3 (division entiere)
-    15 4 mod .        — Affiche 3 (reste de la division)
+    15 4 mod .        — Affiche 3 (reste de la division)
+
 
 DEFINIR UN MOT (FONCTION) :
 ----------------------------
-  En Forth, on cree des "mots" (comme des fonctions) avec : et ;
+  En Forth, on cree des "mots" (comme des fonctions) avec : et ;
 
-    : carre ( n -- n*n )  dup * ;
+
+    : carre ( n -- n*n )  dup * ;
+
 
   Explication :
     :         — Debut de definition
@@ -213,22 +245,26 @@ DEFINIR UN MOT (FONCTION) :
     ( n -- n*n )  — Commentaire (effet sur la pile)
     dup       — Duplique le sommet de pile
     *         — Multiplie les deux valeurs du dessus
-    ;         — Fin de definition
+    ;         — Fin de definition
+
 
   Utilisation :
     5 carre .         — Affiche 25
-    3 carre .         — Affiche 9
+    3 carre .         — Affiche 9
+
 
 COMMENTAIRES :
 --------------
   Deux types de commentaires :
     \ Ceci est un commentaire jusqu'a la fin de la ligne
-    ( Ceci est un commentaire entre parentheses )
+    ( Ceci est un commentaire entre parentheses )
+
 
   Les commentaires entre parentheses servent souvent a documenter
   l'effet d'un mot sur la pile :
     ( avant -- apres )
-    ( n1 n2 -- somme )
+    ( n1 n2 -- somme )
+
 
   Note : les parentheses ( et ) sont toujours des tokens séparés,
   même sans espace autour :
@@ -265,11 +301,13 @@ MANIPULATION DE LA PILE DE RETOUR :
 -----------------------------------
   >r      ( x -- )            — Transfere x sur la pile de retour (rstack)
   r>      ( -- x )            — Recupere x depuis la pile de retour (rstack)
-  r@      ( -- x )            — Copie le sommet de la pile de retour (rstack)
+  r@      ( -- x )            — Copie le sommet de la pile de retour (rstack)
+
 
   Note : les indices de boucle DO/LOOP sont stockés sur une pile séparée
   (loop_rstack). i et j sont donc immunisés contre >r/r> : vous pouvez
-  utiliser >r à l'intérieur d'une boucle sans corrompre i ou j.
+  utiliser >r à l'intérieur d'une boucle sans corrompre i ou j.
+
 
 ARITHMETIQUE :
 --------------
@@ -279,6 +317,7 @@ ARITHMETIQUE :
   /       ( a b -- a/b )      — Division entiere
   mod     ( a b -- a%b )      — Reste (modulo)
   /mod    ( a b -- reste quotient ) — Division + reste
+  */      ( a b c -- a*b/c )   — Multiply-divide (multiplication puis division)
   1+      ( n -- n+1 )        — Incremente
   1-      ( n -- n-1 )        — Decremente
   2+      ( n -- n+2 )        — Ajoute 2
@@ -289,7 +328,8 @@ ARITHMETIQUE :
   negate  ( n -- -n )         — Change de signe
   min     ( a b -- min )      — Minimum
   max     ( a b -- max )      — Maximum
-  hasard  ( max -- n )        — Nombre aleatoire entre 0 et max-1
+  hasard  ( max -- n )        — Nombre aleatoire entre 0 et max-1
+
 
 COMPARAISON :
 -------------
@@ -302,9 +342,11 @@ COMPARAISON :
   0=      ( n -- flag )       — Egal a zero
   0<>     ( n -- flag )       — Different de zero
   0<      ( n -- flag )       — Negatif
-  0>      ( n -- flag )       — Positif
+  0>      ( n -- flag )       — Positif
 
-  Un "flag" vaut 1 (vrai) ou 0 (faux).
+
+  Un "flag" vaut 1 (vrai) ou 0 (faux).
+
 
 LOGIQUE BINAIRE (BITS) :
 -------------------------
@@ -313,7 +355,8 @@ LOGIQUE BINAIRE (BITS) :
   xor     ( a b -- a^b )      — OU exclusif
   invert  ( a -- ~a )         — Inverse tous les bits
   lshift  ( a n -- a<<n )     — Decalage a gauche
-  rshift  ( a n -- a>>n )     — Decalage a droite
+  rshift  ( a n -- a>>n )     — Decalage a droite
+
 
 AFFICHAGE :
 -----------
@@ -337,7 +380,8 @@ AFFICHAGE :
     ." texte"                   — Affiche une chaine de texte
    abort" message"             — Si flag ≠ 0, affiche "ABORT: message" et arrete
    hex                         — Passe en mode hexadecimal
-  decimal                     — Revient en mode decimal
+  decimal                     — Revient en mode decimal
+
 
    Exemples :
      65 emit                   — Affiche 'A'
@@ -353,7 +397,8 @@ LITTERAUX NUMERIQUES :
     0x8000000000000000 = i64::MIN  (bit de poids fort seul)
     0x7FFFFFFFFFFFFFFF = i64::MAX
   C'est délibéré : -1 = 0xFFFFFFFFFFFFFFFF (masque tous bits).
-  Pour afficher en non-signé, utilisez u. au lieu de .
+  Pour afficher en non-signé, utilisez u. au lieu de .
+
 
 VARIABLES ET MEMOIRE :
 ----------------------
@@ -362,7 +407,8 @@ VARIABLES ET MEMOIRE :
   true                        — Empile -1 (vrai en Forth)
   false                       — Empile 0 (faux en Forth)
   bl                          — Empile 32 (code ASCII espace)
-  tab                         — Empile 9 (code ASCII tabulation)
+  tab                         — Empile 9 (code ASCII tabulation)
+
 
   Note sur l'adressage :
     - L'« adresse » d'une variable est un index dans memory[] (Vec<i64>)
@@ -371,21 +417,25 @@ VARIABLES ET MEMOIRE :
     - L'ordre alphabetique du BTreeMap n'affecte PAS l'index car il est
       fixe par or_insert() a l'insertion (position d'allocation)
     - Deux variables ne peuvent pas avoir le meme nom
-    - Redéclarer une variable conserve l'index existant (or_insert)
+    - Redéclarer une variable conserve l'index existant (or_insert)
+
 
   <nom>                       — Empile l'adresse de la variable
   @       ( addr -- val )     — Lit la valeur a l'adresse
   !       ( val addr -- )     — Ecrit la valeur a l'adresse
-   +!      ( n addr -- )       — Ajoute n a la valeur
+   +!      ( n addr -- )       — Ajoute n a la valeur
+
 
    cell+   ( addr -- addr+8 )  — Ajoute 8 octets (taille d'une cellule)
    cells   ( n -- n*8 )        — Multiplie par la taille d'une cellule
    aligned ( addr -- addr )    — Aligne a 8 octets
    char+   ( addr -- addr+1 )  — Ajoute 1 octet (taille d'un caractere)
-    chars   ( n -- n )          — Multiplie par la taille d'un caractere
+    chars   ( n -- n )          — Multiplie par la taille d'un caractere
+
 
     erase   ( addr u -- )       — Met a zero u octets a partir de addr
-    move    ( src dest u -- )    — Copie u octets (gestion chevauchement)
+    move    ( src dest u -- )    — Copie u octets (gestion chevauchement)
+
 
    Exemple :
     variable compteur         \ Declare "compteur"
@@ -396,39 +446,46 @@ VARIABLES ET MEMOIRE :
 
 CONSTANTES :
 ------------
-  <valeur> constant <nom>     — Cree une constante
+  <valeur> constant <nom>     — Cree une constante
+
 
   Exemple :
     100 constant LARGEUR
-    LARGEUR .                 \ Affiche 100
+    LARGEUR .                 \ Affiche 100
+
 
 STRUCTURES DE CONTROLE :
--------------------------
+-------------------------
+
 
   IF ... THEN :
     <condition> if
       <code si vrai>
-    then
+    then
+
 
   IF ... ELSE ... THEN :
     <condition> if
       <code si vrai>
     else
       <code si faux>
-    then
+    then
+
 
   Exemples :
     : positif? ( n -- )
       0 > if ." positif" else ." negatif ou nul" then
     ;
     5 positif?                \ Affiche "positif"
-    -3 positif?               \ Affiche "negatif ou nul"
+    -3 positif?               \ Affiche "negatif ou nul"
+
 
   BEGIN ... UNTIL (boucle) :
     begin
       <code>
       <condition>  \ Quitte quand la condition est VRAIE
-    until
+    until
+
 
   Exemple :
     : compte ( n -- )         \ Compte de 0 a n-1
@@ -440,14 +497,16 @@ STRUCTURES DE CONTROLE :
       until
       2drop                   \ Nettoie la pile
      ;
-     5 compte                  \ Affiche 0 1 2 3 4
+     5 compte                  \ Affiche 0 1 2 3 4
+
 
   BEGIN ... WHILE ... REPEAT (boucle conditionnelle) :
     begin
       <condition>              \ Teste la condition (flag)
     while
       <corps>                  \ Execute si condition VRAIE
-    repeat                     \ Retourne a begin
+    repeat                     \ Retourne a begin
+
 
   Exemple :
     : compte ( n -- )          \ Compte de 0 a n-1
@@ -460,7 +519,8 @@ STRUCTURES DE CONTROLE :
       repeat
       drop
     ;
-    5 compte                   \ Affiche 0 1 2 3 4
+    5 compte                   \ Affiche 0 1 2 3 4
+
 
   Exemple avec filtrage :
     : pairs ( n -- )           \ Affiche les nombres pairs
@@ -473,12 +533,14 @@ STRUCTURES DE CONTROLE :
       repeat
       drop
     ;
-    5 pairs                    \ Affiche 0 2 4
+    5 pairs                    \ Affiche 0 2 4
+
 
   DO ... LOOP :
     <limite> <debut> do
       <code>
-    loop
+    loop
+
 
   Exemple :
     : etoiles ( n -- )
@@ -487,13 +549,15 @@ STRUCTURES DE CONTROLE :
       loop
       cr
     ;
-    5 etoiles                 \ Affiche *****
+    5 etoiles                 \ Affiche *****
+
 
   DO ... +LOOP (pas variable) :
     10 0 do
       i .                     \ Affiche l'index de boucle
       2                       \ Pas de 2
-    +loop                     \ Affiche 0 2 4 6 8
+    +loop                     \ Affiche 0 2 4 6 8
+
 
    i — Index de la boucle courante
      Utilise i pour recuperer l'index de la boucle DO la plus
@@ -508,11 +572,13 @@ STRUCTURES DE CONTROLE :
         i 1+ 2* .             \ Affiche 2 4 6 8 10
       loop
     ;
-    5 table
+    5 table
+
 
   j — Index de la boucle externe
     Utilise j dans une boucle imbriquee pour acceder a l'index
-    de la boucle englobante.
+    de la boucle englobante.
+
 
     : multi ( -- )
       3 0 do
@@ -521,25 +587,29 @@ STRUCTURES DE CONTROLE :
         loop
       loop
     ;
-    multi                     \ Affiche 0 0  0 1  0 2  1 0 ...
+    multi                     \ Affiche 0 0  0 1  0 2  1 0 ...
+
 
    ?DO — DO conditionnel :
      <limite> <debut> ?do
        <code>                \ Execute si debut != limite
-     loop
+     loop
+
 
      : test? ( n -- )        \ Boucle 0..n-1 sauf si n=0
        0 ?do i . loop cr
      ;
      5 test?                  \ Affiche 0 1 2 3 4
-     0 test?                  \ N'affiche rien
+     0 test?                  \ N'affiche rien
+
 
    LEAVE — Sortie immediate de boucle :
      <limite> <debut> do
        <code>
        <condition> if leave then
        <code>
-     loop
+     loop
+
 
      : cherche ( n -- )       \ Cherche le premier multiple de 3
        0 do
@@ -547,7 +617,8 @@ STRUCTURES DE CONTROLE :
        loop
      ;
      10 cherche                \ Affiche 0
-     10 5 do i 3 mod 0= if i . leave then loop  \ Affiche 6
+     10 5 do i 3 mod 0= if i . leave then loop  \ Affiche 6
+
 
 RECURSION :
 ----------
@@ -558,7 +629,8 @@ RECURSION :
         dup 1- recurse *
       then
     ;
-    5 factorielle .           \ Affiche 120
+    5 factorielle .           \ Affiche 120
+
 
     Note technique : recurse compile Op::Recurse, qui sera remplacé
     par Op::Call à la fin du mot. Si Op::Recurse survit (clone partiel,
@@ -589,18 +661,59 @@ MOTS AVANCES :
                                       BLEU .   \ → 2
    does>                       — Definit le comportement d'un mot cree
   immediate                   — Rend le dernier mot defini immediat
-  here                        — Adresse memoire courante
-  allot   ( n -- )            — Reserve n cellules memoire
-  ,       ( val -- )          — Stocke val a here et avance
+   here                        — Adresse memoire courante
+   allot   ( n -- )            — Reserve n cellules memoire
+   cell    ( -- 8 )            — Taille d'une cellule en octets
+   cell+   ( addr -- addr+8 )  — Avance d'une cellule
+   cells   ( n -- n*8 )        — Convertit en offset octets
+   ,       ( val -- )          — Stocke val a here et avance
+   c,      ( char -- )         — Stocke un octet a here et avance
+   blank   ( addr len -- )     — Remplit len cellules avec espace (32)
   ," <texte>"                 — Stocke une chaine a here (longueur + octets)
                                 Ex: create msg ," Bonjour"
                                 msg 1+ type pour afficher la chaine
-   words                       — Liste tous les mots definis
-   word-info <mot>             — Affiche les infos d'un mot (type, ops, flags)
-   critical-begin               — Début de section critique (désactive préemption)
-   critical-end                 — Fin de section critique (réactive préemption)
-                                  Utilisé par MUTEX.FTH pour la synchronisation
-                                  entre tâches. S'imbrique. Timeout à 100k instr.
+    words                       — Liste tous les mots definis
+    word-info <mot>             — Affiche les infos d'un mot (type, ops, flags)
+    synonym <new> <existing>    — Cree un alias (meme comportement)
+    action-of <defer>           — Lit le XT assigne a un defer
+    ['] <mot>                   — Tick compile (empile XT en compilation)
+    >body   ( xt -- body-addr ) — Adresse du body d'un mot CREATE
+    evaluate ( addr len -- )    — Execute une chaine comme du Forth
+    fm/mod  ( d n -- rem quot ) — Division floored (ANS)
+    sm/rem  ( d n -- rem quot ) — Division symetrique (ANS)
+    um*     ( u1 u2 -- ud )     — Multiplication non-signee double
+    um/mod  ( ud u1 -- u2 u3 )  — Division non-signee double/single
+    critical-begin               — Début de section critique (désactive préemption)
+    critical-end                 — Fin de section critique (réactive préemption)
+                                   Utilisé par MUTEX.FTH pour la synchronisation
+                                   entre tâches. S'imbrique. Timeout à 100k instr.
+
+   ─── LOCALS { } ──────────────────────────────────────────────────
+   Déclare des variables locales (accessibles uniquement dans le mot).
+
+   Syntaxe :
+     : distance { x1 y1 x2 y2 -- d }
+       x2 x1 - dup *
+       y2 y1 - dup *
+       + s>fs fsqrt fs>s d>s ;
+
+     : process { buf len / tmp result -- }
+       \ buf, len = paramètres (depuis la pile)
+       \ tmp, result = locaux initialisés à 0
+       buf len + to result
+       result ;
+
+   Règles :
+     - Les noms AVANT / sont des paramètres (pop de la pile)
+     - Les noms APRÈS / sont des locaux (initialisés à 0)
+     - -- est optionnel (juste pour la lisibilité)
+     - to <nom> écrit dans un local
+     - <nom> lit la valeur d'un local
+     - Les locaux sont automatiquement libérés à la fin du mot
+
+   Exemple complet :
+     : moyenne { a b -- } a b + 2 / ;
+     : swap-pairs { a b c d -- } c d a b ;
 
    noop                         — No operation
    true / false                 — Constantes -1 et 0
@@ -621,23 +734,30 @@ MOTS AVANCES :
    '       <mot>               — Empile l'index du mot (dictionary index).                                Dans Epona, l'index est aussi l'execution token (xt).                                Cela differe du Forth standard ou ' retourne une                                adresse memoire (xt). C'est coherent avec le modele                                interne : execute utilise le meme index.
    execute ( idx -- )          — Execute un mot par son index
    postpone <mot>              — Compile un mot immediat
-  forget  ( idx -- )          — Oublie les mots a partir de l'index
-                                  Nettoie aussi les variables, la string_pool
-                                  et remet here a 0.
+   forget  ( idx -- )          — Oublie les mots a partir de l'index
+                                  Troncature selective de la string_pool :
+                                  scanne les mots restants (0..idx) pour
+                                  trouver l'offset pool maximum utilise,
+                                  puis tronque jusqu'a ce point.
+                                  Si idx=0 : reset complet (clear pool/dict/vars).
                                   (tronque le dictionnaire)
-  marker <nom>                — Crée un point de restauration
+   marker <nom>                — Crée un point de restauration
+                                  Sauvegarde snap_pool (string_pool offset),
+                                  snap_dict, snap_here, snap_vars.
                                   Ex: marker debut
                                   : test 42 . ;
-                                  debut  \ supprime test
-                                  (restaure dictionnaire/here/variables)
+                                  debut  \ supprime test + tronque pool
+                                  (restore-marker = primitive 300)
 
-  Note sur string_pool :
-    - Les noms de mots sont stockes dans string_pool (Vec<u8>), alloue
-      sequentiellement sans GC.
-    - Apres des centaines de redefinitions, des noms orphelins s'accumulent
-      (fuite memoire faible, ~ quelques KB).
-    - forget (voir ci-dessus) vide le pool.
-    - En usage normal (quelques dizaines de mots), la fuite est negligeable.
+   Note sur string_pool :
+     - Les noms de mots sont stockes dans string_pool (Vec<u8>), alloue
+       sequentiellement sans GC.
+     - forget effectue une troncature selective : il scanne les mots restants
+       pour trouver le maximum des offsets pool, puis tronque a ce point.
+       Pas de nuke total si idx > 0.
+     - marker sauvegarde l'offset courant du pool (snap_pool) et
+       restore-marker (primitive 300) tronque le pool a cet offset.
+     - En usage normal, la fuite est negligeable.
 
   Note sur create/does> :
     - create <nom> en mode immédiat (hors definition) fonctionne.
@@ -781,26 +901,31 @@ SÉQUENCES D'ÉCHAPPEMENT DANS ." ET s" :
 ================================================================================
 
 Epona OS permet d'acceder directement au materiel de l'ordinateur.
-C'est une fonctionnalite unique et puissante.
+C'est une fonctionnalite unique et puissante.
+
 
 ATTENTION : Les operations materielles peuvent bloquer ou redemarrer
 votre ordinateur si mal utilisees. Utilisez "secure on" pour bloquer
-les acces dangereux pendant l'apprentissage.
+les acces dangereux pendant l'apprentissage.
+
 
 MEMOIRE (RAM) :
 ---------------
   mem-map ( -- total free )   — Pages memoire totales et libres
-                               1 page = 4096 octets (4 KB)
+                               1 page = 4096 octets (4 KB)
+
 
   alloc ( size -- addr|-1 )   — Alloue size octets dans la mémoire Forth
                                 Retourne l'adresse de début, ou -1 si
-                                la mémoire Forth est pleine (MAX_MEM=4096).
+                                la mémoire Forth est pleine (MAX_MEM=4096).
+
 
   Exemple :
     mem-map                   \ Empile total et free
     swap                      \ Met total au sommet
     4 * 1024 / .              \ Affiche total en MB
-    4 * 1024 / .              \ Affiche libre en MB
+    4 * 1024 / .              \ Affiche libre en MB
+
 
     256 alloc                 \ Alloue 256 octets dans la mémoire Forth
     dup 0< if
@@ -814,14 +939,18 @@ ECRAN (FRAMEBUFFER) :
   fb:pixel ( x y color -- )   — Dessine un pixel sur l'ecran reel
   fb:rect  ( x y w h col -- ) — Rectangle sur l'ecran reel
   fb:line  ( x1 y1 x2 y2 col -- ) — Ligne sur l'ecran reel
-  fb:text  ( x y char col -- )     — Caractere sur l'ecran reel
+  fb:text  ( x y char col -- )     — Caractere sur l'ecran reel
+  fb-text  ( x y addr len color scale -- ) — Affiche une chaine de texte
+  rect-outline ( x y w h color -- ) — Dessine le contour d'un rectangle
+
 
   Couleurs : format 0xRRGGBB
     0xFF0000 = rouge
     0x00FF00 = vert
     0x0000FF = bleu
     0xFFFFFF = blanc
-    0x000000 = noir
+    0x000000 = noir
+
 
 CANVAS FORTH (zone protegee 400x300) :
 --------------------------------------
@@ -832,7 +961,8 @@ CANVAS FORTH (zone protegee 400x300) :
   couleur ( r g b -- color )  — Compose une couleur RGB
   fb:blit ( src_x src_y w h dst_x dst_y -- )
                              — Copie un bloc w�—h du framebuffer
-                               vers (dst_x,dst_y) (gère l'overlap)
+                               vers (dst_x,dst_y) (gère l'overlap)
+
 
 WIDGETS (systeme d'UI fenetre) :
 --------------------------------
@@ -842,7 +972,8 @@ WIDGETS (systeme d'UI fenetre) :
    list:      ( x y w h -- )             — Cree une liste
    list-add   ( addr len -- )            — Ajoute un element a la derniere liste
    widgets-clear ( -- )                  — Vide tous les widgets
-   widgets-draw ( wx wy ww wh -- )       — Dessine tous les widgets
+   widgets-draw ( wx wy ww wh -- )       — Dessine tous les widgets
+
 
    Le mot optionnel [mot] est execute au clic sur le bouton.
    Les positions sont relatives a la zone de contenu de la fenetre.
@@ -850,11 +981,15 @@ WIDGETS (systeme d'UI fenetre) :
    dans main.rs, qui appelle widgets_handle_mouse(mx, my, btn, wx, wy)
    sur le ForthVm. Le callback du bouton est execute de façon synchrone.
    Les etats de survol (state=1) sont mis a jour automatiquement.
-   Ces mots sont destines aux fenetres creees avec app:.
+   Ces mots sont destines aux fenetres creees avec app:.
+
 
 ENTREES :
 ---------
-  touche  ( -- char )         — Attend une touche (bloquant)
+   touche  ( -- char )         — Attend une touche (bloquant)
+                                  Verifie PREEMPT_REQUESTED dans la boucle :
+                                  si preemption demandee, pousse 0 et cede la main.
+                                  (ne bloque plus le scheduler)
   touche? ( -- char|0 )       — Lit une touche (non-bloquant)
   souris  ( -- x y btn )      — Position et bouton souris
   souris? ( -- flag )         — 1 si souris detectee
@@ -865,7 +1000,8 @@ XHCI (SOURIS USB 3.0) :
 -----------------------
    xhci-init    ( -- ok? )     — Initialise le controleur XHCI et scanne les ports
    xhci-souris  ( -- dx dy btn ) — Lit le delta souris et les boutons
-   xhci-souris? ( -- flag )    — 1 si une souris USB HID est detectee
+   xhci-souris? ( -- flag )    — 1 si une souris USB HID est detectee
+
 
 HDA (AUDIO HD) :
 -----------------
@@ -881,12 +1017,14 @@ HDA (AUDIO HD) :
 
    Note : xhci-init est appele automatiquement au demarrage.
    Le polling XHCI est permanent dans la boucle principale.
-   Les mots xhci-souris/souris? lisent les dernieres donnees en memoire.
+   Les mots xhci-souris/souris? lisent les dernieres donnees en memoire.
+
 
 I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
 --------------------------------------------
    Le driver I2C HID detecte automatiquement les touchpads
-   connectes sur le bus I2C (controleur DesignWare).
+   connectes sur le bus I2C (controleur DesignWare).
+
 
    Detection automatique au demarrage (via PCI ou ACPI).
    IDs ACPI recherches : AMDI0010, AMD0010, AMDI0019, AMDI0510,
@@ -896,7 +1034,8 @@ I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
      - Microsoft Precision Touchpad (PTP) — aussi Apple Magic Trackpad
      - Synaptics
      - ELAN
-     - Fallback simple 6-octets
+     - Fallback simple 6-octets
+
 
    Gestes reconnus (integration dans PointerManager) :
      - Tap 1 doigt        → clic gauche
@@ -905,14 +1044,16 @@ I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
      - Glisser 1 doigt    → Drag (maintien + deplacement)
      - Scroll 2/3 doigts  → defilement horizontal/vertical
      - Pinch 2 doigts     → zoom (pincement/ecartement)
-     - Swipe              → balayage rapide (lift apres mouvement)
+     - Swipe              → balayage rapide (lift apres mouvement)
+
 
    Primitives bas niveau I2C (interpretees depuis Forth) :
      i2c.probe ( base -- )           — Scrute toutes les adresses HID
                                        sur un controleur I2C
      dw-i2c-init  ( base -- ok? )    — Initialise controleur I2C
      dw-i2c-probe ( base addr -- ok? ) — Teste peripherique I2C
-     i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
+     i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
+
 
    Nouvelles primitives I2C HID (274-279) :
      i2c:status    ( -- found initialized )
@@ -928,14 +1069,16 @@ I2C HID (TOUCHPAD NATIF — DesignWare I2C) :
                              — Regle la calibration dynamiquement
      i2c:cal-get   ( -- margin_x margin_y dead_zone smoothing )
                              — Lit la calibration courante
-     i2c:contacts  ( -- n ) — Nombre de contacts actifs
+     i2c:contacts  ( -- n ) — Nombre de contacts actifs
+
 
    Calibration (dynamic via i2c:cal-set / i2c:cal-get) :
      - Marges (margin_x, margin_y) : 0..2000, defaut 20px
      - Dead zone (dead_zone) : 0..20, defaut 3px
        Supprime les micro-mouvements en dessous du seuil
      - Smoothing (smoothing) : 0..8, defaut 2
-       Filtre exponentiel (0=aucun, 8=tres lisse)
+       Filtre exponentiel (0=aucun, 8=tres lisse)
+
 
 USB GENERIQUE (primitives usb:*) :
 -----------------------------------
@@ -951,22 +1094,26 @@ USB GENERIQUE (primitives usb:*) :
                              — Lecture via interrupt IN (si peripherique configure)
                                Fallback control IN (bmReqType=0x80, bReq=0)
    usb:write     ( slot_id buf_addr buf_len -- actual )
-                             — Control OUT (bmReqType=0x00, bReq=0)
+                             — Control OUT (bmReqType=0x00, bReq=0)
+
 
     Les buffers Forth sont copies vers/depuis des pages physiques temporaires.
     usb:read utilise xhci_interrupt_in (legacy, souris HID detectee auto).
     Pour lire depuis n'importe quel endpoint Interrupt/Bulk configure,
-    utiliser usb:bulk-read avec l'ep_addr souhaite.
+    utiliser usb:bulk-read avec l'ep_addr souhaite.
+
 
     usb:bulk-read   ( slot_id ep_addr buf_addr buf_len -- actual )
                               — Lecture bulk IN depuis l'endpoint specifie
                                 (buf_addr = memoire Forth, buf_len = max octets a lire)
     usb:bulk-write  ( slot_id ep_addr buf_addr buf_len -- actual )
                               — Ecriture bulk OUT vers l'endpoint specifie
-                                (buf_addr = memoire Forth contenant les donnees)
+                                (buf_addr = memoire Forth contenant les donnees)
+
 
      Les endpoints bulk sont configures automatiquement lors de l'init USB
-     pour les peripheriques de stockage MSD (cf. section USB MSD ci-dessous).
+     pour les peripheriques de stockage MSD (cf. section USB MSD ci-dessous).
+
 
     usb:config-ep  ( slot_id ep_addr attr mps interval -- ok? )
                               — Configure dynamiquement un endpoint sur un
@@ -981,7 +1128,8 @@ USB GENERIQUE (primitives usb:*) :
     usb:stop-ep   ( slot_id ep_addr -- ok? )
                               — Stoppe un endpoint (avant reconfiguration)
     usb:reset-ep  ( slot_id ep_addr -- ok? )
-                              — Reset un endpoint
+                              — Reset un endpoint
+
 
     Exemple — configurer un endpoint Interrupt IN sur EP1 d'un HID :
       1 0x81 0x03 8 10 usb:config-ep .
@@ -996,18 +1144,21 @@ USB GENERIQUE (primitives usb:*) :
      dup . ." peripheriques USB" cr
      0 ?do
        drop drop drop drop drop drop
-     loop
+     loop
+
 
    Exemple — lire le descripteur de peripherique (device descriptor, 18 octets) :
      \ slot_id=1, GET_DESCRIPTOR(device)=1, wVal=0x0100, wIdx=0
      \ buf_addr=100 (memoire Forth), buf_len=18
      1 0x80 6 0x0100 0 100 18 usb:control .
-      \ Lit les 18 premiers octets du buffer memoire Forth
+      \ Lit les 18 premiers octets du buffer memoire Forth
+
 
 USB MASS STORAGE (primitives usb:msd-*) :
 ------------------------------------------
    Primitives pour utiliser des cles USB et disques externes via le
-   protocole BOT (Bulk-Only Transport) + commandes SCSI.
+   protocole BOT (Bulk-Only Transport) + commandes SCSI.
+
 
    usb:msd-probe  ( -- n )   — Detecte et initialise tous les peripheriques MSD
                                 Retourne le nombre de disques MSD trouves
@@ -1018,12 +1169,14 @@ USB MASS STORAGE (primitives usb:msd-*) :
                                 au LBA 'lba' dans la memoire Forth a 'buf_addr'
    usb:msd-write  ( idx lba count buf_addr -- ok? )
                               — Ecrit 'count' blocs depuis la memoire Forth
-                                vers le disque MSD 'idx' au LBA 'lba'
+                                vers le disque MSD 'idx' au LBA 'lba'
+
 
    Les blocs font 'lba_size' octets (typiquement 512).
    Les peripheriques MSD sont automatiquement detectes pendant usb:init
    si un pilote est enregistre via sys:register.
-   Utiliser usb:msd-probe apres usb:init pour scanner et initialiser le BOT.
+   Utiliser usb:msd-probe apres usb:init pour scanner et initialiser le BOT.
+
 
    Exemple — lister et lire un bloc :
      usb:init .
@@ -1035,14 +1188,16 @@ USB MASS STORAGE (primitives usb:msd-*) :
      \ Lit le premier bloc (512 octets) a l'adresse memoire 1000
      0 0 1 1000 usb:msd-read .
      \ Affiche les 16 premiers octets en hexa
-     16 0 do 1000 i + c@ . loop cr
+     16 0 do 1000 i + c@ . loop cr
+
 
 RÉSEAU (primitives net:) :
 ---------------------------
   Cartes supportées (détection automatique au net:init) :
     - Intel e1000/e1000e    — 82540EM, 82574L, I217, I218, I219
     - Realtek RTL8168/8111  — RTL8168, RTL8111, RTL8169, RTL8101E
-    - Realtek RTL8821CE     — Wi-Fi PCIe (firmware requis via net:firmware)
+    - Realtek RTL8821CE     — Wi-Fi PCIe (firmware requis via net:firmware)
+
 
   Primitives de base :
     net:init    ( -- ok? )     — Initialise la première carte réseau trouvée
@@ -1058,7 +1213,8 @@ RÉSEAU (primitives net:) :
                                 — Adresse MAC (48 bits sur 2 mots)
     net:status  ( -- link_up? ) — 1 si le lien est actif
     net:info    ( -- )          — Affiche les infos de la carte active
-    net:cards   ( -- n )        — Nombre de cartes réseau détectées
+    net:cards   ( -- n )        — Nombre de cartes réseau détectées
+
 
   Pile réseau (ARP/IP/ICMP/UDP/TCP/DHCP/DNS) :
     net:ip!     ( a b c d -- )  — Configure l'IP locale
@@ -1073,13 +1229,15 @@ RÉSEAU (primitives net:) :
     net:dhcp    ( -- ok? )      — Obtient une IP automatiquement
     net:dns     ( name_addr name_len -- a b c d )
                                 — Résout un nom DNS (ex: "google.com")
-    net:poll    ( -- )          — Traite les paquets réseau entrants
+    net:poll    ( -- )          — Traite les paquets réseau entrants
+
 
   UDP :
     net:udp-send ( dst_a dst_b dst_c dst_d dst_port src_port buf_addr len -- ok? )
                                 — Envoie un paquet UDP
     net:udp-recv ( buf_addr maxlen -- actual_len src_ip_packed src_port )
-                                — Reçoit un paquet UDP
+                                — Reçoit un paquet UDP
+
 
   TCP :
     net:tcp-connect ( a b c d port -- sock|-1 )
@@ -1088,7 +1246,8 @@ RÉSEAU (primitives net:) :
                                 — Envoie des données TCP
     net:tcp-recv ( sock buf_addr maxlen -- actual )
                                 — Reçoit des données TCP
-    net:tcp-close ( sock -- )   — Ferme la connexion TCP
+    net:tcp-close ( sock -- )   — Ferme la connexion TCP
+
 
   HTTP client (via TCP) :
     net:http-get ( host_addr host_len path_addr path_len -- data_addr data_len status )
@@ -1099,18 +1258,21 @@ RÉSEAU (primitives net:) :
                                   le corps de la réponse, len = taille, status = code HTTP
                                   (200, 404, etc.) ou -1 si erreur.
                                   Port 80 implicite. IPv4 uniquement.
-                                  La réponse est stockée dans la mémoire Forth étendue.
+                                  La réponse est stockée dans la mémoire Forth étendue.
+
 
   Utilitaires :
     net:stack-info ( -- )       — Affiche la config IP/ARP/TCP
-    net:cards      ( -- n )     — Nombre de cartes (alias)
+    net:cards      ( -- n )     — Nombre de cartes (alias)
+
 
   Fonctionnalités réseau avancées (non implémentées — prévues) :
     - TLS/SSL (chiffrement) : nécessite des primitives cryptographiques
       (AES, RSA, SHA-256). Non disponible sans bibliothèque externe.
     - WebSocket : upgrade HTTP + trames. Peut être implémenté sur TCP existant.
     - DHCPv6 : nécessite une pile IPv6 complète.
-    - IPv6 RA / NDP / SLAAC : pile IPv6 complète à implémenter.
+    - IPv6 RA / NDP / SLAAC : pile IPv6 complète à implémenter.
+
 
   Exemple — configuration manuelle :
     net:init 0= if ." Pas de carte" cr then
@@ -1118,14 +1280,17 @@ RÉSEAU (primitives net:) :
     192 168 1 100 net:ip!
     255 255 255 0 net:mask!
     192 168 1 1 net:gw!
-    8 8 8 8 net:dns!
+    8 8 8 8 net:dns!
+
 
   Exemple — DHCP :
-    net:dhcp if ." IP obtenue" cr net:stack-info then
+    net:dhcp if ." IP obtenue" cr net:stack-info then
+
 
    Exemple — ping :
     net:init drop
-    8 8 8 8 net:ping dup 0 < if ." timeout" else . ." ms" then cr
+    8 8 8 8 net:ping dup 0 < if ." timeout" else . ." ms" then cr
+
 
    Exemple — HTTP GET :
     net:init drop
@@ -1138,7 +1303,8 @@ RÉSEAU (primitives net:) :
     cr ." Status: " . cr
     ." Réponse (" . ." octets) :" cr
     \ Afficher les 200 premiers octets
-    ( addr len ) over + swap do i @ emit loop cr
+    ( addr len ) over + swap do i @ emit loop cr
+
 
 GPU (ACCELERATION 2D — Intel/AMD) :
 -----------------------------------
@@ -1146,13 +1312,15 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:init       ( -- ok? )     — Initialise le GPU detecte (Intel i915 ou AMD Radeon)
      gpu:info       ( -- )          — Affiche les infos du GPU (modele, MMIO, blitter/sDMA)
      gpu:accel?     ( -- flag )     — 1 si l'acceleration materielle 2D est active
-     gpu:resolution ( -- w h )      — Resolution courante de l'ecran
+     gpu:resolution ( -- w h )      — Resolution courante de l'ecran
+
 
    Double buffering :
      gpu:fb-addr    ( -- addr )     — Adresse du back buffer (la ou on dessine)
      gpu:fb-stride  ( -- stride )   — Stride en octets (largeur * 4 pour 32bpp)
      gpu:flip       ( -- )          — Echange front/back buffer (affiche le back buffer)
-     gpu:vsync      ( -- )          — Attend le retour vertical (VBlank)
+     gpu:vsync      ( -- )          — Attend le retour vertical (VBlank)
+
 
    Remplissage, lignes et copie accelerés :
      gpu:fill       ( x y w h color -- )
@@ -1164,24 +1332,28 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:line       ( x1 y1 x2 y2 color -- )
                                     — Trace une ligne diagonale (Bresenham).
                                       Suit les diagonales parfaites sans escalier visible.
-                                      Couleur 32-bit 0xRRGGBB.
+                                      Couleur 32-bit 0xRRGGBB.
+
 
    Alpha blending (software) :
      gpu:blend      ( x y w h color alpha -- )
                                     — Rectangle alpha-blende. alpha=0..255
                                       Effectue un vrai blend (A*color + (255-A)*dest) pixel par pixel.
-                                      Permet des fenêtres translucides, surbrillance, ombres.
+                                      Permet des fenêtres translucides, surbrillance, ombres.
+
 
    Texte acceleré :
      gpu:text       ( x y addr len color scale -- )
                                     — Dessine une chaîne depuis la mémoire Forth.
                                       La chaîne est lue depuis addr..addr+len (ASCII/UTF-8).
-                                      scale=1 (8�—8) ou 2 (16�—16). Couleur 0xRRGGBB.
+                                      scale=1 (8�—8) ou 2 (16�—16). Couleur 0xRRGGBB.
+
 
    Curseurs :
      gpu:cursor     ( x y -- )      — Positionne le curseur materiel (Intel/AMD).
                                       Surface 64�—64 ARGB fixe. Hotspot (0,0).
-                                      Utilise le planificateur de curseur hardware.
+                                      Utilise le planificateur de curseur hardware.
+
 
      gpu:cursor-set ( addr w h hot_x hot_y -- )
                                     — Définit un curseur logiciel ARGB avec hotspot.
@@ -1189,7 +1361,8 @@ GPU (ACCELERATION 2D — Intel/AMD) :
                                       w,h = dimensions. hot_x,hot_y = point chaud relatif.
                                       Les pixels alpha=0 sont transparents, alpha=255 opaques.
                                       Alpha intermédiaire = blend. Appelé apres gpu:cursor.
-                                      Revenir au curseur par défaut : addr=0.
+                                      Revenir au curseur par défaut : addr=0.
+
 
    Modesetting natif (Intel Gen 9+ / AMD DCE) :
      gpu:modeset    ( w h -- ok? )  — Change la resolution. Utilise le modesetting natif
@@ -1197,7 +1370,8 @@ GPU (ACCELERATION 2D — Intel/AMD) :
                                       Résolutions standard: 640x480, 800x600, 1024x768,
                                       1280x720, 1280x1024, 1366x768, 1440x900, 1600x900,
                                       1680x1050, 1920x1080.
-                                      Les timings CEA/VESA sont pre-calcules.
+                                      Les timings CEA/VESA sont pre-calcules.
+
 
    Gestion multi-écran :
      gpu:outputs        ( -- n )       — Nombre de sorties detectees
@@ -1211,18 +1385,21 @@ GPU (ACCELERATION 2D — Intel/AMD) :
      gpu:output-fb      ( idx -- addr stride )
                                         — Adresse du framebuffer d'une sortie
      gpu:output-edid    ( idx -- valid? )
-                                        — Lit l'EDID d'une sortie (1 si detecte)
+                                        — Lit l'EDID d'une sortie (1 si detecte)
+
 
     Le driver detecte automatiquement les ecrans connectes (jusqu'a 4 sorties)
     au moment de gpu:init. Chaque sortie a son propre framebuffer et peut avoir
     une resolution differente.
-    Les EDID sont lus via GMBUS (Intel) ou I2C engine (AMD).
+    Les EDID sont lus via GMBUS (Intel) ou I2C engine (AMD).
+
 
     Limitations :
       - Hotplug non implante : la detection est figee apres gpu:init
       - gpu:output-edid retourne seulement un booleen (EDID detecte ou non) ;
         les infos detaillees (timings, nom moniteur, fabricant) ne sont pas
-        exposees depuis le Forth
+        exposees depuis le Forth
+
 
    Fallback software :
      Si le GPU n'est pas reconnu ou si le blitter ne demarre pas,
@@ -1248,7 +1425,8 @@ GPU (ACCELERATION 2D — Intel/AMD) :
             touche? 27 =
         until
         2drop
-     ;
+     ;
+
 
     Exemple — multi-ecran :
       gpu:init drop
@@ -1258,13 +1436,15 @@ GPU (ACCELERATION 2D — Intel/AMD) :
       \ Afficher les infos de la sortie 0
       0 gpu:output-info ." x" . ." active=" . cr
       \ Lire l'EDID de la sortie 0
-      0 gpu:output-edid if ." EDID detecte" else ." Pas d'EDID" then cr
+      0 gpu:output-edid if ." EDID detecte" else ." Pas d'EDID" then cr
+
 
     Exemple — trait de diagonale :
       gpu:init drop
       \ Ligne diagonale du coin (10,10) à (300,200)
       10 10 300 200 0x00FF00 gpu:line
-      gpu:vsync gpu:flip
+      gpu:vsync gpu:flip
+
 
     Exemple — fenêtre translucide (blend) :
       gpu:init drop
@@ -1272,7 +1452,8 @@ GPU (ACCELERATION 2D — Intel/AMD) :
       gpu:resolution 0x000000 gpu:fill
       \ Rectangle rouge semi-transparent
       50 50 200 150 0xFF0000 128 gpu:blend
-      gpu:vsync gpu:flip
+      gpu:vsync gpu:flip
+
 
     Exemple — texte depuis Forth :
       gpu:init drop
@@ -1280,7 +1461,8 @@ GPU (ACCELERATION 2D — Intel/AMD) :
       create hello ," Hello Epona !"
       \ Dessiner le texte à (40,40) en blanc taille 2
       40 40 hello 12 0xFFFFFF 2 gpu:text
-      gpu:vsync gpu:flip
+      gpu:vsync gpu:flip
+
 
     Exemple — curseur ARGB personnalisé :
       \ Créer un curseur rouge 16x16 en mémoire Forth
@@ -1292,14 +1474,16 @@ GPU (ACCELERATION 2D — Intel/AMD) :
       \ Appliquer (adresse, 4, 4, hotspot_x=1, hotspot_y=1)
       cur-rouge 4 4 1 1 gpu:cursor-set
       \ Positionner
-      100 100 gpu:cursor
+      100 100 gpu:cursor
+
 
 HORLOGE :
 ----------
   get-time ( -- sec min hour day month year )  — Lit l'heure RTC
   set-time ( year month day hour minute sec -- ) — Change l'heure
   rdtsc    ( -- ticks )       — Compteur CPU haute precision
-  ticks    ( -- ms )          — Millisecondes depuis le demarrage
+  ticks    ( -- ms )          — Millisecondes depuis le demarrage
+
 
 PCI (PERIPHERIQUES) :
 ---------------------
@@ -1309,7 +1493,8 @@ PCI (PERIPHERIQUES) :
   pci-name ( class sub -- ptr len ) — Nom de la classe
   pci@     ( bus dev func off -- val ) — Lit config PCI
   pci!     ( val bus dev func off -- ) — Ecrit config PCI
-  pci-bar  ( bus dev func barn -- ... ) — Lit un BAR PCI
+  pci-bar  ( bus dev func barn -- ... ) — Lit un BAR PCI
+
 
 ACPI (TABLES + POWER MANAGEMENT) :
 -----------------------------------
@@ -1317,22 +1502,26 @@ ACPI (TABLES + POWER MANAGEMENT) :
     acpi-rsdp   ( -- addr )     — Adresse de la table RSDP
     acpi-find   ( sig -- addr ) — Cherche une table ACPI par signature
     acpi-hdr    ( addr -- sig len ) — Lit l'en-tete d'une table
-    acpi-tables ( -- n addr... ) — Liste toutes les tables
+    acpi-tables ( -- n addr... ) — Liste toutes les tables
+
 
   Power management (via UEFI Runtime Services) :
     reboot      ( -- )          — Redemarrage a chaud (WARM reset)
-    poweroff    ( -- )          — Arret complet (S5)
+    poweroff    ( -- )          — Arret complet (S5)
+
 
   Non implémente :
     - Sleep S3 (suspend to RAM)   → Nécessite manipulation DSDT/EC
     - Battery (laptop)             → Nécessite EC/SMBus ACPI
     - Wake events                  → Nécessite GPE/SCI
-    - CPU throttling/P-states      → Nécessite _PSS/_PPC dans DSDT
+    - CPU throttling/P-states      → Nécessite _PSS/_PPC dans DSDT
+
 
 SMBIOS :
 --------
   smbios-entry ( -- addr )    — Adresse de l'entree SMBIOS
-  smbios-info  ( addr -- len table_addr count maj min ) — Infos SMBIOS
+  smbios-info  ( addr -- len table_addr count maj min ) — Infos SMBIOS
+
 
 PORTS I/O (x86) :
 -----------------
@@ -1341,7 +1530,8 @@ PORTS I/O (x86) :
   inw     ( port -- word )    — Lit un port 16-bit
   outw    ( word port -- )    — Ecrit un port 16-bit
   inl     ( port -- long )    — Lit un port 32-bit
-  outl    ( long port -- )    — Ecrit un port 32-bit
+  outl    ( long port -- )    — Ecrit un port 32-bit
+
 
 MMIO :
 ------
@@ -1352,20 +1542,23 @@ MMIO :
   w@      ( addr -- word )    — Lit MMIO 16-bit
   w!      ( word addr -- )    — Ecrit MMIO 16-bit
   l@      ( addr -- long )    — Lit MMIO 32-bit
-  l!      ( long addr -- )    — Ecrit MMIO 32-bit
+  l!      ( long addr -- )    — Ecrit MMIO 32-bit
+
 
 I2C :
 -----
   dw-i2c-init  ( base -- ok? )     — Initialise controleur I2C
   dw-i2c-probe ( base addr -- ok? ) — Teste peripherique I2C
   i2c.probe    ( base -- )         — Scrute toutes les adresses HID
-  i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
+  i2c-read     ( base dev reg -- val|-1 ) — Lit registre I2C
+
 
 MSR (REGISTRES CPU) :
 ---------------------
   msr@    ( ecx -- edx eax )  — Lit un MSR
   msr!    ( eax edx ecx -- )  — Ecrit un MSR
-  cpuid   ( eax -- eax ebx ecx edx ) — Instruction CPUID
+  cpuid   ( eax -- eax ebx ecx edx ) — Instruction CPUID
+
 
 INTERRUPTS :
 ------------
@@ -1373,7 +1566,8 @@ INTERRUPTS :
   ioapic-read   ( base reg -- val )  — Lit registre I/O APIC
   ioapic-write  ( base reg val -- )  — Ecrit registre I/O APIC
   init-idt      ( -- )        — Initialise la table IDT
-  irq-handler   ( vector dict_idx -- ) — Associe un handler Forth
+  irq-handler   ( vector dict_idx -- ) — Associe un handler Forth
+
 
 MEMOIRE PHYSIQUE :
 ------------------
@@ -1386,31 +1580,36 @@ MEMOIRE PHYSIQUE :
   beep       ( freq ms -- )    — Bip PC Speaker (freq en Hz, duree en ms)
   task       ( idx -- tid )    — Crée une tâche Forth depuis un mot (')
   stop       ( -- )            — Termine la tâche courante
-  tasks      ( -- )            — Liste les tâches Forth
+  tasks      ( -- )            — Liste les tâches Forth
+
 
 MULTITÂCHE PRÉEMPTIF :
 ---------------------
   Le PIT (canal 0, ~100 Hz) émet un IRQ toutes les 10 ms.
   dispatch_interrupt pose PREEMPT_REQUESTED, et execute_ops_limited
   vérifie ce flag entre chaque instruction Forth pour céder la main.
-  Le scheduler round-robin alterne entre toutes les tâches Forth.
+  Le scheduler round-robin alterne entre toutes les tâches Forth.
+
 
   Exemple :
     : travail
       begin ." ." 100 ms again ;
     ' travail task   \ crée la tâche, retourne son TID
-    tasks            \ affiche la liste
+    tasks            \ affiche la liste
+
 
 HEAP (MEMOIRE RUST) :
 ---------------------
   heap-used ( -- u )          — Nombre d'octets alloues sur le heap
-                                (allocateur a free-list, libere reellement)
+                                (allocateur a free-list, libere reellement)
+
 
 DISQUE DUR (AHCI / SATA / NVMe) :
 --------------------------------
    Epona OS supporte deux types de contrôleurs de stockage :
      - AHCI  (SATA) — Contrôleur SATA classique (desktop/laptop)
-     - NVMe         — SSD modernes sur bus PCI Express
+     - NVMe         — SSD modernes sur bus PCI Express
+
 
    Primitives NVMe (accès bloc direct) :
    -------------------------------------
@@ -1420,14 +1619,16 @@ DISQUE DUR (AHCI / SATA / NVMe) :
                                       à partir du LBA lba dans la mémoire Forth à buf_addr
      nvme:write     ( idx lba count buf_addr -- actual_bytes )
                                     — Écrit count blocs depuis la mémoire Forth à buf_addr
-                                      vers le namespace idx au LBA lba
+                                      vers le namespace idx au LBA lba
+
 
    Primitives NVMe additionnelles (Rust → Forth) :
    -----------------------------------------------
      nvme_lba_size      ( -- size )     — Taille d'un LBA en octets (généralement 512)
      nvme_total_lbas    ( -- total )    — Nombre total de LBAs du premier namespace
      nvme_capacity      ( -- lo hi )    — Capacité totale en octets (2 valeurs pour 64-bit)
-     nvme_info_string   ( -- )          — Affiche les infos du disque NVMe (modèle, série, firmware)
+     nvme_info_string   ( -- )          — Affiche les infos du disque NVMe (modèle, série, firmware)
+
 
     Primitives AHCI (SATA) :
     ------------------------
@@ -1440,10 +1641,12 @@ DISQUE DUR (AHCI / SATA / NVMe) :
                                      — Écrit count blocs depuis la mémoire Forth à buf_addr
                                        vers le disque idx au LBA lba
       ahci:info      ( -- )         — Affiche les infos de tous les disques AHCI (modèle,
-                                       firmware, série, capacité, taille de bloc)
+                                       firmware, série, capacité, taille de bloc)
+
 
     Utilise le même mécanisme d'allocation de pages physiques que NVMe.
-    idx = index de disque AHCI (0 = premier disque SATA détecté).
+    idx = index de disque AHCI (0 = premier disque SATA détecté).
+
 
     Les primitives NVMe allouent/free des pages physiques pour le transfert DMA.
     LBA = Logical Block Address (adresse de secteur, généralement 512 ou 4096 octets).
@@ -1451,12 +1654,14 @@ DISQUE DUR (AHCI / SATA / NVMe) :
 
    Il détecte automatiquement le contrôleur présent, initialise le
    pilote correspondant et monte les partitions. Ne fonctionne que
-   sur du matériel réel (pas d'émulation).
+   sur du matériel réel (pas d'émulation).
+
 
    Formats supportés (détection automatique) :
      - FAT32      — Système de fichiers Windows/clé USB
      - NTFS       — Système de fichiers Windows (lecture seule)
-     - ext2/3/4   — Système de fichiers Linux (lecture seule)
+     - ext2/3/4   — Système de fichiers Linux (lecture seule)
+
 
    disk:init         ( -- bool )     — Initialise le stockage + monte le disque
    disk:ls <chemin>  ( -- )          — Liste le répertoire (ex: disk:ls /)
@@ -1466,7 +1671,8 @@ DISQUE DUR (AHCI / SATA / NVMe) :
    unbreak <mot> ( -- )         — Supprime un breakpoint
    watch         ( -- )         — Liste les variables surveillées
    watch <var>   ( -- )         — Ajoute <var> aux variables surveillées
-   unwatch <var> ( -- )         — Retire <var> de la surveillance
+   unwatch <var> ( -- )         — Retire <var> de la surveillance
+
 
    Touches en mode step :
      s ou Entrée  — Pas-à-pas (exécute l'instruction et s'arrête)
@@ -1474,7 +1680,8 @@ DISQUE DUR (AHCI / SATA / NVMe) :
      t            — Active/désactive le mode trace
      q            — Quitte le débogueur
      p            — Affiche les 10 premières valeurs de la pile
-     h            — Aide (affiche les touches disponibles)
+     h            — Aide (affiche les touches disponibles)
+
 
  Notes :
      - Les chemins utilisent / (barre oblique) comme séparateur
@@ -1488,19 +1695,23 @@ DISQUE DUR (AHCI / SATA / NVMe) :
 CONTROLE SYSTEME :
 ------------------
   reboot   ( -- )             — Redemarrage a chaud
-  poweroff ( -- )             — Arret complet
+  poweroff ( -- )             — Arret complet
+
 
 
 ===============================================================================
 6. SYSTEME DE FICHIERS (CLE USB + DISQUES DURS)
-===============================================================================
+===============================================================================
 
-Epona OS peut lire et ecrire sur la cle USB au format FAT32.
+
+Epona OS peut lire et ecrire sur la cle USB au format FAT32.
+
 
 Il supporte aussi les disques durs internes (SATA/AHCI, NVMe) :
   - FAT32      — Lecture/ecriture
   - NTFS       — Lecture seule (disques Windows)
-  - ext2/3/4   — Lecture seule (disques Linux)
+  - ext2/3/4   — Lecture seule (disques Linux)
+
 
 COMMANDES DISQUE DUR (disk:*) :
 --------------------------------
@@ -1509,12 +1720,14 @@ COMMANDES DISQUE DUR (disk:*) :
   disk:read <fichier>   — Lit fichier en memoire Forth
     ( addr -- len )
   disk:write <fichier>  — Ecrit la memoire vers disque
-    ( addr len -- )       (FAT32 seulement)
+    ( addr len -- )       (FAT32 seulement)
+
 
   Exemple :
     disk:init .
     disk:ls /
-    disk:ls /home
+    disk:ls /home
+
 
 MOTS FORTH POUR LES FICHIERS :
 -------------------------------
@@ -1531,7 +1744,8 @@ PRIMITIVES FAT32 BAS NIVEAU (fat:*) :
 --------------------------------------
   Primitives pour manipuler directement la table FAT, les clusters
   et les entrées de répertoire (FAT32 uniquement). Ne fonctionne
-  qu'après un disk:init réussi sur une partition FAT32.
+  qu'après un disk:init réussi sur une partition FAT32.
+
 
   fat:info          ( -- bps spc fat_lba data_lba root_clus fat_sz num_fats )
                     — Infos bas niveau du système FAT32 monté
@@ -1566,63 +1780,230 @@ PRIMITIVES FAT32 BAS NIVEAU (fat:*) :
                     — Liste le contenu d'un répertoire par cluster racine
                       Les noms sont stockés dans la mémoire Forth à buf_addr,
                       chaque entrée retourne (name_addr, name_len, size, is_dir)
-                      sur la pile. n = nombre d'entrées.
+                      sur la pile. n = nombre d'entrées.
+
 
   Attention : fat:write-entry, fat:write-cluster, fat:alloc-cluster,
   fat:alloc-chain, fat:free-chain sont des opérations dangereuses qui
-  peuvent corrompre le système de fichiers. Utiliser avec précaution.
+  peuvent corrompre le système de fichiers. Utiliser avec précaution.
+
 
   Exemple — parcourir la FAT table :
     disk:init .
     fat:info drop drop drop drop drop drop ." FAT size: " . ." sectors" cr
-    fat:read-entry . cr
+    fat:read-entry . cr
+
 
   Exemple — lire le premier cluster du répertoire racine :
     fat:root-clus 2000 fat:read-cluster .
     \ Lit 16 cellules mémoire à partir de 2000
-    16 0 do 2000 i + @ . loop cr
+    16 0 do 2000 i + @ . loop cr
+
 
 CHARGEMENT AUTOMATIQUE :
 -------------------------
   Au demarrage, Epona OS cherche le fichier BOOT.FTH a la racine
   de la cle USB. S'il existe, il est automatiquement compile et
-  execute. C'est l'endroit ideal pour vos initialisations.
+  execute. C'est l'endroit ideal pour vos initialisations.
+
 
   Exemple de BOOT.FTH :
     \ Fichier de demarrage Epona OS
     cr ." === Bienvenue dans Epona OS ===" cr
     sys:load RAM.FTH
     sys:load OUTILS.FTH
-    cr ." Systeme pret." cr
+    cr ." Systeme pret." cr
+
 
 DRIVERS FORTH :
 ---------------
   sys:register <nom>          — Enregistre un pilote
   sys:drivers                 — Liste les pilotes enregistres
   sys:probe                   — Initialise tous les pilotes
-  sys:log <message>           — Ecrit dans le journal systeme
+  sys:log <message>           — Ecrit dans le journal systeme
+
 
   Pour creer un driver, definissez un mot <nom>-init :
     sys:register mondriver
     : mondriver-init ( -- )
       ." Initialisation..." cr
     ;
-    sys:probe                 \ Appelle mondriver-init
+    sys:probe                 \ Appelle mondriver-init
 
-APPLICATIONS FORTH :
---------------------
-  app: <nom>                  — Cree une fenetre d'application
-                                ( x y w h -- )
-  Vous devez definir :
-    <nom>-draw  ( x y w h -- ) — Dessin de l'application
-    <nom>-key   ( char -- )    — Gestion clavier
+
+APPLICATIONS FORTH (FORTHAPP) :
+-------------------------------
+  Systeme de bureau personnel en pur Forth — un utilisateur peut
+  construire son propre OS de bureau sans modifier le Rust.
+
+  app: <nom> ( x y w h -- )
+                — Cree une fenetre ForthApp avec bordure, barre de titre,
+                  bouton fermer, et enregistre les callbacks :
+                  <nom>-draw  ( wx wy ww wh -- )  — Dessin
+                  <nom>-key   ( char -- )          — Clavier
+                  <nom>-click ( -- )               — Clic dans la zone contenu
+
+  Les positions x,y,w,h sont relatives a la zone de contenu de la fenêtre.
+  Les mots -draw recoivent la zone interne : wx+2, wy+26, ww-4, wh-30.
+
+
+ARCHITECTURE DU BUREAU :
+------------------------
+  Le bureau se compose de :
+    - Fond sombre (0xFF0F1017)
+    - Barre de tâche en bas (32px, 0xFF1A1D23)
+    - Horloge RTC en haut à droite
+    - Icônes de bureau (en haut à gauche)
+    - Fenêtres ForthApp (dessinées par le moteur)
+
+  Comment ça marche :
+    1. BOOT.FTH charge STDLIB, FIXED, THEME, puis les apps
+    2. Chaque app définit son mot <nom>-draw et <nom>-key
+    3. BOOT.FTH appelle app: pour créer les fenêtres
+    4. Le mot principal (défini dans BOOT.FTH) doit boucler à l'infini
+    5. Le moteur Rust dessine les fenêtres et appelle les callbacks
+
+  IMPORTANT : Le mot principal doit être une boucle infinie !
+    Si principal se termine, forth_running devient false et les
+    fenêtres ForthApp ne sont plus dessinées. Utiliser :
+      begin <code> 100 ms again
+
+  Les fenêtres ForthApp sont dessinées :
+    - Quand forth_running = true : par render_static_forth()
+    - Quand forth_running = false : par render()
+    - Les deux chemins sont opérationnels
+
+  Les clics souris dans la zone contenu d'une fenêtre ForthApp
+  appellent automatiquement le mot <nom>-click si défini.
+
+  Les touches clavier sont redirigées vers la fenêtre active.
+
+  Pour dessiner du texte dans une ForthApp, utiliser fb:text :
+    fb:text ( x y char col -- )
+      x,y = position absolue sur l'écran
+      char = caractère ASCII (ex: 65 pour 'A')
+      col = couleur 0xRRGGBB
+      Pour dessiner une chaîne, itérer caractère par caractère.
+
+  Pour dessiner des rectangles :
+    fb:rect ( x y w h col -- )  — rectangle rempli
+    fb:line ( x1 y1 x2 y2 col -- ) — ligne
+
+
+FICHIERS FORTH DU BUREAU :
+--------------------------
+  THEME.FTH       — Constantes couleur/layout (ACCENT, FG, TASKBAR-H, etc.)
+  CLOCK_APP.FTH   — Horloge analogique RTC (sin/cos table) + digital HH:MM:SS
+  NOTEPAD_APP.FTH — Éditeur de texte (512 octets, cursor, insert/backspace)
+  FILEMAN_APP.FTH — Gestionnaire de fichiers simulé
+  SETTINGS_APP.FTH — Panneau de paramètres simulé
+  CALC_APP.FTH    — Calculatrice
+  BOOT.FTH        — Charge tout, crée les fenêtres, définit principal
+
+
+EXEMPLE : CRÉER UNE APP BUREAU :
+--------------------------------
+  \ MonApp.FTH
+  require THEME.FTH
+
+  variable counter
+  0 counter !
+
+  : MonApp-draw ( wx wy ww wh -- )
+    \ Fond
+    2dup 0x001122 rect
+    \ Compteur
+    2>r
+    counter @
+    s>d <# #s #> drop
+    \ (ou simplement un symbole)
+    2r>
+    drop drop
+  ;
+
+  : MonApp-key ( char -- )
+    13 = if counter @ 1+ counter ! then
+  ;
+
+  : MonApp-click ( -- )
+    counter @ 1+ counter !
+  ;
+
+  \ Dans BOOT.FTH :
+  require MonApp.FTH
+  100 100 200 150 app: MonApp
+  principal ( doit boucler )
+
+
+PRIMITIVES FORTHAPP :
+---------------------
+  app: <nom> ( x y w h -- )
+                — Crée une fenêtre ForthApp et enregistre les callbacks
+                  <nom>-draw, <nom>-key, <nom>-click
+  Le moteur gère automatiquement :
+    - Bordure et barre de titre
+    - Bouton fermer (clic = fin de la tâche)
+    - Z-order (dernière fenêtre = au premier plan)
+    - Focus clavier (dernière fenêtre cliquée)
+    - Redimensionnement
+
+
+CONSTANTES THEME.FTH :
+-----------------------
+  Couleurs :
+    BG-DARK     = 0x1A1A2E    Fond sombre
+    BG-MID      = 0x16213E    Fond moyen
+    BG-ACCENT   = 0x0F3460    Fond accent
+    ACCENT      = 0xE94560    Rouge vif
+    ACCENT2     = 0x533483    Violet
+    FG          = 0xFFFFFF    Texte blanc
+    FG-DIM      = 0xBBBBBB    Texte gris
+    WIN-BG      = 0x222222    Fond fenêtre
+    WIN-HDR     = 0x333344    Barre de titre
+    BTN-N       = 0x444455    Bouton normal
+    BTN-H       = 0x5555AA    Bouton hover
+    BTN-P       = 0x3333CC    Bouton pressé
+
+  Layout :
+    TASKBAR-H   = 35          Hauteur barre de tâche
+    HEADER-H    = 24          Hauteur barre de titre
+
+
+BOOT.FTH (exemple réel) :
+--------------------------
+  \ Charge les bibliothèques
+  require STDLIB.FTH
+  require FIXED.FTH
+  require THEME.FTH
+
+  \ Charge les applications
+  require CLOCK_APP.FTH
+  require NOTEPAD_APP.FTH
+  require FILEMAN_APP.FTH
+  require SETTINGS_APP.FTH
+  require CALC_APP.FTH
+
+  \ Crée les fenêtres
+  app: Clock 10 40 130 130 clock-draw clock-key
+  app: Notepad 150 40 300 200 notepad-draw notepad-key
+  app: Files 10 180 200 200 fileman-draw fileman-key
+  app: Config 460 40 180 200 settings-draw settings-key
+  app: Calc 460 250 180 200 calc-draw calc-key
+
+  \ Point d'entrée — boucle infinie !
+  : principal
+    cr ." Bureau en cours..." cr
+    begin 100 ms again ;
+
 
 
 ================================================================================
 7. L'EDITEUR DE CODE (IDE)
-================================================================================
+================================================================================
 
-L'editeur integre permet d'ecrire, sauvegarder et executer du code Forth.
+
+L'editeur integre permet d'ecrire, sauvegarder et executer du code Forth.
+
 
 INTERFACE :
 -----------
@@ -1631,7 +2012,8 @@ INTERFACE :
       Vert   = commentaires (lignes commencant par \)
       Rouge  = definitions (lignes commencant par :)
       Noir   = code normal
-  - Barre de statut en bas (erreurs en rouge)
+  - Barre de statut en bas (erreurs en rouge)
+
 
 RACCOURCIS :
 ------------
@@ -1642,19 +2024,22 @@ RACCOURCIS :
   F7            — Charger depuis USB
   Echap         — Fermer l'editeur
   PgUp / PgDn   — Defiler
-  Tab           — Indenter (2 espaces)
+  Tab           — Indenter (2 espaces)
+
 
 ERREURS :
 ---------
   Quand une erreur est detectee, la barre de statut devient rouge
   et indique le numero de ligne. La ligne en erreur est surlignee
   en rose dans l'editeur. L'editeur defilera automatiquement vers
-  la ligne en question.
+  la ligne en question.
+
 
 
 ================================================================================
 8. APPLICATIONS INTEGREES
-================================================================================
+================================================================================
+
 
 CALCULATRICE :
 --------------
@@ -1663,7 +2048,8 @@ CALCULATRICE :
     0-9     — Chiffres
     + - * / — Operations
     =       — Resultat
-    C       — Effacer
+    C       — Effacer
+
 
 ZONE DE DESSIN (PAINT) :
 -------------------------
@@ -1671,14 +2057,16 @@ ZONE DE DESSIN (PAINT) :
   - Cliquez et glissez pour peindre
   - Palette de 8 couleurs en bas
   - Bouton "Effacer" pour tout nettoyer
-  - La derniere couleur (blanc) sert de gomme
+  - La derniere couleur (blanc) sert de gomme
+
 
 EXPLORATEUR PCI :
 -----------------
   Affiche tous les peripheriques connectes au bus PCI :
   - Adresse (bus:device.function)
   - Identifiants fabricant et peripherique
-  - Classe (stockage, reseau, graphique...)
+  - Classe (stockage, reseau, graphique...)
+
 
 CANVAS FORTH :
 --------------
@@ -1686,19 +2074,22 @@ CANVAS FORTH :
   Taille : 400 x 300 pixels.
   S'ouvre automatiquement quand vous compilez (F5) un programme
   qui definit le mot "principal".
-  Echap pour quitter.
+  Echap pour quitter.
+
 
 WATCHDOG DIAGNOSTIQUE :
 -----------------------
   Affiche l'etat du watchdog timer :
   - Init : OK ou code d'erreur
   - Feeds : nombre de rafraichissements
-  - Erreurs eventuelles
+  - Erreurs eventuelles
+
 
 
 ================================================================================
 9. EXEMPLES COMPLETS
-================================================================================
+================================================================================
+
 
 EXEMPLE 1 — AFFICHER LA RAM :
 ------------------------------
@@ -1712,7 +2103,8 @@ EXEMPLE 1 — AFFICHER LA RAM :
       dup  4 * 1024 / cr ." RAM libre  : " . ." MB" cr
       2drop
       cr ." === FIN ===" cr
-  ;
+  ;
+
 
 EXEMPLE 2 — DESSIN INTERACTIF :
 --------------------------------
@@ -1728,12 +2120,14 @@ EXEMPLE 2 — DESSIN INTERACTIF :
           then
           touche? 27 =        \ Echap pour quitter
       until
-  ;
+  ;
+
 
 EXEMPLE 3 — BALLE REBONDISSANTE :
 ----------------------------------
   variable x   variable y
-  variable dx  variable dy
+  variable dx  variable dy
+
 
   : principal
       10 x !  10 y !
@@ -1755,7 +2149,8 @@ EXEMPLE 3 — BALLE REBONDISSANTE :
           16 attendre
           touche? 27 =
       until
-  ;
+  ;
+
 
 EXEMPLE 4 — SCANNER PCI :
 --------------------------
@@ -1770,7 +2165,8 @@ EXEMPLE 4 — SCANNER PCI :
           ." Dev:" over 4 pick swap drop .
           7 0 do drop loop    \ Nettoyer la pile
       loop
-  ;
+  ;
+
 
 EXEMPLE 5 — HORLOGE :
 ----------------------
@@ -1783,7 +2179,8 @@ EXEMPLE 5 — HORLOGE :
       ." Heure: " . cr
       ." Min:   " . cr
       ." Sec:   " . cr
-  ;
+  ;
+
 
 EXEMPLE 6 — INFORMATION ECRAN :
 --------------------------------
@@ -1793,36 +2190,44 @@ EXEMPLE 6 — INFORMATION ECRAN :
       swap
       ." Largeur:  " . ." pixels" cr
       ." Hauteur:  " . ." pixels" cr
-  ;
+  ;
+
 
 EXEMPLE 7 — FICHIER BOOT.FTH :
 -------------------------------
   \ === BOOT.FTH — Demarrage automatique ===
   cr ." ================================" cr
   ." Epona OS — Demarrage systeme" cr
-  ." ================================" cr
+  ." ================================" cr
+
 
   \ Charger les utilitaires
-  sys:load RAM.FTH
+  sys:load RAM.FTH
+
 
   \ Afficher les infos systeme
   mem-map swap
   4 * 1024 / cr ." RAM: " . ." MB" cr
-  4 * 1024 / ." Libre: " . ." MB" cr
+  4 * 1024 / ." Libre: " . ." MB" cr
+
 
   fb-size swap
-  cr ." Ecran: " . ." x " . cr
+  cr ." Ecran: " . ." x " . cr
 
-  cr ." Systeme pret. Tapez 'aide' pour commencer." cr
+
+  cr ." Systeme pret. Tapez 'aide' pour commencer." cr
+
 
 
 ================================================================================
 10. ARCHITECTURE DU SYSTEME
-================================================================================
+================================================================================
+
 
 Epona OS est ecrit entierement en Rust, sans aucune dependance
 a un systeme d'exploitation. Il utilise le firmware UEFI pour
-demarrer et acceder au materiel de base.
+demarrer et acceder au materiel de base.
+
 
 COMPOSANTS :
 ------------
@@ -1843,13 +2248,15 @@ COMPOSANTS :
   drivers.rs      — Gestionnaire de pilotes
   system.rs       — Noyau systeme et applications Forth
   apps.rs         — Calculatrice et Paint
-  bump_alloc.rs   — Allocateur memoire (free-list 32 MB, coalescing)
+  bump_alloc.rs   — Allocateur memoire (free-list 32 MB, coalescing)
+
 
 MACHINE VIRTUELLE FORTH :
 --------------------------
   L'interprete Forth compile le code source en bytecode (Op),
   puis l'execute sur une pile. Les primitives (mots natifs) sont
-  implementees en Rust et accedent directement au materiel.
+  implementees en Rust et accedent directement au materiel.
+
 
   Types d'instructions :
     Push(val)       — Empile une valeur
@@ -1858,7 +2265,8 @@ MACHINE VIRTUELLE FORTH :
     Jump(addr)      — Saut inconditionnel
     JumpIfZero(addr)— Saut si le sommet est 0
     VariableAddr(n) — Empile l'adresse d'une variable
-    Exit            — Retour d'un mot
+    Exit            — Retour d'un mot
+
 
    Securite :
     - Mode securise (shell: secure on/off) : bloque les acces materiel
@@ -1884,23 +2292,27 @@ MACHINE VIRTUELLE FORTH :
       - Limite de instructions configurable (10M par défaut, 0 = illimité)
         Voir max_instructions dans ForthVm.
      - Stack overflow detecte (4096 elements max)
-     - F9 = arret d'urgence avec ecriture CRASH.TXT sur la cle USB
+     - F9 = arret d'urgence avec ecriture CRASH.TXT sur la cle USB
+
 
    Multitache Forth :
      Les taches Forth utilisent des snapshots de la VM (pile, rstack, IP).
-     Le dictionnaire est partage entre toutes les taches.
+     Le dictionnaire est partage entre toutes les taches.
+
 
      Primitives :
        task <idx>  ( idx -- tid )   — Cree une tache a partir d'un mot
                                        (par index dans "words")
        stop        ( -- )           — Termine la tache courante
-       tasks       ( -- )           — Liste les taches
+       tasks       ( -- )           — Liste les taches
+
 
      Ordonnancement :
        Cooperatif (time-slicing, 2000 instructions/part)
        Scheduling par priorite (round-robin)
        Le shell principal reste tache 0
-       Les taches filles sont executees dans la boucle principale a cote du shell
+       Les taches filles sont executees dans la boucle principale a cote du shell
+
 
    Gestion des erreurs Forth :
      - Arret sur overflow/underflow de pile (avec message)
@@ -1911,7 +2323,8 @@ MACHINE VIRTUELLE FORTH :
        - Toute sortie Forth est aussi enregistrée dans le syslog
        - Le crash dump (F9) inclut le syslog complet avec timestamps
        - sys:log <msg>  — écrit dans le syslog ET dans BOOT.LOG sur USB
-     - Le dump de crash (F9) ecrit l'etat de la VM sur USB
+     - Le dump de crash (F9) ecrit l'etat de la VM sur USB
+
 
    Exceptions Forth (try / catch / throw) :
      Syntaxe (mots compiles) :
@@ -1921,11 +2334,13 @@ MACHINE VIRTUELLE FORTH :
          0 (pas d'erreur)
        catch
          ... gestionnaire (n sur la pile) ...
-       endtry
+       endtry
+
 
      throw ( n -- )  — Lance une exception avec le code n.
                        Restaure la pile au niveau du try correspondant,
-                       place n sur la pile et saute dans le bloc catch.
+                       place n sur la pile et saute dans le bloc catch.
+
 
      Exemple :
        : test
@@ -1935,7 +2350,8 @@ MACHINE VIRTUELLE FORTH :
          catch
            ." Erreur attrapee: " . cr
          endtry
-       ;
+       ;
+
 
      Exemple — division securisee :
        : div-safe ( a b -- result | err )
@@ -1946,7 +2362,8 @@ MACHINE VIRTUELLE FORTH :
          catch
            drop drop ." Division par zero!" cr
          endtry
-       ;
+       ;
+
 
      Notes :
        - try/catch/endtry sont des mots compiles (pas interpretes)
@@ -1958,53 +2375,65 @@ MACHINE VIRTUELLE FORTH :
 
 ================================================================================
 11. QUESTIONS FREQUENTES
-================================================================================
+================================================================================
+
 
 Q: L'ecran reste noir au demarrage ?
 R: Verifiez que le fichier est bien dans EFI\BOOT\BOOTX64.EFI.
    Essayez un autre port USB. Verifiez que le Secure Boot est
-   desactive dans le BIOS.
+   desactive dans le BIOS.
+
 
 Q: La souris ne bouge pas ?
 R: Appuyez sur F12 pour activer le mode "souris clavier".
-   Utilisez les fleches pour deplacer, Espace pour cliquer.
+   Utilisez les fleches pour deplacer, Espace pour cliquer.
+
 
 Q: Mon programme Forth boucle a l'infini ?
 R: Appuyez sur F9 pour un arret d'urgence. Un fichier CRASH.TXT
-   sera ecrit sur la cle USB avec les informations de debug.
+   sera ecrit sur la cle USB avec les informations de debug.
+
 
 Q: Comment sauvegarder mon travail ?
 R: Dans l'editeur : F6 pour sauvegarder, F7 pour charger.
-   Dans le terminal : save PROG.FTH / load PROG.FTH
+   Dans le terminal : save PROG.FTH / load PROG.FTH
+
 
 Q: Comment executer un fichier .FTH ?
 R: Tapez : exec MONFICHIER.FTH
-   Ou depuis le Forth : sys:load MONFICHIER.FTH
+   Ou depuis le Forth : sys:load MONFICHIER.FTH
+
 
 Q: Le clavier est en QWERTY ?
-R: Appuyez sur F2 ou tapez "clavier" dans le terminal.
+R: Appuyez sur F2 ou tapez "clavier" dans le terminal.
+
 
 Q: Comment voir tous les mots Forth disponibles ?
-R: Tapez "words" dans le terminal.
+R: Tapez "words" dans le terminal.
+
 
 Q: Comment connaitre la RAM de ma machine ?
 R: Tapez "mem-map swap 4 * 1024 / . ." dans le terminal.
-   Le premier nombre = total en MB, le second = libre en MB.
+   Le premier nombre = total en MB, le second = libre en MB.
+
 
 Q: Puis-je endommager mon ordinateur ?
 R: En theorie, oui, avec des acces MMIO ou PCI incorrects.
    Utilisez "secure on" pour bloquer les acces dangereux.
-   Les operations sur le canvas Forth sont toujours sans risque.
+   Les operations sur le canvas Forth sont toujours sans risque.
+
 
 Q: Comment creer un programme graphique ?
 R: Definissez un mot "principal" avec une boucle begin...until.
    Utilisez les mots pixel, rect, ligne, effacer pour dessiner.
-   Compilez avec F5 dans l'editeur.
+   Compilez avec F5 dans l'editeur.
+
 
 
 ================================================================================
 12. GLOSSAIRE
-================================================================================
+================================================================================
+
 
   ACPI    — Advanced Configuration and Power Interface
             Tables de configuration materiel dans le firmware
@@ -2030,7 +2459,8 @@ R: Definissez un mot "principal" avec une boucle begin...until.
             Firmware moderne qui remplace le BIOS traditionnel
   USB     — Universal Serial Bus
    Watchdog — Timer materiel qui redemarre le PC s'il n'est pas
-            rafraichi regulierement (desactive par Epona OS)
+            rafraichi regulierement (desactive par Epona OS)
+
 
 NOTES D'ARCHITECTURE INTERNE :
 -------------------------------
@@ -2041,9 +2471,220 @@ NOTES D'ARCHITECTURE INTERNE :
     et le pointeur devenait pendant (dangereux).
     Fix : remplace par CallFrame::DictWord(dict_idx, return_ip) +
     current_dict: Option<usize>. Les ops sont re-resolues depuis le
-    dictionnaire a chaque iteration (safe, perte negligeable).
+    dictionnaire a chaque iteration (safe, perte negligeable).
+
 
 ================================================================================
                     Epona OS — Fait avec passion en Rust
                     Interprete Forth integre — EponaForth
+================================================================================
+
+
+================================================================================
+13. NOUVELLES PRIMITIVES - VERSION 1.01
+================================================================================
+
+  Ces primitives ont ete ajoutees dans Epona OS 1.01.
+  Elles permettent de construire un bureau ou une interface complete en Forth,
+  avec controle total de l'ecran (mode plein ecran Forth).
+
+
+-------------------------------------------------------------------------------
+13.1  MODE PLEIN ECRAN FORTH
+-------------------------------------------------------------------------------
+
+  fullscreen-mode  ( addr len -- )
+
+    Active le mode plein ecran Forth. Le mot dont le nom est en memoire
+    a l'adresse 'addr' sur 'len' octets est appele chaque frame (10ms)
+    avec (0 0 screen_w screen_h) sur la pile.
+
+    Le bureau Rust (icones, barre de taches, fenetre) est masque.
+    Utilisez les primitives de dessin direct (rect, pixel, ligne, fb-text)
+    puis appelez fb-swap pour afficher le resultat.
+
+    Quitter le mode plein ecran : appuyez ESC ou appelez fullscreen-off.
+
+    Usage :
+      : mon-bureau ( x y w h -- )
+        drop drop drop drop
+        0 0 1920 1080 0x1A1A2E rect   \ fond
+        100 100 s" Epona OS" 0xFFFFFF 2 fb-text
+        fb-swap
+      ;
+      s" mon-bureau" fullscreen-mode
+
+
+  fullscreen-off  ( -- )
+
+    Retourne au bureau Rust normal.
+    Desactive le mode plein ecran Forth.
+
+    Usage :
+      fullscreen-off
+
+
+  canvas-resize  ( w h -- )
+
+    Redimensionne le canvas Forth hors-ecran (400x300 par defaut).
+    Utile pour faire un canvas de la taille de l'ecran :
+
+    Usage :
+      fb-size canvas-resize    \ canvas = resolution ecran
+      ( equivalent a : 1920 1080 canvas-resize sur un ecran FullHD )
+
+    Note : le canvas est ensuite dessine avec les primitives 12-16
+           (pixel-canvas, rect-canvas, etc.) et copie a l'ecran
+           par render_static_forth automatiquement.
+
+
+-------------------------------------------------------------------------------
+13.2  PRIMITIVES GRAPHIQUES DIRECTES (rappel + complement)
+-------------------------------------------------------------------------------
+
+  Ces primitives ecrivent DIRECTEMENT dans le framebuffer arriere.
+  Elles sont efficaces en mode plein ecran Forth car elles n'ont
+  pas besoin de fb-swap intermediaire si vous l'appelez a la fin.
+
+
+  rect  ( x y w h color -- )
+
+    Dessine un rectangle plein de couleur 'color' (0xRRGGBB) a la
+    position (x, y) de taille (w x h) dans le framebuffer.
+
+    Exemple :
+      0 0 1920 1080 0x0D0D2B rect    \ fond bleu nuit
+
+
+  rect-outline  ( x y w h color -- )
+
+    Dessine les contours d'un rectangle de couleur 'color' (0xRRGGBB)
+    a la position (x, y) de taille (w x h) sur le canvas.
+
+    Exemple :
+      100 100 200 150 0xFFFFFF rect-outline  \ contour blanc
+
+
+  pixel  ( x y color -- )
+
+    Place un pixel de couleur 'color' (0xRRGGBB) a la position (x, y).
+
+    Exemple :
+      960 540 0xFF0000 pixel         \ pixel rouge au centre
+
+
+  ligne  ( x1 y1 x2 y2 color -- )
+
+    Trace une ligne de (x1,y1) a (x2,y2) de couleur 'color'.
+
+    Exemple :
+      0 0 1919 1079 0xFFFFFF ligne   \ diagonale blanche
+
+
+  fb-text  ( x y addr len color scale -- )
+
+    Affiche une chaine de texte au framebuffer.
+      x, y   : position en pixels
+      addr   : adresse memoire du debut de la chaine
+      len    : longueur de la chaine
+      color  : couleur du texte (0xRRGGBB)
+      scale  : facteur d'echelle (1 = 8px, 2 = 16px, etc.)
+
+    Usage depuis Forth :
+      100 200 s" Bonjour !" 0xFFFFFF 2 fb-text
+
+
+  fb-swap  ( -- )
+
+    Copie le buffer arriere vers le framebuffer visible (affiche le rendu).
+    Equivalent a un "flip" ou "present" en OpenGL/DirectX.
+
+    A appeler a la fin de votre mot de dessin.
+
+
+  fb-size  ( -- w h )
+
+    Retourne la resolution de l'ecran en pixels (largeur, hauteur).
+
+    Usage :
+      fb-size swap . .    \ affiche hauteur puis largeur
+
+
+-------------------------------------------------------------------------------
+13.3  CHARGEMENT AUTOMATIQUE AU DEMARRAGE
+-------------------------------------------------------------------------------
+
+  BOOT.FTH
+
+    Fichier Forth charge automatiquement au demarrage si present a la
+    racine de la cle USB. Utilise pour afficher un message de bienvenue
+    ou lancer directement un bureau.
+
+    Exemple de BOOT.FTH qui lance automatiquement un bureau :
+
+      sys:load DESKTOP.FTH
+      s" mon-bureau" fullscreen-mode
+
+    Si BOOT.FTH est absent, le shell interactif demarre directement.
+
+
+-------------------------------------------------------------------------------
+13.4  EXEMPLE COMPLET : BUREAU EN FORTH
+-------------------------------------------------------------------------------
+
+  Fichier DESKTOP.FTH (exemple fourni sur la cle USB) :
+
+    \ Constantes couleurs
+    0x1A1A2E constant FOND
+    0x16213E constant BARRE
+    0x0F3460 constant ACCENT
+    0xFFFFFF constant BLANC
+
+    \ Mot de dessin principal
+    : mon-bureau ( x y w h -- )
+      drop drop drop drop
+
+      \ Fond
+      0 0 fb-size 0x1A1A2E rect
+
+      \ Titre
+      fb-size drop 2 / 120 - 80
+      s" Epona OS 1.01" 0x00D2FF 2 fb-text
+
+      \ Barre du bas
+      0 fb-size swap 30 - fb-size drop 30 0x16213E rect
+
+      fb-swap    \ TOUJOURS appeler fb-swap a la fin !
+    ;
+
+    \ Redimensionner le canvas + activer le mode plein ecran
+    fb-size canvas-resize
+    s" mon-bureau" fullscreen-mode
+
+
+  Pour utiliser depuis le shell :
+    exec DESKTOP.FTH
+
+
+-------------------------------------------------------------------------------
+13.5  TABLEAU RECAPITULATIF DES NOUVELLES PRIMITIVES
+-------------------------------------------------------------------------------
+
+  Mot              Pile entree        Pile sortie   Description
+  ---------------  -----------------  ------------  --------------------------
+  fullscreen-mode  ( addr len -- )    --            Mode plein ecran Forth
+  fullscreen-off   ( -- )             --            Retour au bureau Rust
+  canvas-resize    ( w h -- )         --            Redimensionne le canvas
+  fb-text          ( x y a l c s -- ) --            Texte au framebuffer
+  fb-size          ( -- )             ( w h )       Resolution ecran
+  fb-swap          ( -- )             --            Affiche le frame buffer
+  rect             ( x y w h c -- )  --            Rectangle plein
+  rect-outline     ( x y w h c -- )  --            Contour de rectangle
+  pixel            ( x y c -- )      --            Pixel individuel
+  ligne            ( x1 y1 x2 y2 c --) --          Ligne droite
+
+
+================================================================================
+                    Epona OS - Fait avec passion en Rust
+                    Interprete Forth integre - EponaForth
 ================================================================================
