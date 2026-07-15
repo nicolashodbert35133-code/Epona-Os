@@ -209,27 +209,42 @@ create f-buf 30 chars allot
 create time-buf 30 chars allot
 
 : time>str ( s m h -- addr len )
-  \ Format "HH:MM:SS"
+  \ Format "HH:MM:SS" dans time-buf
   time-buf 30 erase
-  0 >r
-  h number> drop over r@ + swap cmove r> over + >r
-  [char] : time-buf 1+ r@ + c! r> 1+ >r
-  m number> drop over r@ + swap cmove r> over + >r
-  [char] : time-buf 1+ r@ + c! r> 1+ >r
-  s number> drop over r@ + swap cmove r> over + >r
-  time-buf 1+ r>
+  \ h sur le dessus de la pile
+  10 /mod swap
+  [char] 0 + time-buf 2 + c!
+  [char] 0 + time-buf 1 + c!
+  [char] : time-buf 3 + c!
+  \ m ensuite
+  10 /mod swap
+  [char] 0 + time-buf 5 + c!
+  [char] 0 + time-buf 4 + c!
+  [char] : time-buf 6 + c!
+  \ s enfin
+  10 /mod swap
+  [char] 0 + time-buf 8 + c!
+  [char] 0 + time-buf 7 + c!
+  time-buf 1+ 8
 ;
 
 : date>str ( j m a -- addr len )
-  \ Format "AAAA-MM-JJ"
+  \ Format "AAAA-MM-JJ" dans time-buf
   time-buf 30 erase
-  0 >r
-  a number> drop over r@ + swap cmove r> over + >r
-  [char] - time-buf 1+ r@ + c! r> 1+ >r
-  m 0.r 2 drop over r@ + swap cmove r> over + >r
-  [char] - time-buf 1+ r@ + c! r> 1+ >r
-  j 0.r 2 drop over r@ + swap cmove r> over + >r
-  time-buf 1+ r>
+  \ a (année) sur le dessus - 4 chiffres
+  dup 1000 / [char] 0 + time-buf 1 + c!
+  dup 100 / 10 mod [char] 0 + time-buf 2 + c!
+  dup 10 / 10 mod [char] 0 + time-buf 3 + c!
+  10 mod [char] 0 + time-buf 4 + c!
+  [char] - time-buf 5 + c!
+  \ m (mois)
+  swap dup 10 / [char] 0 + time-buf 6 + c!
+  10 mod [char] 0 + time-buf 7 + c!
+  [char] - time-buf 8 + c!
+  \ j (jour)
+  swap dup 10 / [char] 0 + time-buf 9 + c!
+  10 mod [char] 0 + time-buf 10 + c!
+  time-buf 1+ 10
 ;
 
 \ ─── Itération ──────────────────────────────────────────────
@@ -253,7 +268,7 @@ create time-buf 30 chars allot
   bounds
   ?do
     i @ execute
-  cell +loop
+  8 +loop
 ;
 
 \ ─── Tableaux dynamiques ────────────────────────────────────
@@ -264,7 +279,7 @@ struct array-slot
 end-struct
 
 : array:create ( -- addr )
-  array-slot buffer: _arr
+  3 cells buffer: _arr
   _arr
 ;
 

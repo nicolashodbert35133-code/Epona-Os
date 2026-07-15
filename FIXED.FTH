@@ -247,7 +247,8 @@
 : fsqrt ( fx -- fx_sqrt )
   \ Racine carrée par itérations de Newton
   \ x_{n+1} = (x_n + S/x_n) / 2
-  dup 0<= if drop 0 exit then
+  dup 0= if drop 0 exit then
+  dup 0< if drop 0 exit then
   dup                          \ S = valeur initiale
   \ Estimation initiale : S/2
   dup f2/                      \ x0 = S/2

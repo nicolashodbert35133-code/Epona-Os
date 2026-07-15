@@ -14,6 +14,9 @@ defer on-mouse-wheel    \ ( delta -- )
 defer on-tick           \ ( ms -- )
 defer on-resize         \ ( w h -- )
 defer on-quit           \ ( -- )
+defer exit-requested?   \ ( -- flag ) vrai = quitter la boucle
+: no-exit 0 ;
+' no-exit is exit-requested?
 
 \ ─── Handlers par défaut (no-op) ─────────────────────────────
 : default-nop drop ;
@@ -47,16 +50,13 @@ variable last-mb
 
 : poll-mouse ( -- )
   souris? if
-    souris
-    dup last-mb ! >r
-    dup last-my ! >r
-    last-mx !
-    r> r>
-    on-mouse-move
-    last-mb @ dup if
-      last-mx @ last-my @ rot on-mouse-click
-    else
-      drop
+    souris              \ ( -- x y btn )
+    dup last-mb !       \ save btn. Stack: x y
+    over last-mx !      \ save x. Stack: x y
+    dup last-my !       \ save y. Stack: x y
+    on-mouse-move       \ on-mouse-move( x y -- )
+    last-mb @ if
+      last-mx @ last-my @ last-mb @ on-mouse-click
     then
   then
 ;
