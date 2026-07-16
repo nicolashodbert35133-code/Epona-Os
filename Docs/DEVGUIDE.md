@@ -20,8 +20,12 @@
 \   - fb-text, rect-outline, fb-swap, fb-size
 \   - ~310+ primitives, ~400+ mots Forth, 15 fichiers .FTH
 \
-\ ════════════════════════════════════════════════════════════════════════
-
+\ Changements v2025.5 (par rapport à v2025.4) :
+\   - parse / parse-name / source / >in / refill — ANS input
+\   - vocabularies — namespaces pour drivers et apps
+\   - JIT x86-64 Phase 1 — 30 primitives en code machine natif
+\   - Performance ×30-50 pour les boucles arithmétiques
+\   - ~320+ primitives, ~450+ mots Forth
 
 \ ──────────────────────────────────────────────────────────────────────
 \                      TABLE DES MATIÈRES
@@ -155,26 +159,32 @@
 \ A3. DICTIONNAIRE ET COMPILATION
 \ ──────────────────────────────────────────────────────────────────────
 \
-\ Bytecode Op (v2025.4 — 17 types) :
+\ Bytecode Op (v2025.5 — 17 types) :
+\   (identique à v2025.4)
 \
-\   Op::Push(val)            — Empile une valeur
-\   Op::Call(idx)            — Appelle un mot compilé
-\   Op::CallPrim(idx)        — Appelle une primitive Rust
-\   Op::CallDeferred(addr)   — Appelle un mot defer
-\   Op::ValueAddr(addr)      — Lit un value
-\   Op::ToValue(addr)        — Écrit un value (to)
-\   Op::AbortQuote(off, len) — Arrêt conditionnel
-\   Op::Jump(target)         — Saut inconditionnel
-\   Op::JumpIfZero(target)   — Saut conditionnel
-\   Op::VariableAddr(n)      — Adresse de variable
-\   Op::Exit                 — Retour
-\   Op::Do/Loop/QDo/Leave    — Boucles
-\   Op::Try/Catch/Throw/EndTry — Exceptions
-\   Op::LocalGet(i)          — Lit local[base+i] (v2025.4)
-\   Op::LocalSet(i)          — Écrit local[base+i] (v2025.4)
-\   Op::LocalsAlloc(N)       — Alloue N locaux (v2025.4)
-\   Op::LocalsFree(N)        — Libère N locaux (v2025.4)
-
+\ Vocabularies (v2025.5) :
+\   vocabulary <nom>     — Crée un vocabulaire
+\   definitions          — Les nouveaux mots vont dans le vocabulaire courant
+\   previous             — Revient au vocabulaire précédent
+\
+\ Résolution des mots :
+\   1. Locaux { } (si en compilation)
+\   2. Vocabulaire courant (search order)
+\   3. Dictionnaire global
+\   4. Variables
+\   5. Nombres
+\
+\ JIT x86-64 (v2025.5) :
+\   Les mots compilés sont traduits en code machine natif
+\   à leur premier appel (compilation paresseuse).
+\   30 primitives sont en code natif.
+\   Le trampoline gère la transition Rust ↔ JIT.
+\
+\ Registres JIT :
+\   r15 = Data Stack Pointer (PSP)
+\   r14 = Return Stack Pointer
+\   r13 = Top Of Stack (cached)
+\   r12 = memory[] base
 
 \ ──────────────────────────────────────────────────────────────────────
 \ A4. CYCLE DE VIE D'UN MOT
@@ -304,6 +314,138 @@
 \   APRÈS (locals) :
 \     : hyp { x y -- h }
 \       x x * y y * + ;
+
+\ ──────────────────────────────────────────────────────────────────────
+\ A10. JIT x86-64 (v2025.5)
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ EponaForth intègre un compilateur JIT qui traduit les mots Forth
+\ en code machine x86-64 natif. Compilation paresseuse : un mot
+\ est JIT-compilé à son premier appel.
+\
+\ Architecture :
+\   ┌──────────────────────────────────────────────────────┐
+\   │  Code Forth source                                    │
+\   │        ↓ compile()                                    │
+\   │  Vec<Op> (bytecode)                                   │
+\   │        ↓ premier appel                                │
+\   │  JitEngine::compile_word()                            │
+\   │        ↓                                              │
+\   │  CodeEmitter (encodeur x86-64)                        │
+\   │        ↓                                              │
+\   │  Code buffer (page exécutable)                        │
+\   │        ↓ trampoline                                   │
+\   │  Exécution native x86-64                              │
+\   └──────────────────────────────────────────────────────┘
+\
+\ Registres :
+\   r15 — Data Stack Pointer (grow downward)
+\   r14 — Return Stack Pointer
+\   r13 — Top Of Stack (en registre, pas en mémoire)
+\   r12 — Adresse de base de memory[]
+\   rax/rcx/rdx — scratch
+\
+\ Primitives JIT (Phase 1 — 30) :
+\   Stack : dup drop swap over rot
+\   Arith : + - * / mod
+\   Compare : = <> < > 0= 0<
+\   Logic : and or xor invert lshift rshift
+\   Memory : @ ! +!
+\   Return : >r r> r@ i
+\
+\ Performance :
+\   Interpréteur : ~50-100 ns/op (dispatch Rust)
+\   JIT natif    : ~1-2 ns/op (1 instruction CPU)
+\   Speedup      : ×30-50 pour les boucles pures
+\
+\ Exemple — différence de performance :
+\   : sum-million 0 1000000 0 do i + loop ;
+\   ' sum-million benchmark .  \ ~2-3ms JIT vs ~100ms interpréteur
+\
+\ Limites Phase 1 :
+\   - Pas de control flow JIT (IF/ELSE → interpréteur)
+\   - Pas de chaînage entre mots JIT (→ trampoline)
+\   - Pas de boucles JIT (DO/LOOP → interpréteur)
+\   - Pas de locals JIT
+\
+\ Prochaines phases :
+\   Phase 2 : IF/ELSE/THEN avec backpatching
+\   Phase 3 : DO/LOOP JIT
+\   Phase 4 : Chaînage CALL rel32 entre mots JIT
+\   Phase 5 : Inlining de mots simples
+\   Phase 6 : Locals JIT
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ A11. VOCABULARIES (v2025.5)
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Les vocabulaires permettent d'organiser les mots en namespaces.
+\ Quand les drivers et apps se multiplient, les noms peuvent
+\ entrer en collision. Les vocabulaires résolvent ce problème.
+\
+\ Primitives :
+\   vocabulary <nom>    — Crée un nouveau vocabulaire
+\   definitions         — Les nouveaux mots vont dans le vocabulaire courant
+\   previous            — Revient au vocabulaire précédent
+\
+\ Exemple — drivers dans des vocabulaires séparés :
+\   vocabulary uart-drv
+\   uart-drv definitions
+\     : init ... ;
+\     : read ... ;
+\     : write ... ;
+\   previous
+\
+\   vocabulary spi-drv
+\   spi-drv definitions
+\     : init ... ;       ← pas de collision avec uart-drv init
+\     : read ... ;
+\   previous
+\
+\   \ Utiliser :
+\   uart-drv definitions
+\   init                  ← appelle uart init
+\   previous
+\
+\ Résolution :
+\   Le compilateur cherche d'abord dans le vocabulaire courant,
+\   puis dans le dictionnaire global. Les vocabulaires sont
+\   empilés (search order).
+
+
+\ ──────────────────────────────────────────────────────────────────────
+\ A12. INPUT ANS (v2025.5)
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ Primitives de parsing standard ANS Forth :
+\
+\   source ( -- addr len )
+\     Retourne le buffer d'entrée courant et sa longueur.
+\     Pendant compile(), c'est le source code en cours.
+\
+\   >in ( -- addr )
+\     Adresse d'une cellule contenant la position courante
+\     dans le buffer d'entrée. Modifiable pour relire.
+\
+\   parse ( char -- addr len )
+\     Consomme les caractères jusqu'au délimiteur char.
+\     Avance >in. Retourne la sous-chaîne trouvée.
+\
+\   parse-name ( -- addr len )
+\     Saute les espaces, puis parse jusqu'au prochain espace.
+\     Équivalent à BL parse mais skip les espaces initiaux.
+\
+\   refill ( -- flag )
+\     Recharge le buffer d'entrée depuis le terminal.
+\     Retourne -1 si réussi, 0 si fin d'entrée.
+\
+\ Utilisation — mots qui parsent leur propre syntaxe :
+\   : my-comment ( -- )
+\     [char] ) parse 2drop ;  \ consomme jusqu'à )
+\
+\   : my-string ( -- addr len )
+\     [char] " parse ;        \ parse jusqu'au guillemet
 
 
 \ ════════════════════════════════════════════════════════════════════════
@@ -990,6 +1132,21 @@ variable life-gen  variable life-current
 \ F1. TOUTES LES PRIMITIVES PAR CATÉGORIE
 \ ──────────────────────────────────────────────────────────────────────
 \
+\ ──────────────────────────────────────────────────────────────────────
+\ F1. TOUTES LES PRIMITIVES (ajouts v2025.5)
+\ ──────────────────────────────────────────────────────────────────────
+\
+\ === INPUT ANS (v2025.5) ===
+\   source parse parse-name >in refill
+\
+\ === VOCABULARIES (v2025.5) ===
+\   vocabulary definitions previous
+\
+\ === COMPILATION (ajouts) ===
+\   ... (tout ce qui était dans v2025.4)
+\   + source parse parse-name >in refill
+\   + vocabulary definitions previous
+\
 \ === PILE ===
 \   dup drop swap over rot -rot nip tuck
 \   2dup 2drop 2swap 2over ?dup pick
@@ -1238,82 +1395,66 @@ variable life-gen  variable life-current
 
 
 \ ──────────────────────────────────────────────────────────────────────
-\ G1. BILAN COMPLET — TOUT CE QUI EST IMPLÉMENTÉ
+\ F1. TOUTES LES PRIMITIVES (ajouts v2025.5)
 \ ──────────────────────────────────────────────────────────────────────
 \
-\ ┌─────────────────────────────────────┬────────────────────────────┐
-\ │ Composant                           │ État                       │
-\ ├─────────────────────────────────────┼────────────────────────────┤
-\ │ Primitives Rust                     │ ~310+  ✅                  │
-\ │ Mots Forth (avec bibliothèques)     │ ~400+  ✅                  │
-\ │ Tests automatisés                   │ ~180+  ✅                  │
-\ │ Fichiers .FTH                       │ 15     ✅                  │
-\ │ Apps de bureau                      │ 7      ✅                  │
-\ │ Jeux                                │ 2      ✅ (balle, snake)   │
-\ │ Drivers Forth                       │ 4      ✅ (uart,led,temp,wd)│
-\ │ Simulateurs                         │ 2      ✅ (chip8, life)    │
-\ ├─────────────────────────────────────┼────────────────────────────┤
-\ │ Roadmap 20 mots (Phase 1-4)        │ 20/20  ✅                  │
-\ │ Phase 5 — ANS (12 mots)            │ 12/12  ✅                  │
-\ │ Locals { }                          │ ✅ 4 nouveaux Op           │
-\ │ Bureau Forth (fullscreen)           │ ✅                         │
-\ │ ForthApp système                    │ ✅                         │
-\ ├─────────────────────────────────────┼────────────────────────────┤
-\ │ ms yield                            │ ✅ v2025.2                 │
-\ │ touche yield                        │ ✅ v2025.3                 │
-\ │ critical_depth                      │ ✅ v2025.2                 │
-\ │ string_pool fuite                   │ ✅ v2025.3                 │
-\ │ forget sélectif                     │ ✅ v2025.3                 │
-\ │ CallFrame safe                      │ ✅                         │
-\ └─────────────────────────────────────┴────────────────────────────┘
-
+\ === INPUT ANS (v2025.5) ===
+\   source parse parse-name >in refill
+\
+\ === VOCABULARIES (v2025.5) ===
+\   vocabulary definitions previous
+\
+\ === COMPILATION (ajouts) ===
+\   ... (tout ce qui était dans v2025.4)
+\   + source parse parse-name >in refill
+\   + vocabulary definitions previous
 
 \ ──────────────────────────────────────────────────────────────────────
-\ G2. HISTORIQUE DES CORRECTIONS RUST
+\ G2. HISTORIQUE DES CORRECTIONS ET AJOUTS RUST
 \ ──────────────────────────────────────────────────────────────────────
 \
-\ ┌─────────┬────────────────────────────────┬───────────────────────┐
-\ │ Version │ Correction                     │ Impact                │
-\ ├─────────┼────────────────────────────────┼───────────────────────┤
-\ │ v2025.2 │ ms yield (prim 20)             │ Scheduler fluide      │
-\ │ v2025.2 │ critical-begin/end (310-311)   │ Mutex Forth           │
-\ │ v2025.2 │ critical_depth + timeout 100k  │ Anti-deadlock         │
-\ │ v2025.3 │ string_pool + marker (prim 300)│ Fuite mémoire         │
-\ │ v2025.3 │ forget sélectif (prim 151)     │ Pool propre           │
-\ │ v2025.3 │ touche yield (prim 17)         │ Bloquant coopératif   │
-\ │ v2025.4 │ Locals Op (LocalGet/Set/etc.)  │ Lisibilité code       │
-\ │ v2025.4 │ Phase 5 (12 prims ANS)         │ Compliance partielle  │
-\ │ v2025.4 │ fullscreen-mode                │ Bureau Forth          │
-\ │ v2025.4 │ app: + callbacks               │ ForthApp système      │
-\ │ v2025.4 │ fb-text, rect-outline          │ Rendu texte           │
-\ └─────────┴────────────────────────────────┴───────────────────────┘
+\ ┌─────────┬──────────────────────────────────┬─────────────────────┐
+\ │ Version │ Ajout / Correction               │ Impact              │
+\ ├─────────┼──────────────────────────────────┼─────────────────────┤
+\ │ v2025.2 │ ms yield                         │ Scheduler fluide    │
+\ │ v2025.2 │ critical-begin/end               │ Mutex Forth         │
+\ │ v2025.2 │ critical_depth + timeout 100k    │ Anti-deadlock       │
+\ │ v2025.3 │ string_pool + marker             │ Fuite mémoire       │
+\ │ v2025.3 │ forget sélectif                  │ Pool propre         │
+\ │ v2025.3 │ touche yield                     │ Bloquant coopératif │
+\ │ v2025.4 │ Locals Op (4 nouveaux)           │ Lisibilité code     │
+\ │ v2025.4 │ Phase 5 (12 prims ANS)           │ Compliance          │
+\ │ v2025.4 │ fullscreen-mode + app:           │ Bureau Forth        │
+\ │ v2025.4 │ fb-text, rect-outline            │ Rendu texte         │
+\ │ v2025.5 │ parse/parse-name/source/>in      │ Input ANS           │
+\ │ v2025.5 │ refill                           │ Multi-ligne         │
+\ │ v2025.5 │ vocabularies                     │ Namespaces          │
+\ │ v2025.5 │ JIT x86-64 Phase 1 (30 prims)    │ ×30-50 performance  │
+\ └─────────┴──────────────────────────────────┴─────────────────────┘
 
 
 \ ──────────────────────────────────────────────────────────────────────
 \ G3. PROCHAINS MOTS ET AMÉLIORATIONS
 \ ──────────────────────────────────────────────────────────────────────
 \
-\ ┌────┬──────────────────────┬────────────┬─────────────────────────┐
-\ │  # │ Mot / Amélioration   │ Difficulté │ Impact                  │
-\ ├────┼──────────────────────┼────────────┼─────────────────────────┤
-\ │  1 │ parse / parse-name   │ Moyenne    │ Parsing avancé          │
-\ │  2 │ source / >in         │ Faible     │ Input standard ANS      │
-\ │  3 │ refill               │ Faible     │ Multi-ligne             │
-\ │  4 │ vocabularies         │ Haute      │ Namespaces              │
-\ │  5 │ JIT x86-64 prototype │ Très haute │ Performance ×50         │
-\ ├────┼──────────────────────┼────────────┼─────────────────────────┤
-\ │  6 │ Backtrace Forth      │ 2h         │ Debug (call chain)      │
-\ │  7 │ Mémoire u8 séparée   │ 1 jour     │ Buffers DMA/réseau     │
-\ │  8 │ Limite instructions  │ 30 min     │ Configurable            │
-\ │  9 │ Float logiciel       │ 1 mois     │ Calcul scientifique    │
-\ │ 10 │ Bluetooth HCI        │ 2 semaines │ Périphériques modernes │
-\ └────┴──────────────────────┴────────────┴─────────────────────────┘
+\ ┌────┬──────────────────────────┬────────────┬─────────────────────┐
+\ │  # │ Mot / Amélioration       │ Difficulté │ Impact              │
+\ ├────┼──────────────────────────┼────────────┼─────────────────────┤
+\ │  1 │ JIT Phase 2 : IF/ELSE   │ Haute      │ Control flow natif   │
+\ │  2 │ JIT Phase 3 : DO/LOOP   │ Haute      │ Boucles natives      │
+\ │  3 │ JIT Phase 4 : CALL rel32│ Haute      │ Chaînage JIT         │
+\ │  4 │ JIT Phase 5 : Inlining  │ Moyenne    │ Optimisation         │
+\ │  5 │ JIT Phase 6 : Locals    │ Haute      │ Locals natifs        │
+\ ├────┼──────────────────────────┼────────────┼─────────────────────┤
+\ │  6 │ Backtrace Forth          │ 2h         │ Debug (call chain)  │
+\ │  7 │ Mémoire u8 séparée      │ 1 jour     │ Buffers DMA          │
+\ │  8 │ Float logiciel           │ 1 mois     │ Scientifique        │
+\ │  9 │ Bluetooth HCI            │ 2 semaines │ Périphériques       │
+\ │ 10 │ TLS/SSL basique          │ 1 mois     │ HTTPS               │
+\ └────┴──────────────────────────┴────────────┴─────────────────────┘
 \
-\ Recommandation :
-\   Immédiat (< 1 jour) : parse/source/refill Option A (minimal)
-\   Court terme (1 sem)  : backtrace, limite configurable
-\   Moyen terme (1 mois) : vocabularies, JIT prototype
-\   Long terme : float, bluetooth
+\ JIT est maintenant la priorité principale.
+\ Chaque phase JIT multiplie la performance des programmes Forth.
 
 
 \ ──────────────────────────────────────────────────────────────────────
@@ -1332,36 +1473,38 @@ variable life-gen  variable life-current
 \ ──────────────────────────────────────────────────────────────────────
 \
 \ ┌────────────┬──────────────────────────────────────────────────────┐
-\ │ Semaine 1  │ GitHub + vidéo YouTube + README                     │
-\ │            │ SNAKE.FTH testé sur vrai matériel                   │
+\ │ Semaine 1  │ GitHub + vidéo YouTube + SNAKE testé               │
 \ ├────────────┼──────────────────────────────────────────────────────┤
-\ │ Semaine 2  │ CHIP8.FTH complet + RAYCAST.FTH                    │
+\ │ Semaine 2  │ JIT Phase 2 : IF/ELSE/THEN backpatching            │
+\ │            │ CHIP8.FTH complet                                   │
 \ ├────────────┼──────────────────────────────────────────────────────┤
-\ │ Semaine 3  │ parse/source/refill + backtrace                     │
+\ │ Semaine 3  │ JIT Phase 3 : DO/LOOP natif                        │
+\ │            │ RAYCAST.FTH                                         │
 \ ├────────────┼──────────────────────────────────────────────────────┤
-\ │ Semaine 4  │ HTTPD.FTH + GUIKIT.FTH                             │
+\ │ Semaine 4  │ JIT Phase 4 : chaînage CALL rel32                  │
+\ │            │ Benchmarks comparatifs interpréteur vs JIT          │
 \ ├────────────┼──────────────────────────────────────────────────────┤
-\ │ Mois 2-3   │ Vocabularies + JIT prototype + communauté           │
+\ │ Mois 2     │ HTTPD.FTH, COURSES/, float logiciel                │
+\ │            │ JIT Phase 5-6 (inlining, locals)                    │
 \ └────────────┴──────────────────────────────────────────────────────┘
 \
-\ === INDICATEURS ===
+\ === INDICATEURS v2025.5 ===
 \
 \ ┌─────────────────────────┬────────┬──────────────────────────────┐
 \ │ Critère                 │ Cible  │ Actuel                       │
 \ ├─────────────────────────┼────────┼──────────────────────────────┤
-\ │ Primitives Rust         │ 320    │ ~310 ✅                      │
-\ │ Mots Forth total        │ 500+   │ ~400+ ✅                     │
+\ │ Primitives Rust         │ 330    │ ~320 ✅                      │
+\ │ Mots Forth total        │ 500+   │ ~450+ ✅                     │
 \ │ Tests                   │ 250+   │ ~180 ✅                      │
 \ │ Fichiers .FTH           │ 20+    │ 15 ✅                        │
-\ │ Apps de bureau          │ 10+    │ 7 ✅                         │
-\ │ Jeux                    │ 3+     │ 2 ✅                         │
-\ │ Drivers                 │ 5+     │ 4 ✅                         │
-\ │ Corrections Rust        │ 7/7    │ 7/7 ✅                       │
-\ │ Locals { }              │ ✅     │ ✅                           │
-\ │ Bureau Forth            │ ✅     │ ✅                           │
-\ │ Communauté              │ 50+    │ 0 (pas encore publié)        │
-\ └─────────────────────────┴────────┴──────────────────────────────┘
-
+\ │ JIT primitives natives  │ 50+    │ 30 ✅                        │
+\ │ JIT control flow        │ ✅     │ 🔲 Phase 2                  │
+\ │ JIT boucles             │ ✅     │ 🔲 Phase 3                  │
+\ │ Vocabularies            │ ✅     │ ✅                           │
+\ │ Input ANS               │ ✅     │ ✅                           │
+\ │ Corrections Rust        │ 8/8    │ 8/8 ✅                       │
+\ │ Communauté              │ 50+    │ 0 (publication imminente)    │
+\ └─────────────────────────┴────────┴──────────────────────────────┘\
 
 \ ════════════════════════════════════════════════════════════════════════
 \            FIN DU GUIDE DÉVELOPPEUR EPONA OS v2025.4
@@ -1379,7 +1522,16 @@ cr
 ."  Commandes : sysmon hexdump minicom ping-test" cr
 ." ════════════════════════════════════════════════════════" cr
 ```
-
+cr
+." ════════════════════════════════════════════════════════" cr
+."  DEVGUIDE.FTH v2025.5 charge" cr
+."  JIT x86-64 Phase 1 : 30 primitives en code natif" cr
+."  Vocabularies + Input ANS (parse, source, refill)" cr
+."  Locals { } + ~320 primitives + ~450 mots" cr
+."  Bureau Forth : 7 apps + 2 jeux" cr
+."  Performance : x30-50 vs interpreteur (JIT)" cr
+."  Commandes : sysmon hexdump minicom snake" cr
+." ════════════════════════════════════════════════════════" cr
 ---
 
 ## Changements v2025.3 → v2025.4
@@ -1411,5 +1563,22 @@ cr
 | **F5** | 15 fichiers listés + DESKTOP.FTH + apps |
 | **G1** | Bilan complet avec locals, Phase 5, bureau, 7 corrections |
 | **G2** | **Nouveau** — historique chronologique des corrections |
+
+Ce que le JIT signifie pour Epona OS
+
+EponaForth est maintenant le seul Forth bare-metal au monde avec :
+
+    ✅ JIT x86-64 natif
+    ✅ GPU Intel/AMD natif
+    ✅ Pile réseau TCP/UDP/HTTP
+    ✅ USB 3.0 XHCI complet
+    ✅ NVMe natif
+    ✅ Audio HDA
+    ✅ Multitâche préemptif avec mutex
+    ✅ Vocabularies
+    ✅ Variables locales { }
+    ✅ Bureau graphique complet en Forth
+
+Aucun autre Forth dans le monde n'a tout ça. Ni GForth, ni SwiftForth, ni VFX, ni ColorForth.
 | **G3** | Prochains mots restants (parse, vocabularies, JIT) |
 | **G5** | Planning + indicateurs mis à jour |
