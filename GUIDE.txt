@@ -674,11 +674,46 @@ MOTS AVANCES :
                                 msg 1+ type pour afficher la chaine
     words                       — Liste tous les mots definis
     word-info <mot>             — Affiche les infos d'un mot (type, ops, flags)
-    synonym <new> <existing>    — Cree un alias (meme comportement)
-    action-of <defer>           — Lit le XT assigne a un defer
-    ['] <mot>                   — Tick compile (empile XT en compilation)
-    >body   ( xt -- body-addr ) — Adresse du body d'un mot CREATE
-    evaluate ( addr len -- )    — Execute une chaine comme du Forth
+     synonym <new> <existing>    — Cree un alias (meme comportement)
+     action-of <defer>           — Lit le XT assigne a un defer
+     ['] <mot>                   — Tick compile (empile XT en compilation)
+     >body   ( xt -- body-addr ) — Adresse du body d'un mot CREATE
+     evaluate ( addr len -- )    — Execute une chaine comme du Forth
+     source    ( -- addr len )    — Retourne la ligne source courante
+     >in       ( -- addr )        — Adresse du pointeur d'entree (cellule 4095)
+     parse-name ( "name" -- addr len )
+                                  — Parse le prochain nom (saute espaces, lit token)
+     parse     ( char "..." -- addr len )
+                                  — Parse jusqu'au delimiteur char
+     refill    ( -- flag )        — Lit une ligne depuis le clavier et la place
+                                    dans source_buffer. flag = -1 si OK, 0 si EOF.
+
+VOCABULAIRES :
+---------------
+   vocabulary <nom>              — Cree un vocabulaire (ex: vocabulary MATH)
+                                  Les mots definis apres sont dans ce vocabulaire.
+                                  A l'execution, le mot empile son vocab dans
+                                  l'ordre de recherche.
+     also                        — Ajoute le vocab courant dans search_order
+     only                        — Reinitialise a [FORTH] uniquement
+     forth                       — Ajoute FORTH (index 0) dans search_order
+     definitions                 — Le vocab courant = le dernier de search_order
+
+   Usage typique :
+     vocabulary OUTILS           \ Cree le vocab OUTILS
+     OUTILS                      \ Ajoute OUTILS dans search_order
+     also definitions            \ current_vocab = OUTILS
+
+     : ma-fonction ...           \ Defini dans OUTILS
+       ... ;
+     ; immediate
+
+     only                        \ Revient a [FORTH]
+     also OUTILS                 \ Ajoute OUTILS dans search_order
+
+   Recherche : les mots sont cherches dans l'ordre inverse de search_order.
+   Le dernier vocab ajoute est le plus prioritaire (shadowing).
+                                   Supporte Backspace et Escape (annulation).
     fm/mod  ( d n -- rem quot ) — Division floored (ANS)
     sm/rem  ( d n -- rem quot ) — Division symetrique (ANS)
     um*     ( u1 u2 -- ud )     — Multiplication non-signee double
@@ -995,6 +1030,41 @@ ENTREES :
   souris? ( -- flag )         — 1 si souris detectee
    attendre ( ms -- )          — Pause en millisecondes (basee sur RDTSC, pas de calibration CPU necessaire)
    ms      ( ms -- )           — Alias de attendre
+
+ENTREE FORTH (SOURCE / INPUT) :
+--------------------------------
+   source    ( -- addr len )    — Retourne la ligne courante (source_buffer)
+                                 addr = adresse dans la mémoire Forth, len = longueur
+                                 Le source_buffer est rempli par compile() a chaque ligne.
+   >in       ( -- addr )        — Adresse du pointeur d'entrée (>in, cellule 4095)
+                                  Contient le décalage courant dans la ligne source.
+                                  Réinitialisé à 0 à chaque nouvelle ligne.
+                                  Le tokenizer le respecte : quand parse-name ou parse
+                                  avance >in, les tokens déjà consommés sont sautés.
+   parse-name  ( "name" -- addr len )
+                                  — Parse le prochain nom dans la source courante.
+                                    Saute les espaces/retours, lit jusqu'au prochain
+                                    délimiteur (espace, tab, parenthèse, fin de ligne).
+                                    Retourne l'adresse et la longueur du token trouvé.
+                                    Met >in à jour pour pointer après le token.
+   parse     ( char "..." -- addr len )
+                                  — Parse jusqu'au délimiteur char dans la source courante.
+                                    Retourne l'adresse et la longueur du texte trouvé.
+                                    Le délimiteur n'est PAS inclus dans le résultat.
+                                    Met >in à jour.
+   refill    ( -- flag )        — Lit une ligne depuis le clavier et la place dans
+                                  source_buffer. flag = -1 si OK (ligne lue), 0 si EOF.
+                                  Supporte Backspace (correction) et Escape (annulation).
+                                  Le >in est réinitialisé à 0 après la lecture.
+
+   Note : source, >in, parse-name et parse opèrent sur le source_buffer,
+   rempli par compile() lors de l'interprétation d'une ligne ou d'un evaluate.
+   refill permet de lire de nouvelles lignes depuis le clavier en plein
+   exécution (mode interactif).
+   Le tokenizer synchronise >in : quand parse-name/parse avance >in,
+   les tokens du tokenizer situés avant la nouvelle position de >in sont
+   automatiquement sautés. Ceci assure la conformité ANS Forth.
+
 
 XHCI (SOURIS USB 3.0) :
 -----------------------
