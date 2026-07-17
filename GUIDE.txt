@@ -33,6 +33,7 @@ TABLE DES MATIERES
  10. ARCHITECTURE DU SYSTEME
  11. QUESTIONS FREQUENTES
  12. GLOSSAIRE
+ 13. JIT — COMPILATION NATIVE x86-64
 
 
 ================================================================================
@@ -106,6 +107,7 @@ RACCOURCIS EDITEUR :
   F5            — Compiler et executer le code
   F6            — Sauvegarder sur cle USB
   F7            — Charger depuis cle USB
+  F8            _ Compile en JIT
   Echap         — Fermer la fenetre
   PgUp / PgDn   — Defiler le code
 
@@ -127,13 +129,17 @@ COMMANDES FICHIERS :
   cd <dossier>    — Change de repertoire (cd .. pour remonter)
   cat <fichier>   — Affiche le contenu d'un fichier
   exec <fichier>  — Execute un fichier Forth (.FTH)
+  exec <f.jit>    — Charge un cache JIT (.JIT)
+  jit <f.jit>     — Charge un cache JIT depuis USB
+  jit info        — Affiche l'etat du cache JIT
+  jit clear       — Efface le cache JIT
   touch <fichier> — Cree un fichier vide
   mkdir <dossier> — Cree un dossier
   rm <fichier>    — Supprime un fichier
-   save <fichier>  — Sauvegarde l'editeur principal
-   load <fichier>  — Charge un fichier dans un editeur
-   edit <fichier>  — Idem que load
-   newedit <fich>  — Ouvre dans un nouvel editeur
+  save <fichier>  — Sauvegarde l'editeur principal (+ cache .JIT)
+  load <fichier>  — Charge un fichier dans un editeur (+ cache .JIT)
+  edit <fichier>  — Idem que load
+  newedit <fich>  — Ouvre dans un nouvel editeur
 
 
    Note : si le nom du fichier contient des espaces, mettez-le
@@ -2090,8 +2096,9 @@ RACCOURCIS :
   F3            — Charger la demo Paint
   F4            — Charger la demo Rebond
   F5            — Compiler et executer
-  F6            — Sauvegarder sur USB
-  F7            — Charger depuis USB
+  F6            — Sauvegarder sur USB (+ cache .JIT)
+  F7            — Charger depuis USB (+ cache .JIT)
+  F8            — Compiler + executer + JIT natif + affiche stats
   Echap         — Fermer l'editeur
   PgUp / PgDn   — Defiler
   Tab           — Indenter (2 espaces)
@@ -2319,6 +2326,7 @@ COMPOSANTS :
   system.rs       — Noyau systeme et applications Forth
   apps.rs         — Calculatrice et Paint
   bump_alloc.rs   — Allocateur memoire (free-list 32 MB, coalescing)
+  jit.rs          _ CodeEmitter + JitEngine + trampoline + 39 primitives + inlining + profiling
 
 
 MACHINE VIRTUELLE FORTH :
@@ -2752,6 +2760,257 @@ NOTES D'ARCHITECTURE INTERNE :
   rect-outline     ( x y w h c -- )  --            Contour de rectangle
   pixel            ( x y c -- )      --            Pixel individuel
   ligne            ( x1 y1 x2 y2 c --) --          Ligne droite
+
+
+================================================================================
+13. JIT — COMPILATION NATIVE x86-64
+================================================================================
+
+
+Epona OS dispose d'un compilateur JIT (Just-In-Time) qui traduit les mots
+Forth en code machine x86-64 natif, offrant un speedup x30-50 sur les
+boucles arithmetiques pures.
+
+
+PRINCIPE :
+----------
+  Le JIT compile les mots au premier appel (compilation paresseuse/lazy).
+  Une fois compile, le code natif est mis en cache dans la RAM.
+
+  Les 39 primitives supportees :
+    Stack     : dup drop swap over rot
+    Arith     : + - * / mod 1+ 1-
+    Compare   : = <> < > 0= 0<
+    Logic     : and or xor invert lshift rshift
+    Memoire   : @ ! +!
+    Pile ret  : >r r> r@ i j
+    Boucles   : DO ?DO LOOP +LOOP LEAVE
+    Control   : IF ELSE THEN (backpatching)
+
+
+UTILISATION DANS L'EDITEUR :
+-----------------------------
+  F5  — Compile et execute (JIT lazy : compile au fur et a mesure)
+  F8  — Compile, execute, et force la compilation JIT de tous les mots.
+        La barre de statut affiche les stats en vert :
+          "JIT: 5 mots compiles | 5 total | 234 octets code"
+
+
+SAUVEGARDE DU CACHE JIT :
+--------------------------
+  F6 sauvegarde automatiquement :
+    - PROG.FTH  : le code source Forth (texte)
+    - PROG.JIT  : le cache JIT compile (binaire hexadecimal)
+
+  F7 restaure automatiquement les deux fichiers au chargement.
+
+
+COMMANDES SHELL JIT :
+---------------------
+  jit <f.jit>    — Charge un cache JIT depuis la cle USB
+  jit info       — Affiche l'etat du cache (mots compiles, octets code)
+  jit clear      — Efface le cache JIT (recompilation lazy au prochain appel)
+  exec <f.jit>   — Charge un .JIT directement (detecte l'extension automatiquement)
+  ls             — Affiche [J] pour les fichiers .JIT au lieu de [F]
+
+
+CACHE JIT AU DEMARRAGE :
+-------------------------
+  Si un fichier BOOT.JIT existe sur la cle USB au demarrage, il est
+  restaure automatiquement. Pas besoin de recompiler.
+
+  Flux :
+    1ere fois :  F8 → JIT compile → F6 → sauve .FTH + .JIT
+    reboot :     boot → charge .FTH + restaure .JIT → pret immediatement
+
+
+FORMAT DU FICHIER .JIT :
+-------------------------
+  Le fichier .JIT est encode en hexadecimal (100% UTF-8 safe) :
+    EPJIT1|code_pos|dict_len|code_len|compiled_flags|word_offsets|code_bytes
+
+  Il contient :
+    - Le buffer de code natif x86-64
+    - Les flags de compilation par mot
+    - Les adresses de chaque mot dans le buffer
+
+
+BOUCLES JIT (DO/LOOP) :
+------------------------
+  Le JIT compile les boucles FOR en code natif x86-64 :
+
+    DO      ( limit start -- )  — Debut de boucle, empile (limit, index)
+    ?DO     ( limit start -- )  — Debut conditionnel (skip si limit = start)
+    LOOP    ( -- )              — Fin de boucle, incrémente index, boucle si < limit
+    +LOOP   ( n -- )           — Fin de boucle avec increment variable
+    LEAVE   ( -- )             — Sort immediate de la boucle
+
+    i ( -- n )                 — Index de la boucle courante (natif)
+    j ( -- n )                 — Index de la boucle imbriquee (natif)
+
+  La pile de boucles est stockee dans les cells 4063-4094 de la memoire Forth.
+  Chaque entree = 16 octets (limit: i64, index: i64).
+  Comparaison signee pour gerer les increments positifs et negatifs.
+
+  Exemple :
+    : countdown ( n -- )
+      0 do i - 1 + loop
+    ;
+    10 countdown . \ -45
+
+
+OPTIMISATIONS JIT :
+--------------------
+  Inlining :
+    Les mots courts (seulement Push/CallPrim, ≤ 48 octets) sont inlines
+    directement, eliminant l'overhead CALL/RET. Profondeur max : 4.
+
+  Tail call optimization :
+    Le pattern Call→Exit est transforme en JMP rel32 (pas de RET).
+    Utile pour les mots simples qui appellent un seul autre mot.
+
+  Constant folding :
+    Push(a) Push(b) Call(+)  →  Push(a+b)
+    Push(a) Call(1+)         →  Push(a+1)
+    Dup → Push + Push (directement en memoire)
+
+  CALL rel32 :
+    Les appels entre mots compiles utilisent E8 rel32 (5 octets)
+    au lieu de MOV RAX + CALL RAX (12 octets).
+
+
+PROFILING JIT :
+---------------
+  4 primitives pour mesurer les performances :
+
+    jit-prof       — Affiche les compteurs d'appels JIT
+    jit-prof-reset — Reinitialise les compteurs
+    jit-prof-on    — Active le profiling
+    jit-prof-off   — Desactive le profiling
+
+  Utilisation :
+    jit-prof-on              \ Active le comptage
+    1000000 : s" test" noop  \ Execute du code
+    jit-prof                 \ Affiche les stats
+
+  Les stats montrent le nombre d'appels JIT pour chaque mot compile.
+
+
+TOGGLE JIT (jit-off / jit-on) :
+--------------------------------
+  2 primitives pour controler l'execution JIT depuis Forth :
+
+    jit-off  — Desactive l'execution JIT (mode interpreteur)
+    jit-on   — Reactive l'execution JIT
+
+  Utilisation pour benchmarking :
+    jit-off                                   \ Force mode interpreteur
+    rdtsc bench1 drop rdtsc swap - .          \ Mesure cycles interpreteur
+
+    bench1 drop                               \ Compile JIT (warmup)
+    jit-on                                    \ Reactive le JIT
+    rdtsc bench1 drop rdtsc swap - .          \ Mesure cycles JIT
+
+  Quand jit-off est actif, les mots appelles via Op::Call passent
+  par l'interpreteur meme s'ils sont compiles en JIT. Utile pour :
+    - Benchmarks comparatifs JIT vs interpreteur
+    - Debug (executer pas a pas en mode interpreteur)
+    - Mesurer l'overhead exact du dispatch interpreter
+
+
+VITESSE :
+---------
+  Primitives simples (dup, +, drop) : ~1-2 ns/op (1 instruction CPU)
+  Interpreteur Rust                : ~50-100 ns/op (dispatch + clone)
+  Speedup estime                   : x30-50 pour boucles arithmetiques
+
+
+BACKTRACE FORTH (debug call chain) :
+-------------------------------------
+  3 primitives pour tracer la chaine d'appels :
+
+    bt       — Affiche le backtrace (chaine d'appels en cours)
+    bt-on    — Active l'enregistrement du backtrace
+    bt-off   — Desactive le backtrace et vide le buffer
+
+  Le backtrace enregistre les 64 derniers niveaux d'appels.
+  Seuls les mots non-primitifs (mots defini par l'utilisateur)
+  sont enregistres. Les appels de primitives sont ignorees.
+
+  Utilisation :
+    bt-on                       \ Active le tracing
+    : foo 42 bar ;              \ Definir un mot
+    : bar dup 1+ drop ;
+    foo                         \ Appeler
+    bt                          \ Affiche la chaine d'appels
+
+  Sortie :
+    Backtrace (2 niveaux):
+      #0 foo
+      #1 bar
+
+  Utile pour debugger les appels imbriques et comprendre
+  l'execution de mots composes.
+
+
+MEMOIRE U8 SEPAREE (DMA/reseau) :
+-----------------------------------
+  256 Ko de memoire octet separee de memory[] (cells i64).
+  Utilisee pour les buffers DMA, paquets reseau, et donnees
+  brutes necessitant un acces octet.
+
+  Primitives :
+
+    b@     ( addr -- byte )       Lit un octet dans byte_mem
+    b!     ( byte addr -- )       Ecrit un octet dans byte_mem
+    bbase  ( -- addr )            Adresse de base (0)
+    bsize  ( -- size )            Taille totale (256 Ko)
+    balloc ( size -- addr )       Alloue n octets (bump allocator)
+    breset ( -- )                 Reinitialise l'allocateur
+    bfill  ( addr n val -- )      Remplit n octets avec val
+    bmove  ( src dst len -- )     Copie dans byte_mem
+    b>c    ( baddr caddr len -- ) Copie byte_mem vers memory[]
+
+  Utilisation :
+    balloc 4096                 \ Allouer 4 Ko pour un paquet
+    dup . \ addr=0
+
+    0x48 b!                    \ Ecrire 'H' a l'adresse 0
+    0x45 b!                    \ Ecrire 'e' a l'adresse 1
+    0x6C b!                    \ Ecrire 'l' a l'adresse 2
+
+    0 b@ .                     \ Lire l'octet a 0 → 72
+
+    0 breset                   \ Reinitialiser l'allocateur
+
+  Notes :
+    - byte_mem est un Vec<u8> de 256 Ko (262144 octets)
+    - L'allocateur bump ne supporte pas la liberation individuelle
+    - b>c copie octet par octet vers memory[] (un octet par cellule i64)
+    - Utile pour DMA : l'adresse physique peut etre obtenue via
+      byte_mem.as_ptr() pour les descripteurs hardware
+
+
+LIMITE INSTRUCTIONS :
+----------------------
+  2 primitives pour controler la limite d'execution :
+
+    max-instr     ( -- n )     Lit la limite courante (0 = illimite)
+    set-max-instr ( n -- )     Fixe la limite (0 = illimite)
+
+  Defaut : 10 000 000 instructions.
+  Utile pour eviter les boucles infinies et proteger le systeme.
+
+  Utilisation :
+    max-instr .               \ Affiche la limite courante
+    100000 set-max-instr      \ Limiter a 100K instructions
+    0 set-max-instr           \ Desactiver la limite
+
+
+FICHIERS :
+----------
+  src/jit.rs        — CodeEmitter + JitEngine + trampoline + 39 primitives
+  src/interpreter.rs — Integration JIT + backtrace + mémoire u8 séparée
 
 
 ================================================================================
