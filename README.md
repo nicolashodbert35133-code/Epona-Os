@@ -12,6 +12,20 @@ Epona OS est un système d’exploitation celte libre, écrit en Rust et Forth
 
 rejoint la communauté sur discord pour tout savoir
 https://discord.gg/kwWBWhmvN
+
+## Compatibilité matérielle
+
+Epona OS est en cours de développement.  
+Pour améliorer la compatibilité avec votre machine :
+
+1. Démarrez Epona.
+2. Tapez `pci save` dans le shell.
+3. Récupérez `PCI.TXT` sur votre clé USB.
+4. Ouvrez une Issue sur GitHub avec le template "Hardware dump (PCI.TXT)".
+5. Joignez votre fichier `PCI.TXT`.
+
+Nous utiliserons ces dumps pour ajouter des drivers et améliorer le support matériel.
+
 ================================================================================
                         EPONA OS — GUIDE COMPLET
               Systeme d'exploitation bare-metal UEFI en Rust
@@ -42,7 +56,19 @@ C’est un **atelier matériel + langage système + environnement agentique**.
 ### **1. Forth natif intégré au système**  
 Epona OS n’a pas un “terminal”.  
 Il a un **langage Forth natif**, directement connecté au kernel.
-
+╔═══════════════════════════════════════════╗
+║                                           ║
+║   TOTAL : 454 primitives enregistrées     ║
+║                                           ║
+║   + ~30 mots du compilateur               ║
+║     (: ; if else then do loop etc.)       ║
+║                                           ║
+║   + ~20 mots immédiats                    ║
+║     (variable constant create value etc.) ║
+║                                           ║
+║   ≈ 500+ mots disponibles au total        ║
+║                                           ║
+╚═══════════════════════════════════════════╝
 Tu peux :
 
 - manipuler la mémoire,  
