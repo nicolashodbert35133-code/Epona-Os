@@ -72,18 +72,18 @@ Epona OS résout le dilemme entre sécurité bas niveau et extensibilité commun
 ```
 
 1. **Le Noyau Rust (`BOOTX64.EFI`) :**  
-   Fermé et sécurisé pour protéger l'intégrité du matériel, la pagination mémoire ([vmm.rs](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/src/vmm.rs)), l'ordonnancement préemptif ([scheduler_v2.rs](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/src/scheduler_v2.rs)) et les contrôleurs de bus (USB 3.0 XHCI, NVMe, SATA AHCI, GPU).
+   Fermé et sécurisé pour protéger l'intégrité du matériel, la pagination mémoire [vmm.rs], l'ordonnancement préemptif [scheduler_v2.rs] et les contrôleurs de bus (USB 3.0 XHCI, NVMe, SATA AHCI, GPU).
 2. **L'Environnement Forth (`.fth`) & JIT (`jit.rs`) :**  
    Ouvert à la communauté des développeurs et makers. Permet d'écrire des pilotes matériels, des jeux, des interfaces graphiques et des outils système **sans jamais avoir à recompiler le noyau Rust** ! Le compilateur JIT traduit les boucles Forth en code machine x86-64 natif exécuté à vitesse maximale.
 
 ---
 
-## ⚡ Ce Qui Rend Epona OS Unique
+## ⚡ Ce Qui Rendra Epona OS Unique en septembre 2026
 
 - 🦀 **100% Rust Bare-Metal `no_std`** : Aucun kernel Linux, aucun runtime C, aucune dépendance std.
 - ⚡ **Compilateur JIT x86-64 Natif** : Compilation à la volée des mots Forth avec signature cryptographique.
-- 🖥️ **290+ Primitives Forth Natives** : Arithmétique 64-bit, flottants SSE2 (`fsin`, `fcos`, `fsqrt`), accès registres MMIO, ports I/O (`inb`, `outb`), scan PCI et compositage GUI 2D/3D.
-- ⌨️ **Terminal Shell Hybride (42 Commandes)** : Support de l'autocomplétion `Tab`, de l'historique, des pipelines `|`, des redirections `>` et du fallback automatique vers l'interpréteur Forth.
+- 🖥️ **700+ Primitives Forth Natives** : Arithmétique 64-bit, flottants SSE2 (`fsin`, `fcos`, `fsqrt`), accès registres MMIO, ports I/O (`inb`, `outb`), scan PCI et compositage GUI 2D/3D.
+- ⌨️ **Terminal Shell Hybride (70 Commandes)** : Support de l'autocomplétion `Tab`, de l'historique, des pipelines `|`, des redirections `>` et du fallback automatique vers l'interpréteur Forth.
 - 🔌 **Accès Matériel Direct via USB 3.0 & PCI** : Pilotez des puces custom, FPGA, cartes réseau ou microcontrôleurs directement depuis la console Forth.
 - 🎵 **Multimédia & Réseau** : Pilote Intel High Definition Audio (HDA), pile réseau TCP/IP, UDP, ICMP Ping et Wi-Fi Realtek.
 
@@ -110,12 +110,12 @@ Le projet est intégralement documenté pour les développeurs et la communauté
 
 | Fichier de Documentation | Description & Contenu |
 | :--- | :--- |
-| **[rapport.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/rapport.md)** | Rapport d'audit d'architecture complet des 55 modules Rust de `src/` et feuille de route vers Septembre 2026. |
-| **[DEVFORTH.MD](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEVFORTH.MD)** | Manuel d'ingénierie exhaustif des 290+ primitives Forth (Signatures de pile, code Rust, exemple). |
-| **[DEVSHELL.MD](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEVSHELL.MD)** | Guide officiel du Shell et des 42 commandes natives avec sessions de terminal. |
-| **[DEV_GUIDE_MAIN.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_MAIN.md)** | Guide de démarrage bare-metal, boot sequence UEFI et `ExitBootServices`. |
-| **[DEV_GUIDE_DRIVERS.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_DRIVERS.md)** | Manuel d'écriture des pilotes matériels en Forth (`.fth`). |
-| **[DEV_GUIDE_SHELL.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_SHELL.md)** | Architecture interne du moteur d'édition de ligne et d'affichage terminal `shell.rs`. |
+| Rapport d'audit d'architecture complet des 55 modules Rust de `src/` et feuille de route vers Septembre 2026. |
+| **[DEVFORTH.MD](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Docs/DEVFORTH.MD)** | Manuel d'ingénierie exhaustif des 700+ primitives Forth (Signatures de pile, code Rust, exemple). |
+| **[DEVSHELL.MD](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Docs/DEVSHELL.MD)** | Guide officiel du Shell et des 42 commandes natives avec sessions de terminal. |
+| Guide de démarrage bare-metal, boot sequence UEFI et `ExitBootServices`. |
+| Manuel d'écriture des pilotes matériels en Forth (`.fth`). |
+| Architecture interne du moteur d'édition de ligne et d'affichage terminal `shell.rs`. |
 
 ---
 
