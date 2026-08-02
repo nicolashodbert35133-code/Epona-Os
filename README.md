@@ -55,6 +55,41 @@ Epona OS est un système d'exploitation d'un genre nouveau, ciblant une communau
 
 ---
 
+## 🚀 Zéro Application Obligatoire & Bureau Unique à Chaque Utilisateur
+
+Contrairement aux systèmes propriétaires ou aux distributions grand public, **Epona OS ne vous impose AUCUNE application préinstallée ni aucun bloatware**.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│              PHILOSOPHIE EPONA OS : ZÉRO BLOATWARE • 100% LIBERTÉ                │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│  ✓ Zéro application obligatoire préinstallée                                      │
+│  ✓ Zéro processus d'arrière-plan caché ou télémétrie                             │
+│  ✓ Un Bureau sur-mesure codé en Forth, unique pour chaque utilisateur            │
+│  ✓ Vos pilotes, vos widgets et vos jeux sur votre clé USB Live                   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- 🎨 **Un Bureau Personnel et Unique** : Comme tout l'environnement graphique repose sur des scripts Forth ouverts (`.fth`), chaque utilisateur peut créer ou modifier son propre bureau (mode fenêtré classique, interface radiale, mode cyberpunk, minimaliste ou pur terminal).
+- 🛠️ **Liberté Totale de Création** : Vous décidez des scripts chargés dans `BOOT.FTH`. Votre système contient uniquement ce dont vous avez besoin.
+
+---
+
+## 🛠️ Quelles Applications Peut-on Créer avec Epona OS ?
+
+Grâce à ses **700+ primitives Forth** et son **compilateur JIT x86-64 natif**, les possibilités de création sont infinies :
+
+1. 🎮 **Jeux 2D/3D & Émulateurs** :
+   - Moteurs graphiques 3D en Raycasting (style *Doom*), jeux de réflexion (Snake, Tetris), émulateurs complets (ex. émulateur CHIP-8 avec assembleur intégré).
+2. 🔌 **Outils Matériels & Hardware Hacking** :
+   - Enregistreurs de données pour capteurs I2C/SPI, oscilloscopes virtuels, outils de flashage de puces microcontrôleurs/FPGA via USB XHCI.
+3. 📝 **Bureaux & Outils de Productivité Personnalisés** :
+   - Éditeurs de texte natifs (`EDITEUR.fth`), moniteurs de ressources CPU/RAM temps réel (`sysmon`), calculateurs à pile ou lecteurs audio PCM (HDA Codec).
+4. 🌐 **Applications Réseau & Serveurs Web** :
+   - Serveurs HTTP/HTTPS légers, clients de diagnostic réseau (Ping, DNS), utilitaires de communication inter-machines.
+
+---
+
 ## ⚔️ Epona OS Comparé aux Systèmes d'Exploitation Historiques
 
 Contrairement aux systèmes d'exploitation traditionnels qui empilent des couches d'abstractions complexes, Epona OS adopte une philosophie de contrôle direct et interactif :
@@ -63,10 +98,11 @@ Contrairement aux systèmes d'exploitation traditionnels qui empilent des couche
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Noyau & Sécurité** | 16-bit Mono-tâche, non protégé | 32-bit Multi-tâche sans protection | Kernel massif en C / POSIX | Fermé, boîte noire | **Noyau Rust 64-bit Fermé & Sécurisé** |
 | **Langage Système** | Assembleur 16-bit | C / Assembleur 68k | C / Shell Bash | C / C++ | **Rust Bare-Metal + Forth JIT** |
-| **Extensibilité Pilotes** | Fichiers `.SYS` statiques | Pilotes C / Bibliotheques | Modules Kernel `.ko` complexes | Drivers signés lourds | **Scripts `.FTH` Ouverts sans Recompilation** |
+| **Extensibilité Pilotes** | Fichiers `.SYS` statiques | Pilotes C / Bibliothèques | Modules Kernel `.ko` complexes | Drivers signés lourds | **Scripts `.FTH` Ouverts sans Recompilation** |
 | **Compilateur JIT** | Aucun | Aucun | Aucun (Interpréteur BPF) | Aucun | **Compilateur JIT x86-64 Natif Intégré** |
 | **Accès Hardware Direct** | Accès I/O direct sans mémoire protégée | Puces Custom (OCS/AGA) | Bloqué / Via `/dev/` et `/sys/` | Entièrement bloqué | **Registres MMIO, PCI, USB XHCI & I2C Directs** |
 | **Environnement GUI** | Ligne de commande pure | Workbench 2D pionnier | X11 / Wayland lourd | Desktop propriétaire | **Bureau Windowed Composité Forth 60 FPS** |
+| **Personnalisation Bureau** | Aucune | Thèmes Workbench | Thèmes Desktop (Gnome/KDE) | Thèmes fermés | **Bureau Sur-Mesure Codé en Forth (.fth)** |
 
 ---
 
