@@ -7,7 +7,7 @@
 </h1>
 
 <h3 align="center">
-  Système d'Exploitation Français Bare-Metal UEFI en Rust avec Machine Virtuelle Forth et Compilateur JIT x86-64 Natif
+  Système d'Exploitation Français Autonome Bare-Metal UEFI en Rust avec Machine Virtuelle Forth et Compilateur JIT x86-64 Natif
 </h3>
 
 <p align="center">
@@ -90,27 +90,31 @@ Grâce à ses **700+ primitives Forth** et son **compilateur JIT x86-64 natif**,
 
 ---
 
-## 🔮 Vision d'Avenir à 2 Ans (Horizon 2028) : L'Écosystème Forth & Le Store Souverain
+## 🤖 VISION À 2 ANS (HORIZON 2028) : LE SYSTÈME AUTONOME & SOUVERAIN (Spécification `Os autonome.md`)
 
-Face à la lourdeur et à l'opacité grandissante des systèmes d'exploitation historiques américains (Windows, macOS, distributions Linux complexes et télémétrées), **Epona OS construit une alternative de rupture pour un usage quotidien** :
+Inspiré de la feuille de route d'ingénierie **`Os autonome.md`**, Epona OS évolue d'ici 2 ans vers un système **100% autonome, auto-géré et agentique** affranchi de toute dépendance historique :
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                   HORIZON 2028 : L'ÉCOSYSTÈME FORTH SOUVERAIN                    │
+│                   EPONA OS 2028 : SYSTÈME TOTALEMENT AUTONOME                    │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│ 📦 DÉPÔT DÉCENTRALISÉ .FTH : Partage universel de scripts et pilotes légers      │
-│ 🏬 Epona FTH Store          : Téléchargement & compilation JIT en un clic        │
-│ 🔒 SIGNATURES HMACS-SHA256   : Sécurité cryptographique sans bloatware           │
-│ 💻 USAGE QUOTIDIEN          : Démarrage en 1s sur USB/SSD, <150MB RAM            │
+│ 1. AUTONOMIE POST-BOOT   : Sortie totale ExitBootServices, GDT/IDT/PML4 directes │
+│ 2. SCHEDULER CPU V2      : Processus préemptifs isolés (CpuContext & Ring 3)     │
+│ 3. VFS ARBORESCENT V2    : Mounting DevFS, ProcFS, RamFS (/tmp) & NVMe FAT32     │
+│ 4. AGENT IA PILOTES      : Auto-détection matériel & binding dynamique .FTH      │
+│ 5. BLUETOOTH & WIRELESS  : Pile Bluetooth HCI autonome, Wi-Fi 802.11 & HDA Audio │
+│ 6. STORE SOUVERAIN .FTH  : Store décentralisé d'applications et drivers signés  │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. 🌐 **Dépôt Décentralisé de Fichiers `.FTH`** :
-   - Une communauté mondiale de développeurs et makers partageant des scripts Forth lisibles, ultra-légers et directement modifiables.
-2. 🏬 **Le Store Souverain Epona Forth (`fth-store`)** :
-   - Un store d'applications et de pilotes Forth rapide et épuré. Un développeur publie son script `.fth`, et tout utilisateur peut l'installer et le compiler en code machine x86-64 natif avec le JIT en une commande (`fth-store install wifi-driver.fth`).
-3. ⚡ **Usage Quotidien Face aux OS Américains Complexe** :
-   - Proposer une alternative souveraine, rapide et éco-conçue : un PC qui démarre en 1 seconde, consomme moins de 150 Mo de RAM, garantit le respect de la vie privée et s'utilise au quotidien pour le développement, la création et la gestion de matériels.
+1. ⚡ **Autonomie Matérielle Totale (`ExitBootServices`)** :
+   - Dès l'amorce terminée, Epona OS quitte définitivement les Boot Services UEFI via `exit_boot_services`. Le noyau contrôle le processeur x86-64 avec sa propre table de pagination PML4, sa table de descripteurs d'interruptions IDT et son allocateur mémoire physique autonome.
+2. 🔄 **Ordonnancement Préemptif V2 (`CpuContext` & IPC)** :
+   - Un scheduler multitâche préemptif gérant la commutation de contexte CPU complète (`rax`...`r15`, `fxsave` FPU/SSE), les files d'attente IPC inter-processus et la mémoire partagée.
+3. 🤖 **Agent IA Autonome de Détection Matérielle** :
+   - Un sous-système agentique scannant les bus PCI, USB XHCI et I2C, associant automatiquement chaque composant détecté au pilote Forth `.fth` approprié depuis le VFS.
+4. 🏬 **Le Store Souverain Epona Forth (`fth-store`) & Usage Quotidien** :
+   - Un store décentralisé où les développeurs partagent leurs scripts, jeux et outils. En un clic ou une commande, l'application est chargée et compilée en code machine natif par le JIT x86-64. Epona OS devient un système rapide (boot < 1 sec, < 150 MB RAM) utilisable au quotidien face aux OS américains propriétaires devenus trop lourds et truffés de télémétrie.
 
 ---
 
@@ -118,13 +122,13 @@ Face à la lourdeur et à l'opacité grandissante des systèmes d'exploitation h
 
 Contrairement aux systèmes d'exploitation traditionnels qui empilent des couches d'abstractions complexes, Epona OS adopte une philosophie de contrôle direct et interactif :
 
-| Caractéristique | MS-DOS | AmigaOS | Linux (Kernel C) | Windows | **Epona OS (Sept 2026)** |
+| Caractéristique | MS-DOS | AmigaOS | Linux (Kernel C) | Windows | **Epona OS (Sept 2026/2028)** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Noyau & Sécurité** | 16-bit Mono-tâche, non protégé | 32-bit Multi-tâche sans protection | Kernel massif en C / POSIX | Fermé, boîte noire | **Noyau Rust 64-bit Fermé & Sécurisé** |
-| **Langage Système** | Assembleur 16-bit | C / Assembleur 68k | C / Shell Bash | C / C++ | **Rust Bare-Metal + Forth JIT** |
-| **Extensibilité Pilotes** | Fichiers `.SYS` statiques | Pilotes C / Bibliothèques | Modules Kernel `.ko` complexes | Drivers signés lourds | **Scripts `.FTH` Ouverts sans Recompilation** |
+| **Noyau & Sécurité** | 16-bit Mono-tâche, non protégé | 32-bit Multi-tâche sans protection | Kernel massif en C / POSIX | Fermé, boîte noire | **Noyau Rust 64-bit Autonome (`ExitBootServices`)** |
+| **Langage Système** | Assembleur 16-bit | C / Assembleur 68k | C / Shell Bash | C / C++ | **Rust Bare-Metal + Forth JIT x86-64** |
+| **Extensibilité Pilotes** | Fichiers `.SYS` statiques | Pilotes C / Bibliothèques | Modules Kernel `.ko` complexes | Drivers signés lourds | **Scripts `.FTH` Ouverts & Agent IA Autonome** |
 | **Compilateur JIT** | Aucun | Aucun | Aucun (Interpréteur BPF) | Aucun | **Compilateur JIT x86-64 Natif Intégré** |
-| **Accès Hardware Direct** | Accès I/O direct sans mémoire protégée | Puces Custom (OCS/AGA) | Bloqué / Via `/dev/` et `/sys/` | Entièrement bloqué | **Registres MMIO, PCI, USB XHCI & I2C Directs** |
+| **Accès Hardware Direct** | Accès I/O direct sans mémoire | Puces Custom (OCS/AGA) | Bloqué / Via `/dev/` et `/sys/` | Entièrement bloqué | **Registres MMIO, PCI, USB XHCI, Bluetooth & I2C** |
 | **Environnement GUI** | Ligne de commande pure | Workbench 2D pionnier | X11 / Wayland lourd | Desktop propriétaire | **Bureau Windowed Composité Forth 60 FPS** |
 | **Personnalisation Bureau** | Aucune | Thèmes Workbench | Thèmes Desktop (Gnome/KDE) | Thèmes fermés | **Bureau Sur-Mesure Codé en Forth (.fth)** |
 | **Écosystème & Store** | Aucun | Disquettes Aminet | Dépôts `.deb`/`.rpm` lourds | Microsoft Store fermé | **Store Décentralisé FTH JIT Souverain** |
