@@ -1,0 +1,285 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d"/>
+      <stop offset="40%" stop-color="#0f172a"/>
+      <stop offset="80%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#31103f"/>
+    </linearGradient>
+
+    <linearGradient id="topbar-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172acc"/>
+      <stop offset="50%" stop-color="#1e293bcc"/>
+      <stop offset="100%" stop-color="#0f172acc"/>
+    </linearGradient>
+
+    <linearGradient id="win-header-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+
+    <linearGradient id="win-header-active" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293be6"/>
+      <stop offset="100%" stop-color="#0f172ae6"/>
+    </linearGradient>
+
+    <!-- Filters for Glassmorphism Shadows -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    
+    <filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- ================= BACKGROUND WALLPAPER ================= -->
+  <rect width="1920" height="1080" fill="url(#bg-gradient)"/>
+  
+  <!-- Subtle Wallpaper Geometry / Mesh -->
+  <circle cx="960" cy="540" r="600" fill="none" stroke="#6366f1" stroke-opacity="0.08" stroke-width="2"/>
+  <circle cx="960" cy="540" r="450" fill="none" stroke="#3b82f6" stroke-opacity="0.1" stroke-width="1.5" stroke-dasharray="10 15"/>
+  <path d="M 0 800 Q 480 600 960 750 T 1920 650 L 1920 1080 L 0 1080 Z" fill="#6366f1" fill-opacity="0.03"/>
+  <path d="M 0 900 Q 600 700 1200 850 T 1920 750 L 1920 1080 L 0 1080 Z" fill="#3b82f6" fill-opacity="0.04"/>
+
+  <!-- Logo Epona OS Watermark Central -->
+  <g transform="translate(960, 480)" opacity="0.12">
+    <polygon points="0,-120 104,-60 104,60 0,120 -104,60 -104,-60" fill="none" stroke="#38bdf8" stroke-width="4"/>
+    <text x="0" y="20" font-family="'Segoe UI', Roboto, sans-serif" font-size="72" font-weight="900" fill="#f8fafc" text-anchor="middle" letter-spacing="6">EPONA OS</text>
+    <text x="0" y="60" font-family="'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="600" fill="#38bdf8" text-anchor="middle" letter-spacing="8">FORTH BARE-METAL UEFI 2.0</text>
+  </g>
+
+  <!-- ================= TOP BAR (TASKBAR) ================= -->
+  <rect x="0" y="0" width="1920" height="42" fill="url(#topbar-gradient)" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+  
+  <!-- Left Side: Epona Menu & Quick Info -->
+  <g transform="translate(16, 12)">
+    <!-- Epona Icon Logo -->
+    <rect x="0" y="0" width="20" height="20" rx="4" fill="#3b82f6"/>
+    <path d="M 5 14 L 10 5 L 15 14 M 8 11 L 12 11" stroke="#ffffff" stroke-width="2" fill="none"/>
+    
+    <text x="28" y="15" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Epona OS</text>
+    <text x="100" y="15" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#94a3b8">v1.98 Live USB</text>
+    
+    <!-- Active Tasks Menu -->
+    <rect x="210" y="-2" width="110" height="24" rx="6" fill="#334155" fill-opacity="0.6"/>
+    <text x="222" y="14" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#38bdf8">🖥️ Terminal</text>
+
+    <rect x="330" y="-2" width="110" height="24" rx="6" fill="#1e293b" fill-opacity="0.4"/>
+    <text x="342" y="14" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#94a3b8">📊 SysMon</text>
+
+    <rect x="450" y="-2" width="110" height="24" rx="6" fill="#1e293b" fill-opacity="0.4"/>
+    <text x="462" y="14" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#94a3b8">📝 Editeur</text>
+  </g>
+
+  <!-- Right Side: Status Widgets -->
+  <g transform="translate(1480, 12)">
+    <!-- Memory / CPU Indicator -->
+    <text x="0" y="15" font-family="monospace" font-size="12" fill="#4ade80">CPU 2.4%</text>
+    <text x="80" y="15" font-family="monospace" font-size="12" fill="#38bdf8">RAM 142MB</text>
+    
+    <!-- USB Status -->
+    <rect x="170" y="-2" width="64" height="22" rx="4" fill="#059669" fill-opacity="0.3" stroke="#10b981" stroke-width="1"/>
+    <text x="176" y="13" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="600" fill="#34d399">USB LIVE</text>
+    
+    <!-- Layout Keyboard Status -->
+    <rect x="245" y="-2" width="60" height="22" rx="4" fill="#3b82f6" fill-opacity="0.3" stroke="#60a5fa" stroke-width="1"/>
+    <text x="253" y="13" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="700" fill="#93c5fd">AZERTY</text>
+    
+    <!-- Clock -->
+    <text x="325" y="15" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f8fafc">12:00:00</text>
+  </g>
+
+  <!-- ================= DESKTOP ICONS (LEFT COLUMN) ================= -->
+  <!-- Icon 1: Terminal Forth -->
+  <g transform="translate(40, 80)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="36" y="44" font-family="monospace" font-size="28" font-weight="bold" fill="#38bdf8" text-anchor="middle">&gt;_</text>
+    <text x="36" y="92" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#f1f5f9" text-anchor="middle">Terminal</text>
+  </g>
+
+  <!-- Icon 2: System Monitor -->
+  <g transform="translate(40, 200)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="#1e293b" stroke="#10b981" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M 18 48 L 30 28 L 42 42 L 54 20" stroke="#34d399" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <text x="36" y="92" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#f1f5f9" text-anchor="middle">SysMon</text>
+  </g>
+
+  <!-- Icon 3: Forth Editor -->
+  <g transform="translate(40, 320)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="#1e293b" stroke="#a855f7" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="24" y="18" width="24" height="36" fill="none" stroke="#c084fc" stroke-width="2"/>
+    <line x1="28" y1="26" x2="40" y2="26" stroke="#c084fc" stroke-width="2"/>
+    <line x1="28" y1="34" x2="44" y2="34" stroke="#c084fc" stroke-width="2"/>
+    <line x1="28" y1="42" x2="36" y2="42" stroke="#c084fc" stroke-width="2"/>
+    <text x="36" y="92" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#f1f5f9" text-anchor="middle">Editeur</text>
+  </g>
+
+  <!-- Icon 4: File Manager -->
+  <g transform="translate(40, 440)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M 20 26 L 32 26 L 38 32 L 52 32 L 52 50 L 20 50 Z" fill="#fbbf24" fill-opacity="0.8"/>
+    <text x="36" y="92" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#f1f5f9" text-anchor="middle">Fichiers VFS</text>
+  </g>
+
+  <!-- Icon 5: Snake Game -->
+  <g transform="translate(40, 560)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="#1e293b" stroke="#ef4444" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M 22 45 Q 36 20 50 45" stroke="#f87171" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="50" cy="45" r="4" fill="#ef4444"/>
+    <text x="36" y="92" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#f1f5f9" text-anchor="middle">Jeu Snake</text>
+  </g>
+
+  <!-- ================= WINDOW 1: TERMINAL FORTH (ACTIVE) ================= -->
+  <g transform="translate(160, 90)" filter="url(#shadow)">
+    <!-- Window Frame & Outer Glass -->
+    <rect x="0" y="0" width="940" height="620" rx="12" fill="#090d16" stroke="#3b82f6" stroke-width="1.5"/>
+    
+    <!-- Titlebar Active -->
+    <rect x="0" y="0" width="940" height="38" rx="12" fill="url(#win-header-active)"/>
+    <!-- Rect to square bottom corners of titlebar -->
+    <rect x="0" y="26" width="940" height="12" fill="#6366f1"/>
+    
+    <!-- Window Buttons -->
+    <circle cx="20" cy="19" r="6" fill="#ef4444"/>
+    <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+    <circle cx="60" cy="19" r="6" fill="#10b981"/>
+    
+    <!-- Window Title -->
+    <text x="470" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Terminal Forth Epona OS — shell.rs &amp; interpreter.rs</text>
+    
+    <!-- Terminal Body Text -->
+    <g transform="translate(20, 65)" font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#f8fafc">
+      <text x="0" y="0" fill="#38bdf8" font-weight="bold">Epona OS 2.0 — Terminal Forth Bare-Metal (UEFI x86_64)</text>
+      <text x="0" y="22" fill="#94a3b8">Tapez 'aide' ou 'tutor' pour la liste des primitives et des commandes.</text>
+      <text x="0" y="44" fill="#94a3b8">Volume USB /usb/ monté. Primitives JIT active (290+ mots).</text>
+      
+      <!-- Session Command 1: Math & Floats -->
+      <text x="0" y="86" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">100 200 + .</tspan></text>
+      <text x="0" y="108" fill="#f8fafc">300</text>
+
+      <text x="0" y="138" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">fpi 2.0 f* f.</tspan></text>
+      <text x="0" y="160" fill="#f8fafc">6.283185</text>
+
+      <!-- Session Command 2: Hardware PCI Scan -->
+      <text x="0" y="198" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">pci-scan . ." peripheriques PCI trouves." cr</tspan></text>
+      <text x="0" y="220" fill="#e2e8f0">27 peripheriques PCI trouves.</text>
+      <text x="0" y="240" fill="#94a3b8">[00:00.0] 1022:1632 Host Bridge | [00:02.0] 8086:9B41 Intel HD GPU | [00:1D.0] 8086:A36D USB 3.0 XHCI</text>
+
+      <!-- Session Command 3: GUI Window Creation -->
+      <text x="0" y="278" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">100 100 500 300 s" Ma Fenetre Forth" 0 win:create .</tspan></text>
+      <text x="0" y="300" fill="#f8fafc">Window ID: 1 (500x300 allocated)</text>
+
+      <!-- Session Command 4: Graphics Primitives -->
+      <text x="0" y="338" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">250 250 80 0xFF0000 gfx:fill-circle win:flip</tspan></text>
+      <text x="0" y="360" fill="#34d399">[OK] Cercle plein vert rendu et buffer actualisé à 60 FPS (VSync).</text>
+
+      <!-- Session Command 5: JIT Compilation -->
+      <text x="0" y="398" fill="#4ade80">ok /usb/ &gt; <tspan fill="#f8fafc">jit /forth/bureau/BUREAU_NG.FTH</tspan></text>
+      <text x="0" y="420" fill="#c084fc">Compilation JIT x86-64... 128 mots traduits en assembleur natif (0.002s).</text>
+      <text x="0" y="440" fill="#f8fafc">Lancement du Bureau Graphique Epona OS...</text>
+
+      <!-- Active Prompt with Cursor -->
+      <text x="0" y="480" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">exec /forth/demos/snake.fth</tspan><tspan fill="#38bdf8" font-weight="bold">█</tspan></text>
+    </g>
+  </g>
+
+  <!-- ================= WINDOW 2: SYSTEM MONITOR (TOP RIGHT) ================= -->
+  <g transform="translate(1130, 90)" filter="url(#shadow)">
+    <!-- Window Frame -->
+    <rect x="0" y="0" width="740" height="420" rx="12" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+    
+    <!-- Titlebar -->
+    <rect x="0" y="0" width="740" height="38" rx="12" fill="url(#win-header-grad)"/>
+    <rect x="0" y="26" width="740" height="12" fill="#334155"/>
+    
+    <circle cx="20" cy="19" r="6" fill="#ef4444"/>
+    <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+    <circle cx="60" cy="19" r="6" fill="#10b981"/>
+    <text x="370" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Moniteur Système — sysmon (CPU, RAM, Disques &amp; USB)</text>
+
+    <!-- Monitor Gauges -->
+    <g transform="translate(30, 65)">
+      <!-- CPU Load Box -->
+      <rect x="0" y="0" width="320" height="150" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="16" y="28" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#38bdf8">Processeur x86-64 (4 APIC Cores)</text>
+      <text x="270" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#4ade80">3.2%</text>
+      
+      <!-- Graph Line CPU -->
+      <path d="M 20 120 L 60 115 L 100 110 L 140 122 L 180 95 L 220 118 L 260 110 L 300 112" fill="none" stroke="#4ade80" stroke-width="2.5"/>
+      <path d="M 20 120 L 60 115 L 100 110 L 140 122 L 180 95 L 220 118 L 260 110 L 300 112 L 300 135 L 20 135 Z" fill="#4ade80" fill-opacity="0.15"/>
+
+      <!-- RAM Allocation Box -->
+      <rect x="360" y="0" width="320" height="150" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="376" y="28" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#a855f7">Mémoire RAM Physical Allocator</text>
+      <text x="610" y="28" font-family="monospace" font-size="14" font-weight="bold" fill="#c084fc">142/8192 MB</text>
+      
+      <!-- Progress Bar RAM -->
+      <rect x="376" y="48" width="280" height="16" rx="8" fill="#0f172a"/>
+      <rect x="376" y="48" width="30" height="16" rx="8" fill="#c084fc"/>
+      <text x="376" y="90" font-family="monospace" font-size="12" fill="#94a3b8">vmm.rs Paging PML4: Active</text>
+      <text x="376" y="110" font-family="monospace" font-size="12" fill="#94a3b8">Heap Allocator (bump_alloc): OK</text>
+    </g>
+
+    <!-- Table Processes (ps) -->
+    <g transform="translate(30, 240)" font-family="Consolas, monospace" font-size="13" fill="#e2e8f0">
+      <rect x="0" y="0" width="680" height="150" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="16" y="26" fill="#38bdf8" font-weight="bold">PID  NOM DU PROCESSUS      ÉTAT      PRIORITÉ   QUANTUM</text>
+      <line x1="16" y1="36" x2="664" y2="36" stroke="#334155" stroke-width="1"/>
+      
+      <text x="16" y="60" fill="#4ade80">1    Kernel_Main           Running   Prio-0     10 ms</text>
+      <text x="16" y="85" fill="#f8fafc">2    Window_Manager        Ready     Prio-1     20 ms</text>
+      <text x="16" y="110" fill="#f8fafc">3    Forth_VM_JIT          Running   Prio-2     50 ms</text>
+      <text x="16" y="135" fill="#94a3b8">4    USB_XHCI_Daemon       Sleeping  Prio-1     100 ms</text>
+    </g>
+  </g>
+
+  <!-- ================= WINDOW 3: EDITEUR FORTH (BOTTOM RIGHT) ================= -->
+  <g transform="translate(1130, 530)" filter="url(#shadow)">
+    <!-- Window Frame -->
+    <rect x="0" y="0" width="740" height="510" rx="12" fill="#090d16" stroke="#a855f7" stroke-width="1.5"/>
+    
+    <!-- Titlebar -->
+    <rect x="0" y="0" width="740" height="38" rx="12" fill="url(#win-header-grad)"/>
+    <rect x="0" y="26" width="740" height="12" fill="#334155"/>
+    
+    <circle cx="20" cy="19" r="6" fill="#ef4444"/>
+    <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+    <circle cx="60" cy="19" r="6" fill="#10b981"/>
+    <text x="370" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Éditeur de Code Forth — EDITEUR.fth (/usb/drivers/custom_driver.fth)</text>
+
+    <!-- Editor Content -->
+    <g transform="translate(20, 60)" font-family="Consolas, monospace" font-size="14">
+      <text x="0" y="0" fill="#64748b">1  \ =========================================================</text>
+      <text x="0" y="22" fill="#64748b">2  \ PILOTE FORTH COMMUNAUTAIRE — Epona OS Bare-Metal Driver</text>
+      <text x="0" y="44" fill="#64748b">3  \ =========================================================</text>
+      <text x="0" y="66" fill="#64748b">4  </text>
+      <text x="0" y="88" fill="#c084fc">: driver-init <tspan fill="#94a3b8">( -- ok? )</tspan></text>
+      <text x="0" y="110" fill="#f8fafc">    cr <tspan fill="#38bdf8">s"</tspan> Initialisation du Pilote..." <tspan fill="#38bdf8">type</tspan> cr</text>
+      <text x="0" y="132" fill="#f8fafc">    <tspan fill="#f59e0b">0x3F8</tspan> <tspan fill="#4ade80">inb</tspan> <tspan fill="#f59e0b">0x20</tspan> <tspan fill="#4ade80">and</tspan> <tspan fill="#f8fafc">if</tspan></text>
+      <text x="0" y="154" fill="#f8fafc">        <tspan fill="#38bdf8">s"</tspan> Port UART Pret!" <tspan fill="#38bdf8">type</tspan> cr -1</text>
+      <text x="0" y="176" fill="#f8fafc">    <tspan fill="#f8fafc">else</tspan></text>
+      <text x="0" y="198" fill="#f8fafc">        0</text>
+      <text x="0" y="220" fill="#f8fafc">    <tspan fill="#f8fafc">then</tspan> ;</text>
+      <text x="0" y="242" fill="#64748b">5  </text>
+      <text x="0" y="264" fill="#c084fc">: dessiner-widget <tspan fill="#94a3b8">( x y w h -- )</tspan></text>
+      <text x="0" y="286" fill="#f8fafc">    <tspan fill="#4ade80">gfx:gradient</tspan> <tspan fill="#4ade80">win:flip</tspan> ;</text>
+      <text x="0" y="308" fill="#64748b">6  </text>
+      <text x="0" y="330" fill="#c084fc">: principal</text>
+      <text x="0" y="352" fill="#f8fafc">    driver-init <tspan fill="#4ade80">drop</tspan></text>
+      <text x="0" y="374" fill="#f8fafc">    <tspan fill="#f8fafc">begin</tspan> <tspan fill="#4ade80">yield</tspan> <tspan fill="#f8fafc">again</tspan> ;</text>
+
+      <!-- Status Bar Editor -->
+      <rect x="-20" y="400" width="740" height="30" fill="#1e293b"/>
+      <text x="0" y="420" font-size="12" fill="#38bdf8">FORTH MODE | Ligne 14, Col 22 | UTF-8 | Primitives Validées (0-944)</text>
+    </g>
+  </g>
+
+</svg>
