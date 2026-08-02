@@ -37,7 +37,7 @@
 </p>
 
 <p align="center">
-  <b>Epona OS</b> est un système d’exploitation celte, libre, autonome et souverain, conçu et développé en Bretagne.
+  <b>Epona OS</b> est un système d’exploitation français, libre, autonome et souverain, conçu et développé en Bretagne.
   Il combine la sécurité et la puissance d'un <b>noyau Rust fermé bare-metal</b> avec la liberté d'un <b>environnement Forth ouvert</b> doté d'un compilateur JIT x86-64 natif.
 </p>
 
@@ -48,11 +48,13 @@
 Voici l'interface du bureau graphique windowed d'Epona OS, codée et compositée entièrement en **Forth bare-metal** sur le Framebuffer GOP UEFI à 60 FPS VSync :
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg" width="100%" alt="Aperçu du Bureau Epona OS v1.98">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg"  alt="desktop" width=1000">
+  <br>
 </p>
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="100%" alt="Aperçu du Bureau2 Epona OS v1.98">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg"  alt="desktop2" width="1000">
+  <br>
 </p>
 
 ---
