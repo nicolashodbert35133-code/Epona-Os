@@ -1,7 +1,6 @@
 # DEVFORTH.MD — DOCK & ENCYCLOPÉDIE EXPLICATIVE DES PRIMITIVES FORTH EPONA OS
 
-> **Projet :** Epona OS (v1.98 -> Release Septembre 2026)  
-> **Auteur :** Antigravity AI — Pair Programming OS Architect  
+> **Projet :** Epona OS (v1.98 -> Release Septembre 2026)   
 > **Objet :** Explication détaillée primitive par primitive de toutes les commandes de la Machine Virtuelle Forth Epona OS  
 > **Source Kernel :** [interpreter.rs](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/src/interpreter.rs) & [jit.rs](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/src/jit.rs)  
 
