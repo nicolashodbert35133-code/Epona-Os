@@ -1,0 +1,251 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Dark Cyber Grid Background -->
+    <linearGradient id="cyber-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#02040a"/>
+      <stop offset="40%" stop-color="#070c18"/>
+      <stop offset="80%" stop-color="#0d1326"/>
+      <stop offset="100%" stop-color="#180e29"/>
+    </linearGradient>
+
+    <!-- Neon Gradients -->
+    <linearGradient id="neon-rose" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#fb7185"/>
+    </linearGradient>
+
+    <linearGradient id="neon-cyan" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <linearGradient id="neon-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#d8b4fe"/>
+    </linearGradient>
+
+    <linearGradient id="panel-glass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172acc"/>
+      <stop offset="100%" stop-color="#030712e6"/>
+    </linearGradient>
+
+    <!-- Filters for Futuristic Glowing Borders & Shadows -->
+    <filter id="glow-rose" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- ================= WALLPAPER BACKGROUND ================= -->
+  <rect width="1920" height="1080" fill="url(#cyber-bg)"/>
+
+  <!-- Geometric Circuit Lines & Micro-Nodes -->
+  <g opacity="0.12" stroke="#38bdf8" stroke-width="1.5" fill="none">
+    <path d="M 0 150 L 400 150 L 500 250 L 1400 250 L 1500 150 L 1920 150"/>
+    <path d="M 0 930 L 350 930 L 450 830 L 1470 830 L 1570 930 L 1920 930"/>
+    <path d="M 250 0 L 250 350 L 150 450 L 150 1080"/>
+    <path d="M 1670 0 L 1670 350 L 1770 450 L 1770 1080"/>
+    <circle cx="500" cy="250" r="4" fill="#38bdf8"/>
+    <circle cx="1400" cy="250" r="4" fill="#38bdf8"/>
+    <circle cx="450" cy="830" r="4" fill="#f43f5e"/>
+    <circle cx="1470" cy="830" r="4" fill="#f43f5e"/>
+  </g>
+
+  <!-- ================= RADIAL FORTH CORE (CENTER WATERMARK) ================= -->
+  <g transform="translate(960, 540)">
+    <!-- Rotating Ring Assemblies -->
+    <circle cx="0" cy="0" r="280" fill="none" stroke="#8b5cf6" stroke-opacity="0.15" stroke-width="2" stroke-dasharray="12 16"/>
+    <circle cx="0" cy="0" r="220" fill="none" stroke="#06b6d4" stroke-opacity="0.2" stroke-width="3" stroke-dasharray="40 20"/>
+    <circle cx="0" cy="0" r="160" fill="none" stroke="#f43f5e" stroke-opacity="0.25" stroke-width="1.5"/>
+
+    <!-- Orbital Nodes (Stack Machine Registers & JIT Threads) -->
+    <circle cx="0" cy="-220" r="8" fill="#06b6d4" filter="url(#glow-cyan)"/>
+    <text x="0" y="-235" font-family="monospace" font-size="11" font-weight="bold" fill="#38bdf8" text-anchor="middle">DATA STACK (TOS)</text>
+
+    <circle cx="220" cy="0" r="8" fill="#8b5cf6" filter="url(#glow-purple)"/>
+    <text x="275" y="4" font-family="monospace" font-size="11" font-weight="bold" fill="#c084fc" text-anchor="middle">RETURN STACK (RSP)</text>
+
+    <circle cx="0" cy="220" r="8" fill="#f43f5e" filter="url(#glow-rose)"/>
+    <text x="0" y="248" font-family="monospace" font-size="11" font-weight="bold" fill="#fb7185" text-anchor="middle">JIT X86_64 STREAM</text>
+
+    <circle cx="-220" cy="0" r="8" fill="#34d399"/>
+    <text x="-275" y="4" font-family="monospace" font-size="11" font-weight="bold" fill="#34d399" text-anchor="middle">GOP FRAMEBUFFER 60FPS</text>
+  </g>
+
+  <!-- ================= TOP RADIAL COMMAND HUB & LOGO INTEGRATION ================= -->
+  <!-- Official Logo Epona OS (High-Res PNG Embedding) -->
+  <g transform="translate(40, 24)">
+    <image href="../Epona Os fond transparent.png" x="0" y="0" width="180" height="70" preserveAspectRatio="xMidYMid meet"/>
+    <text x="195" y="42" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffffff" letter-spacing="3">EPONA OS <tspan fill="#f43f5e">2.0</tspan></text>
+    <text x="195" y="60" font-family="monospace" font-size="12" fill="#06b6d4" font-weight="700">NEXT-GEN FORTH OPERATING ENVIRONMENT • RELEASE SEPT 2026</text>
+  </g>
+
+  <!-- Top Cyber Status HUD Bar -->
+  <g transform="translate(1300, 28)">
+    <!-- Hexagonal Pill Badge: USB Live FAT32 -->
+    <polygon points="0,0 120,0 135,28 15,28" fill="#0284c7" fill-opacity="0.3" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="68" y="19" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="800" fill="#e0f2fe" text-anchor="middle">⚡ USB LIVE FAT32</text>
+
+    <!-- Hexagonal Pill Badge: Azerty Keyboard Layout -->
+    <polygon points="150,0 250,0 265,28 165,28" fill="#8b5cf6" fill-opacity="0.3" stroke="#c084fc" stroke-width="1.5"/>
+    <text x="207" y="19" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="800" fill="#f3e8ff" text-anchor="middle">⌨ AZERTY</text>
+
+    <!-- Hexagonal Pill Badge: Wi-Fi 5G & Audio -->
+    <polygon points="280,0 410,0 425,28 295,28" fill="#059669" fill-opacity="0.3" stroke="#34d399" stroke-width="1.5"/>
+    <text x="352" y="19" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="800" fill="#d1fae5" text-anchor="middle">📶 802.11AC • HDA OK</text>
+
+    <!-- Real-time Clock HUD -->
+    <text x="500" y="21" font-family="monospace" font-size="18" font-weight="900" fill="#ffffff" filter="url(#glow-cyan)">12:00:00</text>
+  </g>
+
+  <!-- ================= CYBER PANEL 1: VISUAL FORTH STACK ENGINE (TOP LEFT) ================= -->
+  <g transform="translate(40, 120)" filter="url(#glow-rose)">
+    <!-- Angular Glass Frame -->
+    <polygon points="0,0 520,0 550,30 550,380 0,380" fill="url(#panel-glass)" stroke="#f43f5e" stroke-width="2"/>
+    <line x1="0" y1="36" x2="520" y2="36" stroke="#f43f5e" stroke-width="1.5" stroke-opacity="0.6"/>
+
+    <!-- Panel Header -->
+    <text x="20" y="24" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#fb7185" letter-spacing="2">❖ VISUAL FORTH STACK MACHINE (interpreter.rs)</text>
+
+    <!-- Live Stack Items (Node Visualizers) -->
+    <g transform="translate(20, 55)">
+      <text x="0" y="20" font-family="monospace" font-size="13" fill="#94a3b8">STACK STATE ( depth = 4 items ) :</text>
+
+      <!-- Stack Cell 3 (TOS - Top of Stack) -->
+      <g transform="translate(0, 35)">
+        <polygon points="0,0 480,0 500,40 0,40" fill="#f43f5e" fill-opacity="0.2" stroke="#f43f5e" stroke-width="1.5"/>
+        <text x="20" y="25" font-family="monospace" font-size="15" font-weight="bold" fill="#ffffff">TOS  [3] : 0x0000000000000142  ( 322 decimal )</text>
+      </g>
+
+      <!-- Stack Cell 2 -->
+      <g transform="translate(0, 85)">
+        <polygon points="0,0 480,0 500,40 0,40" fill="#06b6d4" fill-opacity="0.15" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="20" y="25" font-family="monospace" font-size="15" font-weight="bold" fill="#38bdf8">NOS  [2] : 0x400921fb54442d18  ( 3.141592 f64 )</text>
+      </g>
+
+      <!-- Stack Cell 1 -->
+      <g transform="translate(0, 135)">
+        <polygon points="0,0 480,0 500,40 0,40" fill="#8b5cf6" fill-opacity="0.15" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="20" y="25" font-family="monospace" font-size="15" font-weight="bold" fill="#c084fc">ADDR [1] : 0x00000000FE000000  ( MMIO BAR0 )</text>
+      </g>
+
+      <!-- Stack Cell 0 -->
+      <g transform="translate(0, 185)">
+        <polygon points="0,0 480,0 500,40 0,40" fill="#334155" fill-opacity="0.3" stroke="#64748b" stroke-width="1"/>
+        <text x="20" y="25" font-family="monospace" font-size="15" font-weight="bold" fill="#94a3b8">BASE [0] : 0x0000000000000001  ( Task ID 1 )</text>
+      </g>
+
+      <!-- Executed Forth Primitive Formula -->
+      <text x="0" y="260" font-family="monospace" font-size="14" fill="#34d399">EXECUTE &gt; <tspan fill="#ffffff">100 222 + fpi 0xFE000000 1</tspan></text>
+      <text x="0" y="285" font-family="monospace" font-size="12" fill="#64748b">Zéro overhead C/C++ • Exécution 100% directe sur registres RAX/RBX</text>
+    </g>
+  </g>
+
+  <!-- ================= CYBER PANEL 2: FORTH QUANTUM VECTOR SHADER CANVAS (BOTTOM LEFT) ================= -->
+  <g transform="translate(40, 520)" filter="url(#glow-cyan)">
+    <polygon points="0,0 520,0 550,30 550,520 0,520" fill="url(#panel-glass)" stroke="#06b6d4" stroke-width="2"/>
+    <line x1="0" y1="36" x2="520" y2="36" stroke="#06b6d4" stroke-width="1.5" stroke-opacity="0.6"/>
+
+    <text x="20" y="24" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#38bdf8" letter-spacing="2">❖ FORTH VECTOR SHADER CANVAS (gfx.rs &amp; GOP)</text>
+
+    <!-- Vector Graphics Render Box -->
+    <g transform="translate(20, 55)">
+      <rect x="0" y="0" width="510" height="380" fill="#030712" stroke="#1e293b" stroke-width="1"/>
+
+      <!-- Generative Math Pattern Rendered with Forth Primitives -->
+      <g stroke="#06b6d4" stroke-width="1.5" fill="none" opacity="0.8">
+        <ellipse cx="255" cy="190" rx="200" ry="80" stroke="#f43f5e" stroke-width="2"/>
+        <ellipse cx="255" cy="190" rx="80" ry="200" stroke="#38bdf8" stroke-width="2"/>
+        <ellipse cx="255" cy="190" rx="140" ry="140" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="10 10"/>
+
+        <!-- 3D Star Polygon Wireframe -->
+        <polygon points="255,40 300,140 405,190 300,240 255,340 210,240 105,190 210,140" stroke="#34d399" stroke-width="2"/>
+      </g>
+
+      <!-- Floating Code Primitive Callout -->
+      <rect x="10" y="320" width="490" height="50" fill="#090d16e6" stroke="#06b6d4" stroke-width="1"/>
+      <text x="20" y="342" font-family="Consolas, monospace" font-size="12" fill="#34d399">: render-quantum-portal</text>
+      <text x="20" y="360" font-family="Consolas, monospace" font-size="12" fill="#38bdf8">    255 190 200 80 0xFF0055 gfx:ellipse 60FPS win:flip ;</text>
+    </g>
+
+    <text x="20" y="475" font-family="'Segoe UI', sans-serif" font-size="12" fill="#94a3b8">Compositage 2D/3D Logiciel Accéléré SIMD AVX2 • VSync Synchro 60Hz</text>
+  </g>
+
+  <!-- ================= CYBER PANEL 3: HYBRID CYBER SHELL CONSOLE (TOP RIGHT) ================= -->
+  <g transform="translate(620, 120)" filter="url(#glow-purple)">
+    <polygon points="0,0 1250,0 1260,10 1260,620 0,620" fill="url(#panel-glass)" stroke="#8b5cf6" stroke-width="2"/>
+    <line x1="0" y1="36" x2="1250" y2="36" stroke="#8b5cf6" stroke-width="1.5" stroke-opacity="0.6"/>
+
+    <text x="20" y="24" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#c084fc" letter-spacing="2">❖ EPONA HYBRID CYBER TERMINAL &amp; REPL (shell.rs + interpreter.rs)</text>
+
+    <!-- Terminal Screen Area -->
+    <g transform="translate(20, 55)" font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#f8fafc">
+      <text x="0" y="0" fill="#38bdf8" font-weight="bold">Epona OS 2.0 Terminal Bare-Metal — Noyau Rust Fermé + Forth Open JIT</text>
+      <text x="0" y="22" fill="#94a3b8">Tapez n'importe quelle commande native (42) ou entrez du code Forth directement.</text>
+      
+      <!-- Command 1: PCI Inventory -->
+      <text x="0" y="65" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">pci save</tspan></text>
+      <text x="0" y="87" fill="#34d399">[PCI SCAN] 27 Périphériques détectés. Inventaire sauvegardé dans /usb/PCI.TXT</text>
+      <text x="0" y="107" fill="#94a3b8">  Bus 00:02.0 [0300] Vendor 8086:9B41 -> Intel HD Graphics GOP Framebuffer Driver</text>
+      <text x="0" y="127" fill="#94a3b8">  Bus 00:1D.0 [0C03] Vendor 8086:A36D -> USB 3.0 XHCI Controller (Clé Live Montée)</text>
+
+      <!-- Command 2: Wi-Fi Ping -->
+      <text x="0" y="170" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">net:ping 8 8 8 8</tspan></text>
+      <text x="0" y="192" fill="#34d399">Ping 8.8.8.8 via Realtek RTL8821CE Wi-Fi : 12 ms (0% loss, ICMP Echo Reply)</text>
+
+      <!-- Command 3: JIT Compilation -->
+      <text x="0" y="235" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">jit /forth/bureau/BUREAU_NG.FTH</tspan></text>
+      <text x="0" y="257" fill="#c084fc">[JIT ENGINE] Compilation de BUREAU_NG.FTH en machine x86-64 natif...</text>
+      <text x="0" y="277" fill="#c084fc">[JIT ENGINE] 148 mots compilés en code exécutable direct. Temps: 0.0018 sec.</text>
+
+      <!-- Command 4: System Monitor -->
+      <text x="0" y="320" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">sysmon</tspan></text>
+      <text x="0" y="342" fill="#e2e8f0">CPU Charge: 1.4% (4 Coeurs APIC) | RAM: 142MB / 8192MB | USB XHCI: Active 5 Gbps</text>
+
+      <!-- Command 5: Native GUI Window Creation -->
+      <text x="0" y="385" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">100 100 600 400 s" Interface Forth Cyber" 0 win:create drop</tspan></text>
+      <text x="0" y="407" fill="#34d399">[GUI ENGINE] Fenêtre Window ID 1 créée avec succès sur le bureau 60 FPS.</text>
+
+      <!-- Prompt Line Active -->
+      <text x="0" y="465" fill="#4ade80">ok /usb/ &gt; <tspan fill="#ffffff">exec /forth/apps/editeur.fth</tspan><tspan fill="#38bdf8" font-weight="bold">█</tspan></text>
+    </g>
+
+    <!-- Terminal Footer -->
+    <rect x="0" y="580" width="1260" height="40" fill="#0f172a"/>
+    <text x="20" y="605" font-family="'Segoe UI', sans-serif" font-size="12" fill="#94a3b8">Volume VFS : /usb/ (Clé USB Live FAT32) • Mode Multitâche Ordonnateur Préemptif (scheduler_v2.rs)</text>
+  </g>
+
+  <!-- ================= CYBER PANEL 4: JIT DISASSEMBLY & MACHINE CODE INSPECTOR (BOTTOM RIGHT) ================= -->
+  <g transform="translate(620, 760)" filter="url(#glow-rose)">
+    <polygon points="0,0 1250,0 1260,10 1260,280 0,280" fill="url(#panel-glass)" stroke="#f43f5e" stroke-width="2"/>
+    <line x1="0" y1="36" x2="1250" y2="36" stroke="#f43f5e" stroke-width="1.5" stroke-opacity="0.6"/>
+
+    <text x="20" y="24" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#fb7185" letter-spacing="2">❖ JIT X86_64 MACHINE CODE STREAM (jit.rs Generator)</text>
+
+    <!-- Machine Code Inspector -->
+    <g transform="translate(20, 55)" font-family="Consolas, monospace" font-size="13">
+      <text x="0" y="0" fill="#64748b">ADRESSE MÉMOIRE EXÉCUTABLE    OPCODES HEXADÉCIMAUX       INSTRUCTIONS ASSEMBLEUR X86-64 GENERÉES</text>
+      <line x1="0" y1="10" x2="1220" y2="10" stroke="#334155" stroke-width="1"/>
+
+      <text x="0" y="32" fill="#38bdf8">0x00007FFF0010A000            48 8B 07                   mov rax, [rdi]        \ TOS dans RAX</text>
+      <text x="0" y="52" fill="#38bdf8">0x00007FFF0010A003            48 8B 77 08                mov rsi, [rdi + 8]    \ NOS dans RSI</text>
+      <text x="0" y="72" fill="#34d399">0x00007FFF0010A007            48 01 F0                   add rax, rsi          \ Primitive Forth '+' (Addition)</text>
+      <text x="0" y="92" fill="#38bdf8">0x00007FFF0010A00A            48 89 07                   mov [rdi], rax        \ Écriture du Résultat sur Pile</text>
+      <text x="0" y="c084fc">0x00007FFF0010A00D            C3                         ret                   \ Retour d'Instruction JIT Direct</text>
+    </g>
+
+    <rect x="0" y="240" width="1260" height="40" fill="#0f172a"/>
+    <text x="20" y="265" font-family="'Segoe UI', sans-serif" font-size="12" fill="#34d399">⚡ Compilation JIT Instantanée sans Recompilation du Noyau Rust Fermé • Performance Matérielle Maximale</text>
+  </g>
+
+</svg>
