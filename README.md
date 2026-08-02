@@ -90,6 +90,30 @@ Grâce à ses **700+ primitives Forth** et son **compilateur JIT x86-64 natif**,
 
 ---
 
+## 🔮 Vision d'Avenir à 2 Ans (Horizon 2028) : L'Écosystème Forth & Le Store Souverain
+
+Face à la lourdeur et à l'opacité grandissante des systèmes d'exploitation historiques américains (Windows, macOS, distributions Linux complexes et télémétrées), **Epona OS construit une alternative de rupture pour un usage quotidien** :
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                   HORIZON 2028 : L'ÉCOSYSTÈME FORTH SOUVERAIN                    │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ 📦 DÉPÔT DÉCENTRALISÉ .FTH : Partage universel de scripts et pilotes légers      │
+│ 🏬 Epona FTH Store          : Téléchargement & compilation JIT en un clic        │
+│ 🔒 SIGNATURES HMACS-SHA256   : Sécurité cryptographique sans bloatware           │
+│ 💻 USAGE QUOTIDIEN          : Démarrage en 1s sur USB/SSD, <150MB RAM            │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. 🌐 **Dépôt Décentralisé de Fichiers `.FTH`** :
+   - Une communauté mondiale de développeurs et makers partageant des scripts Forth lisibles, ultra-légers et directement modifiables.
+2. 🏬 **Le Store Souverain Epona Forth (`fth-store`)** :
+   - Un store d'applications et de pilotes Forth rapide et épuré. Un développeur publie son script `.fth`, et tout utilisateur peut l'installer et le compiler en code machine x86-64 natif avec le JIT en une commande (`fth-store install wifi-driver.fth`).
+3. ⚡ **Usage Quotidien Face aux OS Américains Complexe** :
+   - Proposer une alternative souveraine, rapide et éco-conçue : un PC qui démarre en 1 seconde, consomme moins de 150 Mo de RAM, garantit le respect de la vie privée et s'utilise au quotidien pour le développement, la création et la gestion de matériels.
+
+---
+
 ## ⚔️ Epona OS Comparé aux Systèmes d'Exploitation Historiques
 
 Contrairement aux systèmes d'exploitation traditionnels qui empilent des couches d'abstractions complexes, Epona OS adopte une philosophie de contrôle direct et interactif :
@@ -103,6 +127,7 @@ Contrairement aux systèmes d'exploitation traditionnels qui empilent des couche
 | **Accès Hardware Direct** | Accès I/O direct sans mémoire protégée | Puces Custom (OCS/AGA) | Bloqué / Via `/dev/` et `/sys/` | Entièrement bloqué | **Registres MMIO, PCI, USB XHCI & I2C Directs** |
 | **Environnement GUI** | Ligne de commande pure | Workbench 2D pionnier | X11 / Wayland lourd | Desktop propriétaire | **Bureau Windowed Composité Forth 60 FPS** |
 | **Personnalisation Bureau** | Aucune | Thèmes Workbench | Thèmes Desktop (Gnome/KDE) | Thèmes fermés | **Bureau Sur-Mesure Codé en Forth (.fth)** |
+| **Écosystème & Store** | Aucun | Disquettes Aminet | Dépôts `.deb`/`.rpm` lourds | Microsoft Store fermé | **Store Décentralisé FTH JIT Souverain** |
 
 ---
 
