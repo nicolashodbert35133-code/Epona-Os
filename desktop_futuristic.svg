@@ -83,11 +83,11 @@
   </g>
 
   <!-- ================= TOP RADIAL COMMAND HUB & LOGO INTEGRATION ================= -->
-  <!-- Official Logo Epona OS (High-Res PNG Embedding) -->
+  <!-- Official Logo Epona OS (Hosted Raw GitHub URL Embedding) -->
   <g transform="translate(40, 24)">
-    <image href="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Epona%20Os%20fond%20transparent.png" x="0" y="0" width="180" height="70" preserveAspectRatio="xMidYMid meet"/>
-    <text x="195" y="42" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffffff" letter-spacing="3">EPONA OS <tspan fill="#f43f5e">2.0</tspan></text>
-    <text x="195" y="60" font-family="monospace" font-size="12" fill="#06b6d4" font-weight="700">NEXT-GEN FORTH OPERATING ENVIRONMENT • RELEASE SEPT 2026</text>
+    <image href="https://raw.githubusercontent.com/nicolashodbert35133-code/Epona-Os/main/Epona%20Os%20fond%20transparent.png" x="0" y="0" width="190" height="75" preserveAspectRatio="xMidYMid meet"/>
+    <text x="205" y="42" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffffff" letter-spacing="3">EPONA OS <tspan fill="#f43f5e">2.0</tspan></text>
+    <text x="205" y="60" font-family="monospace" font-size="12" fill="#06b6d4" font-weight="700">NEXT-GEN FORTH OPERATING ENVIRONMENT • RELEASE SEPT 2026</text>
   </g>
 
   <!-- Top Cyber Status HUD Bar -->
@@ -241,7 +241,7 @@
       <text x="0" y="52" fill="#38bdf8">0x00007FFF0010A003            48 8B 77 08                mov rsi, [rdi + 8]    \ NOS dans RSI</text>
       <text x="0" y="72" fill="#34d399">0x00007FFF0010A007            48 01 F0                   add rax, rsi          \ Primitive Forth '+' (Addition)</text>
       <text x="0" y="92" fill="#38bdf8">0x00007FFF0010A00A            48 89 07                   mov [rdi], rax        \ Écriture du Résultat sur Pile</text>
-      <text x="0" y="c084fc">0x00007FFF0010A00D            C3                         ret                   \ Retour d'Instruction JIT Direct</text>
+      <text x="0" y="112" fill="#c084fc">0x00007FFF0010A00D            C3                         ret                   \ Retour d'Instruction JIT Direct</text>
     </g>
 
     <rect x="0" y="240" width="1260" height="40" fill="#0f172a"/>
