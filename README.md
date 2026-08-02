@@ -7,7 +7,7 @@
 </h1>
 
 <h3 align="center">
-  Système d'Exploitation Celte Bare-Metal UEFI en Rust avec Machine Virtuelle Forth et Compilateur JIT x86-64 Natif
+  Système d'Exploitation Français Bare-Metal UEFI en Rust avec Machine Virtuelle Forth et Compilateur JIT x86-64 Natif
 </h3>
 
 <p align="center">
@@ -32,14 +32,41 @@
   <a href="https://forth-standard.org/">
     <img src="https://img.shields.io/badge/VM-Forth%20JIT%20Compiler-ef4444.svg" alt="Forth VM">
   </a>
-  <img src="https://img.shields.io/badge/Primitives-290%2B%20Natives-06b6d4.svg" alt="Primitives Forth">
-  <img src="https://img.shields.io/badge/Shell-42%20Commandes-a855f7.svg" alt="Shell Commands">
+  <img src="https://img.shields.io/badge/Primitives-700%2B%20Natives-06b6d4.svg" alt="Primitives Forth">
+  <img src="https://img.shields.io/badge/Shell-70%20Commandes-a855f7.svg" alt="Shell Commands">
 </p>
 
 <p align="center">
-  <b>Epona OS</b> est un système d’exploitation francais, libre, autonome et souverain, conçu et développé en Bretagne.
+  <b>Epona OS</b> est un système d’exploitation français, libre, autonome et souverain, conçu et développé en Bretagne.
   Il combine la sécurité et la puissance d'un <b>noyau Rust fermé bare-metal</b> avec la liberté d'un <b>environnement Forth ouvert</b> doté d'un compilateur JIT x86-64 natif.
 </p>
+
+---
+
+## 🎯 À qui s’adresse Epona OS ?
+
+Epona OS est un système d'exploitation d'un genre nouveau, ciblant une communauté d'expérimentateurs et de créateurs :
+
+- 💡 **Les Geeks & Passionnés d'Architecture** : Pour comprendre le fonctionnement réel d'un ordinateur et piloter le processeur sans couche d'abstraction opaque.
+- 🦀 **Les Développeurs Bas-Niveau (Rust, ASM, Forth)** : Pour écrire des programmes et des pilotes bare-metal ultra-rapides sans aucune dépendance lourde.
+- 🔌 **Les Makers, Électroniciens & Hardware Hackers** : Pour piloter des puces custom, des puces FPGA, des modules USB ou des microcontrôleurs directement depuis l'OS sans SDK ni IDE lourd.
+- 🛠️ **Les Bidouilleurs Hardware & Créateurs d'OS** : Pour tester des instructions machine, des drivers et des interfaces graphiques en direct sur le métal.
+- 🇫🇷 **Les Adeptes d'OS Souverains & Minimalistes** : Pour disposer d'un environnement sans bloatware, autonome et agentique.
+
+---
+
+## ⚔️ Epona OS Comparé aux Systèmes d'Exploitation Historiques
+
+Contrairement aux systèmes d'exploitation traditionnels qui empilent des couches d'abstractions complexes, Epona OS adopte une philosophie de contrôle direct et interactif :
+
+| Caractéristique | MS-DOS | AmigaOS | Linux (Kernel C) | Windows | **Epona OS (Sept 2026)** |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Noyau & Sécurité** | 16-bit Mono-tâche, non protégé | 32-bit Multi-tâche sans protection | Kernel massif en C / POSIX | Fermé, boîte noire | **Noyau Rust 64-bit Fermé & Sécurisé** |
+| **Langage Système** | Assembleur 16-bit | C / Assembleur 68k | C / Shell Bash | C / C++ | **Rust Bare-Metal + Forth JIT** |
+| **Extensibilité Pilotes** | Fichiers `.SYS` statiques | Pilotes C / Bibliotheques | Modules Kernel `.ko` complexes | Drivers signés lourds | **Scripts `.FTH` Ouverts sans Recompilation** |
+| **Compilateur JIT** | Aucun | Aucun | Aucun (Interpréteur BPF) | Aucun | **Compilateur JIT x86-64 Natif Intégré** |
+| **Accès Hardware Direct** | Accès I/O direct sans mémoire protégée | Puces Custom (OCS/AGA) | Bloqué / Via `/dev/` et `/sys/` | Entièrement bloqué | **Registres MMIO, PCI, USB XHCI & I2C Directs** |
+| **Environnement GUI** | Ligne de commande pure | Workbench 2D pionnier | X11 / Wayland lourd | Desktop propriétaire | **Bureau Windowed Composité Forth 60 FPS** |
 
 ---
 
@@ -48,12 +75,12 @@
 Voici l'interface du bureau graphique windowed d'Epona OS, codée et compositée entièrement en **Forth bare-metal** sur le Framebuffer GOP UEFI à 60 FPS VSync :
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg"  alt="desktop" width=1000">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg" alt="desktop" width="1000">
   <br>
 </p>
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg"  alt="desktop2" width="1000">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" alt="desktop2" width="1000">
   <br>
 </p>
 
@@ -78,13 +105,13 @@ Epona OS résout le dilemme entre sécurité bas niveau et extensibilité commun
 ```
 
 1. **Le Noyau Rust (`BOOTX64.EFI`) :**  
-   Fermé et sécurisé pour protéger l'intégrité du matériel, la pagination mémoire [vmm.rs], l'ordonnancement préemptif [scheduler_v2.rs] et les contrôleurs de bus (USB 3.0 XHCI, NVMe, SATA AHCI, GPU).
+   Fermé et sécurisé pour protéger l'intégrité du matériel, la pagination mémoire `vmm.rs`, l'ordonnancement préemptif `scheduler_v2.rs` et les contrôleurs de bus (USB 3.0 XHCI, NVMe, SATA AHCI, GPU).
 2. **L'Environnement Forth (`.fth`) & JIT (`jit.rs`) :**  
    Ouvert à la communauté des développeurs et makers. Permet d'écrire des pilotes matériels, des jeux, des interfaces graphiques et des outils système **sans jamais avoir à recompiler le noyau Rust** ! Le compilateur JIT traduit les boucles Forth en code machine x86-64 natif exécuté à vitesse maximale.
 
 ---
 
-## ⚡ Ce Qui Rendra Epona OS Unique en septembre 2026
+## ⚡ Ce Qui Rendra Epona OS Unique en Septembre 2026
 
 - 🦀 **100% Rust Bare-Metal `no_std`** : Aucun kernel Linux, aucun runtime C, aucune dépendance std.
 - ⚡ **Compilateur JIT x86-64 Natif** : Compilation à la volée des mots Forth avec signature cryptographique.
@@ -116,12 +143,12 @@ Le projet est intégralement documenté pour les développeurs et la communauté
 
 | Fichier de Documentation | Description & Contenu |
 | :--- | :--- |
-| Rapport d'audit d'architecture complet des 55 modules Rust de `src/` et feuille de route vers Septembre 2026. |
+| **[rapport.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/rapport.md)** | Rapport d'audit d'architecture complet des 55 modules Rust de `src/` et feuille de route vers Septembre 2026. |
 | **[DEVFORTH.MD](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Docs/DEVFORTH.MD)** | Manuel d'ingénierie exhaustif des 700+ primitives Forth (Signatures de pile, code Rust, exemple). |
-| **[DEVSHELL.MD](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Docs/DEVSHELL.MD)** | Guide officiel du Shell et des 42 commandes natives avec sessions de terminal. |
-| Guide de démarrage bare-metal, boot sequence UEFI et `ExitBootServices`. |
-| Manuel d'écriture des pilotes matériels en Forth (`.fth`). |
-| Architecture interne du moteur d'édition de ligne et d'affichage terminal `shell.rs`. |
+| **[DEVSHELL.MD](https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/Docs/DEVSHELL.MD)** | Guide officiel du Shell et des 70 commandes natives avec sessions de terminal. |
+| **[DEV_GUIDE_MAIN.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_MAIN.md)** | Guide de démarrage bare-metal, boot sequence UEFI et `ExitBootServices`. |
+| **[DEV_GUIDE_DRIVERS.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_DRIVERS.md)** | Manuel d'écriture des pilotes matériels en Forth (`.fth`). |
+| **[DEV_GUIDE_SHELL.md](file:///c:/Users/m40di/Desktop/Epona%20Os%201.98/DEV_GUIDE_SHELL.md)** | Architecture interne du moteur d'édition de ligne et d'affichage terminal `shell.rs`. |
 
 ---
 
@@ -155,5 +182,5 @@ Venez échanger sur l'architecture bas niveau, le langage Forth, les pilotes mat
 ---
 
 <p align="center">
-  <i>Epona OS — Système d'Exploitation Celte Souverain & Bar-Metal. Conçu avec passion en Bretagne.</i>
+  <i>Epona OS — Système d'Exploitation Français Souverain & Bare-Metal. Conçu avec passion en Bretagne.</i>
 </p>
