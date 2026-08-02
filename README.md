@@ -23,11 +23,11 @@ Pour améliorer la compatibilité avec votre machine :
 en septembre 2026 voici à quoi ressemblera le bureau codé en epona Forth:
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg" width="950" alt="desktop">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg" width="1980" alt="desktop">
 </p>
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="950" alt="desktop2">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="1980" alt="desktop2">
 </p>
 
 1. Démarrez Epona.
