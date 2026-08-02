@@ -37,7 +37,7 @@
 </p>
 
 <p align="center">
-  <b>Epona OS</b> est un système d’exploitation français, libre, autonome et souverain, conçu et développé en Bretagne.
+  <b>Epona OS</b> est un système d’exploitation francais, libre, autonome et souverain, conçu et développé en Bretagne.
   Il combine la sécurité et la puissance d'un <b>noyau Rust fermé bare-metal</b> avec la liberté d'un <b>environnement Forth ouvert</b> doté d'un compilateur JIT x86-64 natif.
 </p>
 
