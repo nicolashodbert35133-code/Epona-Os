@@ -20,6 +20,12 @@ https://discord.gg/kwWBWhmvN
 Epona OS est en cours de développement.  
 Pour améliorer la compatibilité avec votre machine :
 
+en septembre 2026 voici à quoi ressemblera le bureau codé en epona Forth:
+
+<p align="center">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.sv" width="350" alt="desktop">
+</p>
+
 1. Démarrez Epona.
 2. Tapez `pci save` dans le shell.
 3. Récupérez `PCI.TXT` sur votre clé USB.
