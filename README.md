@@ -27,8 +27,9 @@ en septembre 2026 voici à quoi ressemblera le bureau codé en epona Forth:
 </p>
 
 <p align="center">
-  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="950" alt="desktop">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="950" alt="desktop2">
 </p>
+
 1. Démarrez Epona.
 2. Tapez `pci save` dans le shell.
 3. Récupérez `PCI.TXT` sur votre clé USB.
