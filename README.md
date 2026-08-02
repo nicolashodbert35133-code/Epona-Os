@@ -48,7 +48,11 @@
 Voici l'interface du bureau graphique windowed d'Epona OS, codée et compositée entièrement en **Forth bare-metal** sur le Framebuffer GOP UEFI à 60 FPS VSync :
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nicolashodbert35133-code/Epona-Os/main/docs/desktop.svg" width="100%" alt="Aperçu du Bureau Epona OS v1.98">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop.svg" width="100%" alt="Aperçu du Bureau Epona OS v1.98">
+</p>
+
+<p align="center">
+  <img src="https://github.com/nicolashodbert35133-code/Epona-Os/blob/main/desktop_futuristic.svg" width="100%" alt="Aperçu du Bureau2 Epona OS v1.98">
 </p>
 
 ---
