@@ -1,0 +1,76 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 13
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+FICHE DE MODIFICATION - SOURCE (pas de consommation de HERE) + >IN modifiable
+--------------------------------------------------------------------------
+
+1) ANALYSE (verification code avant modification)
+   a) SOURCE (idx 328, l.4734-4748) : copie A CHAQUE APPEL source_buffer
+      dans memory a HERE et AVANCE HERE (self.here = new_here). La norme :
+      SOURCE ( -- c-addr u ) retourne l'adresse et la longueur du buffer
+      source COURANT, sans effet de bord sur HERE. Chaque appel de SOURCE
+      consomme actuellement len octets de HERE -> "consommation abusive".
+      FIX : mémoriser une source_addr stable, remplie UNE FOIS par ligne
+      (dans compile/refill/evaluate), et SOURCE retourne (source_addr, len)
+      sans toucher a HERE.
+   b) >IN (idx 332, l.4874) : pousse to_in_addr = MAX_MEM-1 (cellule memory
+      reservee, init 0 l.468). @ / ! marchent deja dessus -> >IN est deja
+      modifiable ; PARSE-NAME/PARSE lisent memory[to_in_addr] (l.4751/4786).
+      Il faut simplement le PROUVER par un test. ATTENTION au tokenizer
+      (l.10890-10894) : il saute les tokens dont token_offsets[i] < cur_in.
+      Modifier >IN avec une valeur >= offset du token suivant court-circuite
+      la ligne -> le test doit ecrire une valeur MODESTE (ex : 5) inferieure
+      a l'offset du prochain token (8) : `>in 5 ! >in @ .` -> 5.
+   c) evaluate (idx 318, l.4592) appelle compile() -> couvert par le fix.
+      compile() l.10747-10748 et refill l.4868-4869 remplissent
+      source_buffer + reset >IN -> a centraliser dans set_source().
+   d) IMPACT : Arena AI.md utilise `source ai:infer` / `source 2dup ai:infer`
+      (l.446/447/714) : reçoit (addr len) valides avec la correction.
+      script du devguide 5.3 : "SOURCE ecrit dans memory et avance HERE".
+
+2) PERIMETRE DES CHANGEMENTS
+   - interpreter.rs : champ pub source_addr: usize (struct + constructeur) ;
+     methode set_source(text) (copie une fois dans memory, met a jour
+     source_addr, reset >IN) ; compile() et refill -> set_source ; SOURCE ->
+     retourne (source_addr, len) sans copie ni HERE.
+   - core2012.fth : Section B4 (SOURCE + >IN).
+   - Docs : audit l.90 (SOURCE consomme HERE), devguide 5.3, GUIDE.txt,
+     primitive md l.775, rapport.md item 10 + l.335.
+
+3) TESTS PREVUS (core2012.fth Section B4)
+   - here source 2drop here - .  -> 0   (SOURCE n'avance plus HERE).
+   - : src-len  source drop . ;  s" src-len" evaluate  -> 7  (contenu OK,
+     longueur du buffer source courant).
+   - >in 5 ! >in @ .  -> 5   (>IN modifiable via ! / @ ; 5 < offset du
+     token suivant pour ne pas court-circuiter le tokenizer).
+   - NB-FAILS attendu : 0 pour A/B0/B1/B2/B2b/B2b2/B3/B4 ; B2c rouge.
+
+4) BUILD : debug + release, 0 erreur, 413 warnings attendus.
+============================================================================
+
+RESULTATS DU JOUR 13
+---------------------
+- Edits appliques (interpreter.rs) :
+  1) champ pub source_addr: usize ajoute (struct + constructeur, init 0).
+  2) methode set_source(text) : source_buffer = text, copie UNE FOIS les
+     octets dans memory a HERE, source_addr = addr, here avance, >IN = 0.
+  3) SOURCE (328) : retourne (source_addr, len) SANS copie ni HERE.
+  4) compile() (l.10760) et refill (l.4882) -> set_source.
+  5) commentaire add_primitive source mis a jour.
+- evaluate (318) passe par compile() -> couvert. Aucun op JIT pour source.
+- Verification >IN : to_in_addr = MAX_MEM-1 (cellule memoire reservee), @/!
+  fonctionnent deja ; PARSE-NAME/PARSE lisent memory[to_in_addr].
+- core2012.fth : Section B4 (here source 2drop here - . -> 0 ; src-len via
+  evaluate -> 7 ; >in 5 ! >in @ . -> 5, valeur 5 < offset du token suivant
+  pour ne pas court-circuiter le tokenizer) + en-tete SECTIONS a jour.
+- Docs : audit l.38 (SOURCE) et l.42 (>IN) resolus, l.90 (SOURCE retire de
+  la liste HERE) ; devguide 5.3 (SOURCE corrige) ; primitive md l.775 ;
+  GUIDE.txt l.1044-1046 ; rapport.md (item 10 + liste Semaine 2).
+- Impact : Arena AI.md source ai:infer re�oit (addr len) valides.
+- Builds : debug OK (6.23s), release OK (29.27s), 0 erreur, 413 warnings.
+- A VALIDER SUR MATERIEL : exec TESTS/core2012.fth (B4 -> 0 / 7 / 5 ;
+  NB-FAILS = 0 attendu) ; B2c (tuck/-rot) reste rouge.
+- Prochain : Jour 14 PARSE/PARSE-NAME (delimiteurs, espaces).

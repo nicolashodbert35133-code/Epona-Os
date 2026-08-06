@@ -1,0 +1,66 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 11
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+FICHE DE MODIFICATION - SEARCH (sous-chaine vide + effets de pile/flag)
+--------------------------------------------------------------------------
+
+1) ANALYSE (verification code avant modification)
+   a) Primitive 292 (interpreter.rs l.4481-4514) :
+      ( addr1 len1 addr2 len2 -- addr3 len3 flag )
+      pop len2, addr2, len1, addr1 (ordre OK).
+      Recherche naive octet-a-octet : boucle sur start dans 0..=(len1-len2),
+      compare memory[a]&0xFF. Acces bornes (sinon 0) -> pas de panique.
+      Cas trouves : push addr1+pos, len1-pos, -1. Cas non trouves : push
+      addr1, len1, 0. Conforme.
+      BUG : condition "if len2 <= len1 && len2 > 0" -> si len2 == 0 (sous-
+      chaine vide), found reste false => flag 0. Or la norme / la suite de
+      tests ANS et le devguide (l.156) exigent : chaine vide TOUJOURS
+      trouvee -> flag vrai -1, c-addr3 = c-addr1, u3 = u1.
+   b) Flag : -1/0 (conforme depuis Jour 8). Effets de pile : ordre pop/push
+      correct. Pas de primitive JIT pour search (uniquement interprete).
+   c) Aucun script .fth existant n'utilise search (grep) -> risque 0.
+      Le tutoriel l.484 l'utilise en exemple (`s" Epona OS" s" OS" search`),
+      comportement inchange pour len2 > 0.
+
+2) PERIMETRE DES CHANGEMENTS
+   - interpreter.rs idx 292 : cas len2 == 0 -> found = true (match_pos = 0),
+     les autres cas inchange. 1-2 lignes.
+   - core2012.fth : nouvelle Section B3 "SEARCH" avec tests.
+
+3) TESTS PREVUS (core2012.fth Section B3, apres B2b2)
+   - Trouvee en position 3 : s" xxxabcd" s" abc" search -> flag -1,
+     len3 = 4, addr3 = addr1 + 3 (verifie via variable S1).
+   - Correspondance debut : s" abcdef" s" abc" search -> flag -1, len3 = 6.
+   - Correspondance fin : s" abcdef" s" def" search -> flag -1, len3 = 3.
+   - Multi-occurrences : s" abcabc" s" bca" search -> flag -1, len3 = 5.
+   - NON trouvee : s" xxxabcd" s" zzz" search -> flag 0, len3 = len1 = 7.
+   - Sous-chaine vide (len2 = 0) : s" xxxabcd" 0 0 search -> flag -1,
+     len3 = 7, addr3 = addr1  (LA correction du jour).
+   - len2 > len1 : s" ab" s" xyzabc" search -> flag 0 (non trouvee).
+   - NB-FAILS attendu : 0 pour A/B0/B1/B2/B2b/B2b2/B3 ; B2c (tuck/-rot)
+     reste rouge.
+
+4) BUILD : debug + release, 0 erreur, 413 warnings attendus.
+============================================================================
+
+RESULTATS DU JOUR 11
+---------------------
+- Edit applique : interpreter.rs idx 292 (l.4488) : condition
+  if len2 <= len1 && len2 > 0 remplacee par if len2 == 0 { found = true }
+  else if len2 <= len1 { ...boucle inchangee... }. Les autres branches
+  inchangees. Forme de pile (addr1 len1 addr2 len2 -- addr3 len3 flag)
+  preservee.
+- core2012.fth : Section B3 SEARCH ajoutee (7 cas : trouvee en pos 3 avec
+  verif addr3 = addr1+3 via variable S1 ; debut ; fin ; multi-occurrences ;
+  non trouvee ; SOUS-CHANE VIDE 0 0 (correction) ; len2 > len1) + ligne
+  B3 dans l'en-tete SECTIONS.
+- Verification effets de pile + flag standard : ordre pop/push OK, flag -1/0
+  (Jour 8). Aucun usage de search dans les scripts existants -> risque 0.
+- Docs : forth_audit_2012.md l.27 resolu ; rapport.md P0-3 (item 4 + sequence
+  J8/J9/J10/J11 coches) ; CORE_WORDS.md sans mention search (rien a faire).
+- Builds : debug OK (7.27s), release OK (39.33s), 0 erreur, 413 warnings.
+- A VALIDER SUR MATERIEL (exec TESTS/core2012.fth) : A/B0/B1/B2/B2b/B2b2/B3
+  vertes (NB-FAILS = 0 attendu) ; B2c (tuck/-rot) reste rouge.

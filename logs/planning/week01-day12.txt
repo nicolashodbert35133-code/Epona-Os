@@ -1,0 +1,66 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 12
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+FICHE DE MODIFICATION - REFILL (ligne vide valide vs absence d'entree)
+--------------------------------------------------------------------------
+
+1) ANALYSE (verification code avant modification)
+   a) Primitive 331 (interpreter.rs l.4817-4869) :
+      ( -- flag ) boucle sur key_queue : '\n'/'\r' -> fin ; '\x08'/'\x7f' ->
+      backspace ; '\x1b' -> line.clear() puis break ; caractere >= ' ' ->
+      ajoute. Boucle avec step_callback, controle PREEMPT_REQUESTED
+      (-> push 0) et emergency_break (-> push 0). A la sortie :
+      "if line.is_empty() { push 0 } else { source_buffer = line; >IN=0;
+      push -1 }".
+      BUG : une ligne VIDE validee par Entree retombe dans line.is_empty()
+      => flag 0 (EOF). Or la norme (devguide 4.5, audit l.41) : une ligne
+      vide obtenue avec succes = flag VRAI ; flag faux = "aucune nouvelle
+      ligne disponible" (preemption / emergency_break) OU annulation
+      (Escape). Impossible de distinguer "Entree sur ligne vide" de
+      "Escape" avec le code actuel (les deux finissent line.is_empty()).
+   b) FIX : boolen "cancelled". Escape -> cancelled = true (puis break).
+      A la sortie : si cancelled -> push 0 (annulation) ; sinon ->
+      source_buffer = line (meme vide), >IN = 0, push -1 (succes).
+      Preemption / emergency_break : inchangees (push 0).
+   c) Usage : seul le REPL de demo (Arena AI.md l.445/713 ".  >  refill
+      drop"). Aucun script de test existant n'appelle refill -> risque 0.
+      Le test est NECESSAIREMENT interactif (lecture clavier).
+
+2) PERIMETRE DES CHANGEMENTS
+   - interpreter.rs idx 331 (introduction cancelled + condition finale).
+   - TESTS/refill.fth : nouveau fichier de tests interactifs guides
+     (ne peut pas s'auto-executer sans clavier).
+   - Docs : audit l.41 + l.90 (retirer REFILL), GUIDE.txt l.695/l.1061-1064,
+     primitive md l.778, rapport.md (item 5 + sequence).
+
+3) TESTS PREVUS (TESTS/refill.fth, interactifs)
+   - T1 entree NON vide (taper abc puis Entree) -> flag -1.
+   - T2 LIGNE VIDE (Entree directe) -> flag -1  <- LA correction.
+   - T3 backspace puis Entree -> flag -1.
+   - T4 Escape -> flag 0.
+   - T5 preemption : documente (ne peut pas etre declenchee fiablement a
+     la main ; le code pousse 0 - inchange). NB-FAILS compte les echecs
+     via verif/0= verif.
+
+4) BUILD : debug + release, 0 erreur, 413 warnings attendus.
+============================================================================
+
+RESULTATS DU JOUR 12
+---------------------
+- Edits appliques : interpreter.rs idx 331 (l.4817+) : ajout du boolen
+  cancelled ; Escape -> cancelled = true ; a la sortie : si cancelled ->
+  push 0 (annulation), sinon -> source_buffer = line (MEME VIDE), >IN = 0,
+  push -1 (succes). Preemption / emergency_break inchangees (push 0).
+- TESTS/refill.fth cree : 4 tests interactifs guides (non vide, LIGNE VIDE,
+  backspace, Escape) + test 5 preemption documente (non declenchable a la
+  main). NB-FAILS compte les echecs. Le test exige le clavier (naturel pour
+  REFILL).
+- Docs : forth_audit_2012.md l.41 et l.90 resolus ; GUIDE.txt l.695 et
+  l.1061-1064 (flag -1 = ligne lue meme vide, 0 = annulation/aucune entree) ;
+  primitive forth Epona 2.0.md l.778 ; rapport.md (item 5 + sequence coches).
+- Builds : debug OK (9.69s), release OK (33.91s), 0 erreur, 413 warnings.
+- A VALIDER SUR MATERIEL : exec TESTS/refill.fth (T2 ligne vide -> -1, T4
+  Escape -> 0) ; exec TESTS/core2012.fth inchange (NB-FAILS = 0 attendu).

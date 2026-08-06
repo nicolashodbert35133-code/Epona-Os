@@ -1,0 +1,58 @@
+================================================================================
+PLANNING CODAGE FORTH ISO 2012 - SEMAINE 1 - JOUR 1 : BASELINE RUST
+Date : 2026-08-06
+================================================================================
+
+1. BUILDS
+--------------------------------------------------------------------------------
+- debug   : cargo build --target x86_64-unknown-uefi
+  Resultat : OK, 0 erreur, 413 warnings
+- release : cargo build --release --target x86_64-unknown-uefi
+  Resultat : OK, 0 erreur, 413 warnings
+
+  => Identique a l'etat de reference attendu (413 warnings).
+  => Baseline valide.
+
+2. INVENTAIRE DES TESTS EXISTANTS (forth/TESTS/)
+--------------------------------------------------------------------------------
+Nb de fichiers de test : 15
+
+  as.fth          3495 octets  - primitives divers
+  audio.fth       6839 octets  - audio HDA
+  clipboard.fth   2387 octets  - presse-papiers
+  floats.fth      3880 octets  - flottants
+  gui_adv.fth     1630 octets  - GUI avance
+  gui_widgets.fth 1651 octets  - widgets GUI
+  heap.fth        4031 octets  - heap POSIX (mmap/brk)
+  ipc.fth         3022 octets  - IPC
+  ipc_adv.fth     5054 octets  - IPC avance
+  math.fth        2879 octets  - mathematiques
+  net_adv.fth     3587 octets  - reseau avance
+  time.fth        2093 octets  - temps
+  time_adv.fth    2052 octets  - temps avance
+  utf8.fth        2255 octets  - UTF-8
+  vm.fth          2177 octets  - memoire virtuelle / pagination
+
+AUCUN test Core Forth 2012 pour l'instant => a creer (Jour 4).
+
+3. CONVENTION DE TEST FORTH
+--------------------------------------------------------------------------------
+- Sortie attendue en commentaire :  \ -1  = test OK ;  \ 0  = echec
+- Mot de test defini, puis auto-execute en fin de fichier (ex : "test-vm")
+- Execution depuis le shell :  exec <fichier>.fth
+- Certains tests necessitent des prerequis (ex : mem-info + vm:init)
+
+4. ETAT DE REFERENCE POUR LES PROCHAINES SEMAINES
+--------------------------------------------------------------------------------
+- 413 warnings = reference (ne pas regresser, ne pas en ajouter sans raison)
+- 15 fichiers de tests existants
+- BOOT.FTH a verifier (Jour 5)
+- Mots Core a inventer (Jour 2) : aucune modification de code aujourd'hui
+
+5. DECISION
+--------------------------------------------------------------------------------
+Baseline OK. La semaine 1 peut continuer :
+  - Jour 2 : inventaire Forth
+  - Jour 3 : signatures de pile
+  - Jour 4 : creation de forth/TESTS/core2012.fth
+================================================================================

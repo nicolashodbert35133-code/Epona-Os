@@ -1,0 +1,91 @@
+============================================================================
+EPONA OS - BUGFIX : FREEZE DE TESTS/refill.fth (test materiel Jour 14)
+Date : 2026-08-06
+Statut : FAIT (builds debug + release OK)
+============================================================================
+
+SYMPTOME
+--------
+exec TESTS/refill.fth en mode debug UEFI : le systeme semble se bloquer
+("freeze"). L'utilisateur soupconne une erreur dans le fichier.
+
+DIAGNOSTIC (2 causes distinctes)
+--------------------------------
+1) FREEZE DEFINITIF au TEST 4 (Escape) :
+   Le step_callback (forth_step_callback, main.rs) intercepte la touche ESC
+   et pose `exit_requested = true` au lieu de la pousser dans key_queue :
+     - clavier UEFI   : main.rs, scan 0x0017 -> vm.exit_requested = true
+     - clavier xHCI   : main.rs, buf[k]==0x1B -> vm.exit_requested = true
+   La boucle de `refill` (idx 331) attend dans key_queue un '\x1b' qui
+   n'arrive JAMAIS, et elle ne verifie pas exit_requested. -> boucle infinie.
+   => L'appui ESC consomme la touche sans effet : refill attend indefiniment.
+
+2) ECRAN FIGE pendant l'execution (perception de freeze des le TEST 1) :
+   `exec` en mode debug UEFI (shell.rs l.2038) execute le fichier de facon
+   SYNCHRONE (compile) pendant que la boucle principale (main.rs while
+   !exit_debug) est bloquee. render_terminal n'est appele que par cette
+   boucle -> les instructions ("TEST 1 : tapez abc...") et l'echo des
+   touches restent dans print_buffer, invisibles. L'utilisateur ne sait pas
+   quoi taper.
+
+CORRECTIONS
+-----------
+interpreter.rs
+  a) Champ `pub refill_active: bool` ajoute (struct ForthVm + constructeur).
+  b) refill (idx 331) restructure :
+       - refill_active = true en entree, false a la sortie (tous chemins).
+       - Pump initial `cb(self)` avant l'attente : draine print_buffer
+         (instructions du fichier) et rafraichit l'ecran.
+       - Sorties preemption / emergency_break via variable `aborted`
+         (plus de `return` precoce qui sauterait refill_active = false).
+       - set_source(line) uniquement si ligne lue (ni cancelled ni aborted).
+
+main.rs (forth_step_callback)
+  c) ESC UEFI (scan 0x0017) : si vm.refill_active -> push '\x1b' dans
+     key_queue ; sinon exit_requested = true (comportement inchange hors
+     refill).
+  d) ESC xHCI (buf[k]==0x1B) : idem.
+  e) Apres le drain de print_buffer : render_terminal() si refill_active
+     ET pas de fullscreen (visible pendant la saisie, echo inclus).
+
+COMPORTEMENT RESULTANT
+----------------------
+- TEST 1 : l'utilisateur VOIT "TEST 1 : tapez abc puis Entree." ; tape
+  abc + Entree -> echo visible -> flag -1.
+- TEST 2 : Entree directe (ligne vide) -> -1.
+- TEST 3 : abx + Backspace + Entree -> -1 (x efface, echo visible).
+- TEST 4 : ECHAP -> '\x1b' dans key_queue -> cancelled -> flag 0.
+- Hors refill : ESC interrompt toujours les programmes (exit_requested
+  inchange).
+
+DOCS MIS A JOUR
+---------------
+- src/primitive forth Epona 2.0.md : ligne 331 (refill) completee
+  (refill_active + routage ESC + rafraichissement terminal).
+- GUIDE.txt : note sur le routage ESC et le rafraichissement.
+
+BUILDS
+------
+- debug : OK, 0 erreur, 413 warnings (baseline).
+- release : OK, 0 erreur, 413 warnings (baseline).
+
+A VALIDER SUR MATERIEL
+----------------------
+exec TESTS/refill.fth :
+  TEST 1 tapez abc puis Entree   -> -1
+  TEST 2 Entree directe          -> -1
+  TEST 3 abx Backspace Entree    -> -1
+  TEST 4 ECHAP                   -> 0
+  NB-FAILS = 0 (auto).
+
+VALIDATION MATERIELLE : FAITE (2026-08-06)
+------------------------------------------
+- Instructions affichees a l'ecran pendant la saisie : OK.
+- TEST 1 abc+Entree -> -1 : OK.
+- TEST 2 Entree (ligne vide) -> -1 : OK.
+- TEST 3 abx+Backspace+Entree -> -1 : OK.
+- TEST 4 ECHAP -> 0 : OK.
+- NB-FAILS = 0 : OK.
+- core2012.fth : NB-FAILS = 0 (A/B0-B4 vertes), B2c (tuck/-rot) reste
+  rouge comme attendu.
+============================================================================

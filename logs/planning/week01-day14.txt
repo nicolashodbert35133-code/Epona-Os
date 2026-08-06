@@ -1,0 +1,88 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 14 (REVUE S2)
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+REVUE DE LA SEMAINE 2 (Jours 8 a 13) - revalidation statique
+------------------------------------------------------------
+Cadre : pas d'execution materielle possible dans cette session -> relecture
+statique complete (tests, code, scripts) au lieu d'un rejeu. Les validations
+materielles restent a faire par l'utilisateur (voir FIN).
+
+1) REJEU STATIQUE DE core2012.fth (sections B0/B1/B2/B2b/B2b2/B3/B4)
+   a) B0 (true/false) : -1/0 attendus, conformes aux corrections J8.
+   b) B1 (comparaisons) : 10 cas verif + 10 cas negatifs, flags -1/0.
+   c) B2 (rshift) : tous recalculables a la main -> coherents SAUF UN :
+      - `1 65 rshift .` attendait \ 1. wrapping_shr masque le compte mod 64
+        (u64.wrapping_shr : rhs & 63), donc 65 -> decalage de 1 -> 1 >> 1 = 0.
+        ATTENTE INCORRECTE DETECTEE -> corrigee en `\ 0` (ligne 183).
+      - `-1 64 rshift . \ -1` : 64 mod 64 = 0 -> -1 >> 0 = -1. Correct.
+      - `-1 63 rshift = 1`, `-2 1 = MAX`, `-16 2 = 0x3FFFFFFFFFFFFFFC`,
+        `-16 4 = 0x0FFFFFFFFFFFFFFF` : tous verifies.
+   d) B2b (2/) : MIN >> 1 = -2^62, MIN+1 >> 1 = -2^62 (floor), -1, 0, 1, -3,
+      MAX, 10 : tous corrects (shift arithmetique J9).
+   e) B2b2 (/ mod /mod) : -7/3=-2, 7/-3=-2, -7/-3=2, restes signe du
+      dividende, /mod pousse (rem quot) -> . . affiche quot puis rem.
+   f) B3 (search) : position 3 (addr3 = addr1+3 via S1), debut, fin,
+      multi-occurrences, non trouvee, chaine vide (J11), len2 > len1.
+   g) B4 (source/>in) : here stable (0), src-len via evaluate = 7, >in 5 !.
+   CONCLUSION : 1 seule divergence d'attente (rshift >= 64), corrigee.
+
+2) VERIFICATION BOOT.FTH ET DRIVERS
+   a) forth/boot/BOOT.FTH (50 l.) relu : init-* (hardware), AUTO-EXIT-UEFI
+      if/then, rapport, `: principal ... ;`. Aucun usage des mots corriges
+      S2 (comparaisons, 2/, rshift, search, source, >in, refill). Le `if`
+      teste le non-nul -> insensible aux flags -1/0. NON IMPACTE.
+   b) grep `source|evaluate|>in|refill` sur forth/ : uniquement
+      TESTS/core2012.fth (B4) et TESTS/refill.fth. -> corrections SOURCE
+      (J13) et REFILL (J12) sans regression hors tests.
+   c) rshift : uniquement audio.fth, AMD-Ryzen5-5500U.FTH, fmt.fth, sur
+      valeurs positives (revu J10) -> inchanges.
+
+3) MISE A JOUR DE L'AUDIT (forth_audit_2012.md)
+   a) Ligne 90 : references erronees "PARSE/PARSE-NAME/S\" (Jour 14)" retirees
+      -> "(a corriger)" : le Jour 14 est une revue, pas la correction PARSE
+      (prevue en Semaine 3).
+   b) Nouvelle section "Revue Semaine 2 (Jour 14, 2026-08-06)" : relecture,
+      divergence 1 65 rshift corrigee, BOOT.FTH/drivers non impactes,
+      restes S3 (PARSE, PARSE-NAME, S\", tuck/-rot, STATE, FIND, adressage,
+      arithmetique double).
+
+4) FICHIERS MODIFIES
+   - forth/TESTS/core2012.fth : ligne 183, attente `\ 1` -> `\ 0`
+     (1 65 rshift = 0, mod 64).
+   - forth_audit_2012.md : ligne 90 harmonisee, section Revue S2 ajoutee.
+   - PLANNING_CODAGE_FORTH_12_SEMAINES.md : Jour 14 marque FAIT.
+   - logs/planning/week01-day14.txt : ce log.
+
+5) BILAN SEMAINE 2
+   - Corrections livrees : flags -1/0 (J8), 2/ (J9), rshift (J10), search
+     vide (J11), refill ligne vide (J12), source/>in (J13).
+   - Revue J14 : 1 divergence d'attente trouvee et corrigee (test).
+   - Restent rouges : B2c (tuck : copie bas de pile ; -rot : identique a rot).
+   - Restent a corriger (S3+) : PARSE, PARSE-NAME, S\", STATE, FIND, tuck,
+     -rot, adressage octet, arithmetique double, exceptions.
+
+VALIDATIONS MATERIELLES A FAIRE PAR L'UTILISATEUR
+--------------------------------------------------
+- exec TESTS/core2012.fth : B0/B1/B2/B2b/B2b2/B3/B4 vertes, NB-FAILS = 0,
+  B2c (tuck/-rot) rouge, sortie ligne 183 = 0.
+- exec TESTS/refill.fth : T2 ligne vide -> -1, T4 Escape -> 0.
+- Demarrage normal : BOOT.FTH se charge sans erreur (aucun impact S2).
+
+VALIDATIONS MATERIELLES : FAITES (2026-08-06)
+---------------------------------------------
+- TESTS/core2012.fth : NB-FAILS = 0 (A/B0/B1/B2/B2b/B2b2/B3/B4 vertes) ;
+  B2c (tuck/-rot) reste rouge (conforme a l'attente) ; ligne 183 rshift
+  corrigee -> 0.
+- TESTS/refill.fth : OK (T1 abc -> -1, T2 ligne vide -> -1, T3 backspace
+  -> -1, T4 ECHAP -> 0, NB-FAILS = 0). Le freeze signale a ete corrige :
+  voir logs/planning/bugfix-refill-interactif.txt (ESC intercepte par le
+  step_callback + absence de rendu pendant exec).
+- Demarrage BOOT.FTH : aucune regression S2 constatee.
+
+PROCHAIN (demain)
+-----------------
+- Semaine 3 : Jour 15 - analyse de STATE (adresse modifiable).
+============================================================================

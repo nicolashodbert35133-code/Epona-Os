@@ -1,0 +1,92 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 1, JOUR 4
+Date : 2026-08-06
+Statut : FAIT (sous reserve de l'execution materielle)
+============================================================================
+
+OBJECTIF DU JOUR
+----------------
+Creer forth/TESTS/core2012.fth : tests de base Core 2012 (pile,
+arithmetique, comparaisons) au format Epona, avec un compteur d'echecs
+auto-execute en fin de fichier.
+
+LIVRABLE
+--------
+forth/TESTS/core2012.fth (192 lignes).
+
+STRUCTURE DU FICHIER
+--------------------
+- En-tete : convention de format (\ -1 = OK, \ 0 = echec), lancement
+  par 'exec TESTS/core2012.fth'.
+- variable NB-FAILS (compteur global d'echecs).
+- verif ( flag -- ) : affiche la valeur reelle, verifie flag = true (-1),
+  incremente NB-FAILS en cas d'echec. Concu pour fonctionner AVANT et
+  APRES le correctif flags (Jour 8) : '=' renvoie 1 aujourd'hui, -1 apres,
+  et IF teste le non-nul dans les deux cas.
+- Section A1 - PILE (conforme, verte) :
+    dup drop swap over rot nip 2dup 2drop 2swap 2over ?dup pick
+- Section A2 - ARITHMETIQUE (conforme, verte) :
+    + - * / mod /mod 1+ 1- 2+ 2- 2* 2/ abs negate min max
+    (2/ uniquement sur valeur positive : 10 2/ = 5, non ambig)
+- Section A3 - LOGIQUE BIT A BIT (conforme, verte) :
+    and or xor invert lshift rshift (rshift positif : non ambig)
+- Section B1 - COMPARAISONS (cible -1, rouge tant que non corrigees) :
+    = <> < > <= >= 0= 0<> 0< 0>  ->  lignes '= verif' attendent -1
+    NB : les cas negatifs (42 43 =, 1 1 <> ...) sont VERTS aujourd'hui
+    car l'implementation renvoie deja 0 pour faux.
+- Section B2 - RSHIFT LOGIQUE (cible >>> sur u64) :
+    -16 2 rshift = 0x3FFFFFFFFFFFFFFC   (aujourd'hui -4, shift arithmetique)
+- Section B2b - 2/ signe (cible >>1 arithmetique) :
+    -5 2/ = -3                          (aujourd'hui -2, troncature vers 0)
+- Section B2c - tuck / -rot (bugs decouverts ce jour).
+- RESUME : mot test-core auto-execute -> NB-FAILS + verdict texte.
+
+BUGS DECOUVERTS CE JOUR (en plus de l'audit)
+-------------------------------------------
+1. -rot (idx 38 dans group0 / exec_primitive) :
+      code = remove(len-3) + push  -> c'est ROT, pas -rot.
+      Norme -rot : ( a b c -- c a b ).  1 2 3 -rot = 3 1 2 (sommet 2).
+      Actuel : 1 2 3 -rot = 2 3 1 (sommet 1).
+      Fix a prevoir (Jour 8+) : remove(len-1) + insert(len-2).
+2. tuck (idx 40) :
+      code = a=stack[len-2] ; insert(len-2, a).
+      Norme tuck : ( a b -- b a b ).  1 2 tuck = 2 1 2 (sommet 2).
+      Actuel : 1 2 tuck = 2 1 1 (copie du bas au lieu de dupliquer x1).
+      Fix : push(stack[len-1]) ; swap(len-2, len-1).
+3. Rappels deja connus (audit) retrouves par les tests :
+      = <> < > <= >= 0= 0<> 0< 0> renvoient 1 au lieu de -1 (idx 37/58..66).
+      rshift (idx 72) : wrapping_shr sur i64 = arithmetique, norme = logique.
+      2/ (idx 52) : v / 2 tronque vers zero, norme = decalage arithmetique.
+
+VERIFICATIONS CODE SOURCE (src/interpreter.rs)
+----------------------------------------------
+- group0 (lignes 614-635) : les 10 mots de comparaison y figurent
+  (ligne 628). Tous existent comme primitives.
+- idx 37 = '=' -> push 1 si egal (confirme ligne 1814).
+- idx 38 = -rot -> remove(len-3)+push = rot (confirme ligne 1819).
+- idx 40 = tuck -> insert(len-2, stack[len-2]) (confirme ligne 1832).
+- idx 52 = 2/ -> v / 2 (confirme ligne 1884).
+- idx 57 = /mod -> push(a%b) puis push(a/b) : quotient au sommet (l.1897).
+- pick (idx 46, l.1870) : 0 pick = copie du sommet, 1 pick = 2e. Correct.
+- ?dup (idx 45, l.1865) : correct.
+
+POINT D'ATTENTION POUR LE JOUR 5 (dans compile())
+------------------------------------------------
+- *** CORRIGE JOUR 7 *** : ce point d'attention est FAUX. ." est gere
+  AUSSI en mode immediat (handler ligne 12465-12482, imprime la chaine
+  aussitot). Le retrait des ." top-level dans core2012.fth etait inutile
+  mais sans consequence (voir log week01-day05.txt).
+- LA vraie contrainte sur les chaines (."/s"/abort"/,") : ne pas contenir
+  '(' ni ')' car le stripping des commentaires s'applique a tous les
+  tokens, meme a l'interieur d'une chaine.
+
+ETAPES SUIVANTES
+----------------
+- Jour 5 : verifier que BOOT.FTH (qui utilise ." en top-level) compile
+  reellement puis s'execute ; identifier le mot d'entree principal/main.
+- Execution manuelle attendue de l'utilisateur :
+      exec TESTS/core2012.fth
+  Resultat attendu : Section A verte (\ -1 partout), Section B avec
+  NB-FAILS > 0 (les '= verif' affichent 1 au lieu de -1, -rot/tuck/2/
+  rshift differents des cibles).
+============================================================================

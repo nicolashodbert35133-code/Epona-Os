@@ -1,0 +1,57 @@
+================================================================================
+PLANNING CODAGE FORTH ISO 2012 - SEMAINE 1 - JOUR 3 : SIGNATURES DE PILE
+Date : 2026-08-06
+================================================================================
+
+1. PERIMETRE
+--------------------------------------------------------------------------------
+  Mots Core utilises par les tests existants (forth/TESTS/) : 23
+  Mots Core Ext utilises : 24 (flottants)
+  Livrable : forth/std/CORE_WORDS.md (table des signatures)
+
+2. MOTS CORE UTILISES PAR LES TESTS (23)
+--------------------------------------------------------------------------------
+  abs and c! c, c@ constant cr create do drop dup fill here i loop mod
+  or r> rot rshift swap type variable
+  (12 sont des primitives, 6 des mots-cles compilateur : constant/create/
+   do/here/loop/variable)
+
+3. SIGNATURES CONFORMES (11)
+--------------------------------------------------------------------------------
+  abs  and  cr  drop  dup  i  mod  or  r>  rot  swap
+
+4. SIGNATURES NON CONFORMES / A CORRIGER (7)
+--------------------------------------------------------------------------------
+  c!   ( ch addr -- )   -> MMIO au lieu de l'espace Forth (audit §86)
+  c@   ( addr -- ch )   -> MMIO au lieu de l'espace Forth (audit §86)
+  c,   ( char -- )      -> HERE += 1 alors que CELL=8 (audit §85)
+  fill ( addr u ch -- ) -> MMIO au lieu de l'espace Forth (audit §86)
+  rshift ( x u -- y )   -> shift signe (wrapping_shr) au lieu de logique (audit §89)
+  type ( addr len -- )  -> lit memory[] (1 octet/cell), incoherent avec c@ (C4)
+  create ( "name" -- )  -> avance HERE trop tot (audit §87)
+
+5. IMPLEMENTATIONS HORS NORME (compilateur / variables) (5)
+--------------------------------------------------------------------------------
+  constant -> Op::ConstantCreate (ne cree pas de vrai mot)       (C1)
+  do       -> Op::Do, gere par le parseur                        (C6)
+  here     -> variable compilateur, collision avec les chaines   (C2)
+  loop     -> Op::Loop, gere par le parseur                      (C6)
+  variable -> BTreeMap self.variables, PAS de mot dictionnaire   (C3)
+
+6. CONSTAT MAJEUR (C4) : DEUX MONDES MEMOIRE INCOMPATIBLES
+--------------------------------------------------------------------------------
+  c@ / c! / fill  -> MMIO brut (i2c_hid::mmio_*)
+  type / find / s>f -> self.memory[] (espace Forth, Vec<i64>)
+  => Une chaine ecrite avec c! est illisible par type, et inversement.
+  => A unifier en Phase 4 (modele memoire : Vec<i64> -> Vec<u8>).
+
+7. FLAGS (C5) : = < > <= >= 0= 0<> 0< 0> retournent 1 au lieu de -1
+--------------------------------------------------------------------------------
+  Confirme l'audit §84. A corriger en Phase 1 (Semaine 2, Jour 8).
+  Les tests \ -1 des fichiers existants detecteront la correction.
+
+8. VERIFICATION
+--------------------------------------------------------------------------------
+  Aucun fichier de code modifie. forth/std/CORE_WORDS.md cree (documentation).
+  Builds inutiles (aucun changement de code).
+================================================================================

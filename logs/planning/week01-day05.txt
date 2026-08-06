@@ -1,0 +1,73 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 1, JOUR 5
+Date : 2026-08-06
+Statut : FAIT - CONTREDIT PAR LE JOUR 7 (analyse erronnee des Jours 4-5)
+============================================================================
+
+OBJECTIF DU JOUR
+----------------
+Verifier que BOOT.FTH est reellement compile puis execute ; tester le mot
+d'entree 'principal'/'main' ; documenter le comportement sans mot d'entree.
+
+*** CORRECTION IMPORTANTE (Jour 7, 2026-08-06) ***
+---------------------------------------------------
+Le "BUG DE BOOT CONFIRME" de la version initiale de ce log est FAUX.
+Le mode immediat de compile() GERE bien le token ." : handler ligne
+12465-12482 (la chaine est analysee puis imprimee immediatement via
+print_buffer). Il en va de meme pour abort" (ligne 12441), s" (ligne
+12483) et ," (ligne 12512).
+
+BOOT.FTH racine et forth/boot/BOOT.FTH compilent donc et s'executent en
+ENTIER : xhci-init, init-gop, init-acpi, init-usb, init-drivers,
+init-scheduler, init-gfx, init-window, le bloc AUTO-EXIT-UEFI et la
+definition de 'principal' sont bien pris en compte. Les stdlib
+(drvlib.fth ligne 12, pci_enum.fth ligne 9, drvmap.fth ligne 13)
+fonctionnent aussi en top-level.
+
+Cause de l'erreur du Jour 5 : lecture INCOMPLETE de la zone "mode
+immediat" de compile() (lignes 11681-12779). Le token ." n'apparait pas
+dans les ranges lus a ce moment-la ; en realite le handler immediat
+existe plus bas (12465). Le grep PowerShell sur '.\"' a en outre echoue
+(echappement PowerShell), rendant caduque la "verification croisee".
+
+La SEULE vraie limite de ." (et s"/abort"/,") : la chaine ne doit PAS
+contenir '(' ni ')' car le stripping des commentaires '( ... )' (etape 2
+du tokenizer, commentaires imbriques) s'applique a TOUS les tokens, meme
+a l'interieur d'une chaine.
+
+CE QUI RESTE VALIDE DU JOUR 5 :
+--------------------------------
+1) MOT D'ENTREE
+   - run() (interpreter.rs 9662) : lookup_word("principal"), sinon
+     Err("Erreur : le mot 'principal' n'est pas defini.").
+   - run_slice() (interpreter.rs 9690) : entry = current_entry_word sinon
+     "principal". lookup_word ; sinon RunResult::Error("entry not found").
+   - Shell 'exec' en runtime : si le fichier a un point d'entree ew
+     (fth_find_entry) :
+         principal -> compile tel quel
+         autre     -> : principal begin <ew> again ; (shell.rs 2061)
+                      ou : principal <ew> ; (shell.rs 2185)
+     puis si 'principal' absent, fallback 'bureau' puis 'main'
+     (shell.rs 2084-2089).
+   - Apres 'exit-uefi' (main.rs 1060-1064), la boucle runtime (1103+) ne
+     lance AUCUNE tache Forth d'office : seule une tache ajoutee par
+     'exec' (add_forth_slot) est executee par run_slice (main.rs 1218).
+
+2) COMPORTEMENT SANS MOT D'ENTREE
+   - run()          : Err "Erreur : le mot 'principal' n'est pas defini."
+   - run_slice()    : RunResult::Error("entry not found") -> la tache est
+                      marquee exit_requested (main.rs 1221) -> message
+                      "[Programme termine]" (main.rs 1239).
+   - shell 'exec'   : "compilee. Aucun point d'entree." (shell.rs 2114).
+
+3) ROBUSTESSE A CORRIGER PLUS TARD (Phase 2, Jour 12+)
+   - sys:load (ligne 12013-12025) affiche "ERR: {e}" mais NE PROPAGE PAS
+     l'erreur au compile parent : main.rs affiche donc
+     "[AUTO-BOOT] BOOT.FTH charge OK" meme si un sys:load echoue.
+     A corriger pour que l'autoloader detecte reellement les scripts
+     drivers/apps defectueux.
+
+A VERIFIER SUR MATERIEL (prochaine session boot)
+   - Banniere "Epona OS — Sequence de demarrage" + init-* + principal.
+   - 'words' doit contenir 'principal' apres le boot.
+============================================================================

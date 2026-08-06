@@ -1,0 +1,69 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 1, JOUR 7
+Date : 2026-08-06
+Statut : FAIT (revue de semaine ; execution materielle a faire par l'user)
+============================================================================
+
+OBJECTIF DU JOUR
+----------------
+Revue semaine 1 : refaire les builds, reperer les regressions, produire
+la fiche de blocages et decider si la semaine 2 peut commencer.
+
+1) BUILDS
+   - debug  : cargo build --target x86_64-unknown-uefi       -> OK, 0 erreur
+   - release: cargo build --target x86_64-unknown-uefi --release -> OK, 0 erreur
+   - 413 warnings (baseline, inchangee). Aucun code Rust modifie en S1.
+     Rebuilds incrementaux (~0.2 s).
+
+2) CORRECTION MAJEURE DE LA REVUE : LE "BUG DE BOOT" N'EXISTE PAS
+   -------------------------------------------------------------------
+   - Verdict Jour 4-5 (.". top-level ECHOUE -> BOOT.FTH casse) : FAUX.
+   - compile() gere ." en mode immediat : handler interpreter.rs ligne
+     12465-12482 (la chaine est analysee puis imprimee aussitot via
+     print_buffer). Meme chose pour abort" (12441), s" (12483), ," (12512).
+   - BOOT.FTH racine + forth/boot/BOOT.FTH compilent et s'executent en
+     ENTIER : xhci-init, init-gop, init-acpi, init-usb, init-drivers,
+     init-scheduler, init-gfx, init-window, AUTO-EXIT-UEFI, definition de
+     'principal'. Les stdlib (drvlib.fth l.12, pci_enum.fth l.9,
+     drvmap.fth l.13) fonctionnent aussi en top-level.
+   - Cause de l'erreur des Jours 4-5 : lecture INCOMPLETE de la zone
+     "mode immediat" (11681-12779) de compile() + grep PowerShell sur
+     '.\"' echoue (echappement). La "verification croisee" (aucun ."
+     top-level dans les TESTS) etait caduque.
+   - Scripts reels confirmant le fonctionnement : DESKTOP.FTH (l.148-150),
+     drivers/driver_clavier_ps2.fth (l.19-22, 537, 548-559), etc.
+   - Corrections appliquees : planning (Jour 4/5/6), logs week01-day04.txt,
+     week01-day05.txt, week01-day06.txt, docs/API_V1.md. La vraie limite
+     des chaines ."/s"/abort"/," : PAS de '(' ni ')' dans la chaine (le
+     stripping des commentaires '( ... )' s'applique a tous les tokens).
+
+3) FICHE DE BLOCAGES SEMAINE 1
+   ----------------------------
+   a) RIEN NE BLOQUE LE BOOT. Le boot est sain (statique).
+   b) Vrai bug de robustesse a corriger (Semaine 2, Jour 12+) :
+      sys:load (interpreter.rs 12013-12025) affiche "ERR: {e}" mais ne
+      PROPAGE pas l'erreur au compile parent -> AUTO-BOOT affiche
+      "[AUTO-BOOT] BOOT.FTH charge OK" meme si un sys:load echoue.
+   c) Corrections semantiques programmees Semaine 2 :
+      - J8  : flags -1/0 (comparaisons = <> < > <= >= 0= 0<> 0< 0>).
+      - J9  : 2/ signe (decalage arithmetique au lieu de troncature /2).
+      - J10 : rshift logique (>>> sur u64 au lieu de wrapping_shr i64).
+      - en plus : -rot (idx 38 = code de rot) et tuck (idx 40 copie le bas)
+        decouverts au Jour 4 (core2012.fth Section B2c).
+   d) Limite a documenter : chaines sans '(' ni ')' (voir 2).
+   e) NON BLOQUANT : execution materielle a faire par l'utilisateur
+      (aucune capture possible dans cette session).
+
+4) DECISION
+   ----------
+   La semaine 2 PEUT commencer : aucun blocage identifie, backlog
+   semantique propre (J8-J10 + -rot/tuck) et tests en place
+   (forth/TESTS/core2012.fth : Section A verte des maintenant, Section B
+   servira de validation aux corrections).
+
+5) A VERIFIER PAR L'UTILISATEUR (prochaine session materielle)
+   - exec TESTS/core2012.fth  -> Section A \ -1 partout ; Section B
+     NB-FAILS > 0 (comportement AVANT corrections).
+   - Boot reel : banniere "Epona OS — Sequence de demarrage", les init-*,
+     'principal' present dans 'words'.
+============================================================================

@@ -1,0 +1,76 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 10
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+FICHE DE MODIFICATION - RSHIFT LOGIQUE
+--------------------------------------------------------------------------
+
+1) ANALYSE (verification code avant modification)
+   a) rshift INTERPRETEUR (idx 72, l.1960) : "v.wrapping_shr(n as u32)".
+      wrapping_shr sur i64 = decalage ARITHMETIQUE (bit de signe propage) ET
+      masque deja le compte a 64 bits (rhs & 63). Divergence : rshift doit
+      etre un decalage LOGIQUE.
+      FIX : "((v as u64).wrapping_shr(n as u32)) as i64". Le masque mod 64
+      est conserve (u64::wrapping_shr fait aussi rhs & 63) -> aligne avec le
+      comportement JIT/hardware (SHR r/m64, CL : compte mod 64).
+      Cas u2 negatif : (n as u32) & 63 = bas 6 bits de la representation
+      deux-complement = meme masquage que le hardware. Ex : -1 -> 63.
+   b) rshift JIT (prim_rshift, l.1913-1917) : "shr_cl" emet 0xD3 /5 =
+      SHR r/m64, CL -> decalage LOGIQUE, compte = CL mod 64. DEJA CONFORME.
+      AUCUN changement JIT.
+   c) lshift (prim_lshift via shl_cl, l.1910) : SHL logique -> conforme,
+      inchange. Test existant "1 4 lshift ." = 16 (vert).
+   d) IMPACT SCRIPTS (scan) :
+      - audio.fth le16/le32 : 8 rshift sur valeurs POSITIVES (octets 0x80FF
+        etc. sont positifs en cellule 64 bits) -> arithmetique = logique,
+        aucun changement de resultat.
+      - AMD-Ryzen5-5500U.FTH : 8/4 rshift 0xF and sur registres CPUID
+        positifs -> identique.
+      - fmt.fth : n 4 rshift sur valeur a formater -> comportement logique
+        voulu, correction ameliore.
+      - core2012.fth B2 : test cible, devient vert.
+      RISQUE 0.
+
+2) PERIMETRE DES CHANGEMENTS
+   - interpreter.rs idx 72 (1 ligne). JIT inchange (deja conforme).
+   - core2012.fth Section B2 reecrite (positifs, negatifs, decalage nul,
+     decalage >= 64). En-tete SECTIONS a jour (B2 -> vert).
+
+3) TESTS PREVUS (core2012.fth Section B2)
+   - Positifs : 16 2 rshift = 4 ; 1 4 rshift = 0 ; 1 0 rshift = 1.
+   - Negatifs : -16 2 rshift = 0x3FFFFFFFFFFFFFFC (4611686018427387900) ;
+     -1 63 rshift = 1 ; -2 1 rshift = 9223372036854775807 ; -16 4 rshift =
+     0x0FFFFFFFFFFFFFFF (1152921504606846975).
+   - Decalage nul : -16 0 rshift = -16 ; 123 0 rshift = 123.
+   - Decalage >= 64 (mod 64, aligne hardware/JIT) : -1 64 rshift = -1
+     (SHR par 0) ; 1 65 rshift = 1.
+   - NB-FAILS attendu : 0 pour A/B0/B1/B2/B2b/B2b2 ; B2c (tuck/-rot) rouge.
+
+4) BUILD : debug + release, 0 erreur, 413 warnings attendus.
+
+5) EDGE CASES
+   - La norme ne specific pas le shift >= cellbits (defini par implementation) ;
+     on choisit mod 64 = comportement hardware x86 (SHR masque le compte) et
+     du JIT actif par defaut -> interpreter et JIT restent coherents.
+============================================================================
+
+RESULTATS DU JOUR 10
+---------------------
+- Edits appliques : interpreter.rs idx 72 (l.1960) :
+  v.wrapping_shr(n as u32) -> ((v as u64).wrapping_shr(n as u32)) as i64
+  (decalage LOGIQUE, compte mod 64 conserve = SHR x86). JIT inchange
+  (prim_rshift via shr_cl deja conforme).
+- core2012.fth : Section B2 reecrite (positifs : 16 2, 1 4, 1 0 ; negatifs :
+  -16 2 verif 0x3FFFFFFFFFFFFFFC, -1 63 = 1, -2 1 = MAX, -16 4 ; decalage nul :
+  -16 0, 123 0 ; >= 64 : -1 64 = -1, 1 65 = 1) + en-tete SECTIONS a jour.
+- Docs : forth_audit_2012.md (l.20 et l.89 resolus), CORE_WORDS.md (table l.31
+  et C5 resolus, lshift verifie conforme), API_V1.md (bullet Conforme Jour 10,
+  shift retire de la liste non conforme).
+- Impact scripts verifie (audio.fth le16/le32, AMD-Ryzen5-5500U.FTH, fmt.fth :
+  usages sur valeurs positives -> arithmetique = logique, aucun changement ;
+  fmt.fth beneficie du comportement logique voulu).
+- Builds : debug OK (3.72s), release OK (28.73s), 0 erreur, 413 warnings.
+- A VALIDER SUR MATERIEL (exec TESTS/core2012.fth) : A/B0/B1/B2/B2b/B2b2
+  vertes (NB-FAILS = 0 attendu) ; B2c (tuck/-rot) reste rouge.

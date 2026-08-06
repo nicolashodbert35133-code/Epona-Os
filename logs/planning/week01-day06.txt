@@ -1,0 +1,99 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 1, JOUR 6
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+OBJECTIF DU JOUR
+----------------
+Contrat d'API v1 : Driver API v1 + Application API v1, en distinguant
+nettement les mots ISO 2012 des mots drv:* et epona:*.
+
+LIVRABLE
+--------
+docs/API_V1.md  (contrat v1, ~160 lignes)
+
+STRUCTURE DU CONTRAT
+--------------------
+1. Trois espaces de noms stricts :
+   - ISO 2012 (sans prefixe) : sous-ensemble partiel (103/133 Core).
+   - drv:* : framework driver, IMPLEMENTE (drvlib.fth).
+   - epona:* : RESERVE, NON implemente (proposition v1 de 10 mots).
+2. Driver API v1 :
+   - cycle de vie contractuel : chargement -> metadonnees -> drv:register
+     -> drv:probe -> drv:init -> runtime -> drv:fini.
+   - autoloader : drv_enumerate_and_load (src/drv_api.rs:586) avec
+     drvmap:find (vid did -- addr len), probe/init (bar0 bus dev func).
+   - metadonnees : drv:name! drv:version! drv:license! drv:desc!
+     drv:type! + accesseurs drv:name-string drv:desc-string
+     drv:license-string drv:version.
+   - types : Generic 0, Network 1, Audio 2, Storage 3, Input 4, Usb 5,
+     Gpu 6.
+   - cycle de vie defini par le driver : drv:probe drv:init drv:fini
+     drv:register (appele en fin de fichier).
+   - materiel : pci:add-id pci:add-class pci:entry drvmap:find.
+   - bas niveau autorise (signatures VERIFIEES dans
+     docs/PRIMITIVES_REFERENCE.md) :
+       mmio@/! (32), mmio-w@/w! (16), mmio-b@/b! (8)
+       phys@/phys! (64)
+       inb/outb/inw/outw/inl/outl
+       pci@/pci! ; pci:list (-- count) ; pci:dev (idx -- bus dev fn
+       vendor device class subclass) ; pci:bar (bus dev fn n -- addr size)
+       alloc, alloc-page, alloc-phys, mem:alloc-pages
+       ticks, attendre, us-delay, ms-delay
+       drv:log drv:warn drv:err drv:ok ; drv:loaded? (a l -- idx)
+   - regles : ." autorise partout (chaine sans '(' ni ')', voir Jour 7) ;
+     pas de variable (here uniquement) ;
+     blocs equilibres ; ok? non nul ; fin par drv:register.
+3. Application API v1 :
+   - entree : principal (run/run_slice), enveloppement shell via
+     fth_find_entry (src/shell.rs:28) : ': principal begin X again ;'.
+   - sans entree : run -> "le mot 'principal' n'est pas defini" ;
+     run_slice -> Error("entry not found") -> [Programme termine] ;
+     shell -> "Aucun point d'entree".
+   - sous-ensemble ISO garanti (Section A conforme S1J4) + liste des
+     mots NON utilisables tant que non corriges (comparaisons flags,
+      -rot, tuck, rshift, 2/, c@/c! modele memoire).
+   - epona:* proposition v1 : epona:version epona:screen epona:key
+     epona:mouse epona:sleep epona:time epona:args epona:exec
+     epona:exit epona:log (a implementer Phase 2, Jour 12+).
+4. Matrice de compatibilite (vrai/faux, format de test, chaines, memoire).
+
+DECOUVERTES / ECARTS DOC<->CODE
+-------------------------------
+1. docs/writing-drivers.md section 6 liste des mots qui n'existent PAS :
+   port-io-wr, port-io-rd, port-io-b-wr, port-io-b-rd, boot-alloc,
+   mmio-map, mmio-unmap. Les vrais noms sont inb..outl, alloc/alloc-page/
+   alloc-phys/mem:alloc-pages. (Correction writing-drivers.md a prevoir.)
+2. drv:log existe EN DOUBLE : primitive noyau (idx 840) ET definition
+   drvlib.fth (ligne 95). La version Forth (plus recente) est utilisee.
+3. Aucun mot epona:* dans le code (grep = 0 resultat) : l'espace est bien
+   libre pour la proposition v1.
+4. writing-drivers.md cite des exemples de drivers (generic-simplefb.fth,
+   generic-xhci.fth, rtc.fth, pcspkr.fth, TEMPLATE.fth) a verifier : le
+   listing forth/drivers/ contient AMD-Ryzen5-5500U, bochs-vga,
+   e1000-generic, generic-ahci, generic-hda + (a voir) autres.
+
+SOURCES CONSULTEES
+------------------
+- src/drv_api.rs (autoloader, signatures, vm_call_word_4)
+- src/interpreter.rs (drv:log 840, drv:loaded? 841, run/run_slice)
+- src/shell.rs (fth_find_entry, fth_strip_entry, enveloppement principal)
+- src/main.rs (AUTO-BOOT, add_forth_slot, run_slice scheduler)
+- forth/std/drvlib.fth (framework drv:*, pci:add-id/class, types)
+- forth/std/pci_enum.fth (pci:enum, pci:find-vendor, pci:bar@,
+  pci:find-class, pci:info+bar, .pci)
+- forth/config/drvmap.fth (table PCI->driver)
+- docs/PRIMITIVES_REFERENCE.md (signatures verifiees)
+- docs/writing-drivers.md, docs/api-reference.md
+- forth/std/CORE_WORDS.md (sous-ensemble ISO), forth_audit_2012.md
+
+ETAPES SUIVANTES
+----------------
+- Jour 7 : revue semaine 1 (rebuilds debug+release, rejouer les tests,
+  fiche de blocages, decision de demarrer semaine 2).
+- Correction mineure recommandee avant/au Jour 7 : writing-drivers.md
+  section 6 (noms reels des primitives bas niveau).
+- Correction writing-drivers.md deja planifiee pour la liste epona:* une
+  fois implementee (Jour 12+).
+============================================================================

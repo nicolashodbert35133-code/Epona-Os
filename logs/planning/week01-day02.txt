@@ -1,0 +1,81 @@
+================================================================================
+PLANNING CODAGE FORTH ISO 2012 - SEMAINE 1 - JOUR 2 : INVENTAIRE FORTH
+Date : 2026-08-06
+================================================================================
+
+0. METHODE
+--------------------------------------------------------------------------------
+L'inventaire provient de 3 sources dans interpreter.rs + fichiers Forth :
+  1. Primitives Rust  : init_primitives() (add_primitive) + array group0
+  2. Mots-cles compilateur : match par chaine dans compile() (mots "immediats"
+     integres au parseur, pas d'entree dictionnaire)
+  3. Mots definis en Forth : std/*.fth (strings, fmt, drvlib, pci_enum, tsc)
+     + config/drvmap.fth
+
+1. VOLUMES
+--------------------------------------------------------------------------------
+  Primitives Rust            : 741 enregistrements -> 729 noms uniques
+  Mots-cles compilateur      : ~68 tokens (if/else/then/begin/until/again/
+                                while/repeat/exit/do/?do/leave/loop/+loop/
+                                case/of/endof/endcase/try/catch/endtry/
+                                recurse/constant/create/does>/variable/
+                                buffer:/synonym/vocabulary/also/only/forth/
+                                definitions/to/is/[']/action-of/{}/[char]/
+                                postpone/'/./"/s"/abort"/," etc.)
+  Mots definis en Forth      : 49 (47 dans std/*.fth + 2 dans drvmap.fth)
+  Dictionnaire effectif      : 833 noms
+
+2. CLASSIFICATION
+--------------------------------------------------------------------------------
+  CORE PRESENTS  : 103 / 133  (soit 77 %)
+    - 80 via primitives Rust
+    - +23 via mots-cles compilateur (do/loop/if/then/create/does>...)
+
+  CORE MANQUANTS : 23  (= 21 de l'audit + CHAR + IMMEDIATE que l'audit omettait)
+    #  #>  #S  */MOD  2!  2@  <#  >NUMBER  ABORT  ACCEPT  ALIGN  BASE
+    CHAR  ENVIRONMENT?  HOLD  IMMEDIATE  KEY  M*  QUIT  S>D  SIGN  U<  WORD
+
+  CORE EXTENSION PRESENTS : 35 via primitives (+ ?DO/AGAIN/CASE/OF/TO/VALUE
+    gres par le compilateur)
+
+  CORE EXTENSION MANQUANTS : 37  (voir liste complete ci-dessous)
+    .( 2R@ :NONAME C" COMPILE, FREE MARKER PAD RESTORE-INPUT SAVE-INPUT
+    SOURCE-ID WORDS WITHIN F, FLITERAL FLOAT+ FLOATS FLOOR FS. FCONSTANT
+    FDEPTH F** FACOSH FALOG FASINH FATANH FCOSH FE. FEXPM1 FLOG FSINH FTANH
+    FTRUNC FVARIABLE F>D REPRESENT >FLOAT
+
+  EPONA / DIVERS : 614 primitives proprietaires (mmio, pci, gpu, net, usb,
+    ahci, nvme, fat, audio, hda, window, gfx, vm, heap, ipc, sem, mutex,
+    chan, shared, proc, signal, tsc, acpi, apic, ioapic, xhci, smbios...)
+    + 49 mots utilites Forth (strlen, pci:enum, h.2, calibrate-tsc...)
+
+3. DOUBLONS DE NOMS (shadowing volontaire mais redondant)
+--------------------------------------------------------------------------------
+  12 enregistrements dupliques (le dernier enregistre ecrase le precedent) :
+    mmio@   (idx 23 puis 720)
+    mmio!   (idx 24 puis 721)
+    inb     (idx 81 puis 740)   outb (idx 82 puis 741)
+    inw     (idx 83 puis 742)   outw (idx 84 puis 743)
+    inl     (idx 85 puis 744)   outl (idx 86 puis 745)
+    ahci:init  (idx 178 puis 813)
+    ahci:read  (idx 196 puis 817)
+    ahci:write (idx 197 puis 818)
+    nvme:init  (idx 171 puis 819)
+  => A nettoyer : retirer l'enregistrement obsolete (le plus ancien) lors
+     de la Phase 4 (pas pendant la mise en conformite Core).
+
+4. CONSTATS IMPORTANTES (a conserver pour les semaines suivantes)
+--------------------------------------------------------------------------------
+  - Mots de controle (IF/DO/BEGIN/...) traites par le parseur, PAS par le
+    dictionnaire => ' FIND POSTPONE ne fonctionnent pas dessus (confirme
+    l'audit section 97). A corriger en Phase 3 (FIND/PARSE).
+  - CORE manquant principalement : groupe de sortie numerique (# #S #> <#
+    HOLD SIGN), arithmetique double (2! 2@ */MOD M* S>D U<), entrees clavier
+    standard (KEY ACCEPT QUIT ABORT), BASE, ALIGN, WORD, ENVIRONMENT?.
+  - CHAR et IMMEDIATE manquants en plus de la liste de l'audit (a ajouter
+    au rapport).
+
+5. VERIFICATION (aucune modification de code aujourd'hui)
+--------------------------------------------------------------------------------
+  Aucun fichier modifie. Builds inutiles (aucun changement).
+================================================================================

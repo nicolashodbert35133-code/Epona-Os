@@ -1,0 +1,78 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 9
+Date : 2026-08-06
+Statut : FAIT
+============================================================================
+
+FICHE DE MODIFICATION - ARITHMETIQUE SIGNEE (2/ + verification / MOD /MOD)
+--------------------------------------------------------------------------
+
+1) ANALYSE (verification code avant modification)
+   a) 2/  (interpreter.rs idx 52, l.1884) : "v / 2" -> troncature vers zero.
+      Norme Forth 2012 : 2/ = decalage arithmetique a droite d'un bit
+      (quotient arrondi vers -infini). Ex : -5 2/ = -3 (aujourd'hui -2).
+      FIX : "v >> 1" (Rust : shift arithmetique sur i64, bien defini pour
+      tout entier y compris MIN).
+   b) 2/  (JIT prim_2slash, jit.rs l.2057) : "shr_imm8(1, R13)". VERIFIE :
+      shr_imm8 (jit.rs l.538) emet 0xC1 /7 = SAR (shift ARITHMETIQUE), pas
+      SHR. Donc le JIT est DEJA correct pour 2/ (et divergent de l'interpret
+      eur actuel). Renommer shr_imm8 -> sar_imm8 pour lever l'ambiguite
+      (2 appelants : prim_2slash l.2057 et prim_abs l.2062 - les deux
+      veulent SAR).
+   c) /  (interpreter idx 3, l.1495) : "a / b" Rust -> troncature vers zero.
+      mod (idx 4, l.1500) : "a % b" Rust -> reste signe = dividende.
+      /mod (idx 57, l.1897-1901) : push(a%b) puis push(a/b) -> quotient au
+      sommet. Ce sont des divisions SYMETRIQUES : conformes a la suite de
+      tests CORE ANS/2012 (T{ -7 3 / -> -2 }, T{ 7 -3 / -> -2 },
+      T{ -7 3 MOD -> -1 }, T{ 7 -3 MOD -> 1 }, T{ -7 3 /MOD -> -2 -1 }).
+      JIT (prim_div/prim_mod/prim_divmod via idiv, l.1815-1831) : idem.
+      CONCLUSION : / mod /mod NE SONT PAS A REECRIRE (sans reecriture
+      inutile, conformes). Des tests negatifs sont ajoutes pour le prouver.
+   d) BUG LATENT DECOUVERT : parse_number_with_base (l.12810)
+      "Ok(-(val as i64))" : pour le litteral decimal MIN -9223372036854775808,
+      val as i64 = MIN puis -MIN => PANIQUE en debug (overflow). Le test de
+      valeur limite MIN le declencherait. FIX : "Ok((val as i64).wrapping_neg())".
+      Hex 0x8000000000000000 est deja sur (Ok(val as i64)) et -1 63 lshift
+      (wrapping) aussi.
+
+2) PERIMETRE DES CHANGEMENTS
+   - interpreter.rs : idx 52 (v / 2 -> v >> 1) + parse_number_with_base
+     (wrapping_neg).
+   - jit.rs : renommage shr_imm8 -> sar_imm8 (aucun changement de code emis).
+   - Aucun script .fth n'utilise 2/ (scan : seule core2012.fth) -> risque 0.
+
+3) EDGE CASE NON TRAITE (note pour durcissement futur, hors perimetre J9)
+   - MIN -1 / : condition AMBIGUE ISO, mais "a / b" Rust PANIQUE en debug.
+     Comportement preexistant (pas une regression). A proteger (checked_div
+     ou wrapping) lors d'un futur jour "durcissement".
+
+4) TESTS PREVUS (core2012.fth)
+   - Section B2b 2/ : bornes MIN (via -1 63 lshift), MIN+1, -1, 0, 1, -3,
+     MAX (litteral), positif.
+   - Verification division signee (nouvelle sous-section) : -7 3 / = -2,
+     7 -3 / = -2, -7 -3 / = 2, -7 3 mod = -1, 7 -3 mod = 1, -7 3 /mod =
+     -2 -1. Doit etre VERTE (deja conforme).
+   - NB-FAILS attendu : 0 pour A/B0/B1/B2b + division signee ; B2 (rshift,
+     Jour 10) et B2c (tuck/-rot) restent rouges.
+
+5) BUILD : debug + release, 0 erreur, 413 warnings attendus.
+============================================================================
+
+RESULTATS DU JOUR 9
+---------------------
+- Edits appliques : interpreter.rs (idx 52 v/2 -> v>>1 ; parse_number_with_base
+  -(val as i64) -> (val as i64).wrapping_neg()) ; jit.rs (shr_imm8 -> sar_imm8,
+  2 appelants : prim_2slash l.2057, prim_abs l.2062 ; aucun code emis modifie).
+- core2012.fth : Section B2b reecrite (bornes : MIN via -1 63 lshift, MIN+1, -1,
+  0, 1, -3, MAX litteral, positif) + nouvelle Section B2b2 division signee
+  (preuve / mod /mod conformes) + en-tete SECTIONS a jour (B2 -> Jour 10).
+- Docs : forth_audit_2012.md (l.21 resolu, l.89 note Jour 10 pour RSHIFT),
+  CORE_WORDS.md (C7 resolu), API_V1.md (bullet Conforme Jour 9 ajoute,
+  2/ retire de la liste non conforme).
+- Builds : debug OK (4.81s), release OK (33.22s), 0 erreur, 413 warnings
+  (baseline inchangee).
+- A VALIDER SUR MATERIEL (exec TESTS/core2012.fth) : B2b et B2b2 doivent etre
+  vertes, NB-FAILS=0 pour A/B0/B1/B2b/B2b2 ; B2 (rshift, Jour 10) et B2c
+  (tuck/-rot) restent rouges.
+- Note durcissement futur (hors perimetre) : MIN -1 / (condition ambigüe ISO)
+  panique en debug en Rust ; parse decimal MIN corrige (wrapping_neg).

@@ -1,0 +1,102 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 2, JOUR 8
+Date : 2026-08-06
+Statut : FAIT (code + tests + docs ; execution materielle a faire par l'user)
+============================================================================
+
+RESULTAT DU CORRECTIF (applique apres la fiche ci-dessous)
+-----------------------------------------------------------
+- interpreter.rs : 10 edits appliques (idx 37, 58-66) : push -1 si vrai.
+- jit.rs : 10 edits appliques : apres chaque 'movzx_r8(RAX, RAX);' ajout de
+  'em.not_r(RAX); em.add_imm8(1, RAX);' (not+inc = negation 0->0, 1->-1).
+  Verifie : 10 occurrences de 'not_r(RAX)' et 10 de 'add_imm8(1, RAX)'.
+- constant_fold du JIT ne plie aucune comparaison : rien d'autre a corriger.
+- core2012.fth : Section B0 "Vrai/Faux" ajoutee (true=-1, false=0, true 0<>
+  verif, false 0= verif, true 0< verif) ; commentaires B1/B0 passes au vert.
+- Docs : forth_audit_2012.md (l.19 et l.84 marques "corrige Jour 8"),
+  docs/API_V1.md (comparaisons retirees de la liste non conforme + regle 2.7
+  ok? clarifiee), forth/std/CORE_WORDS.md (C6 resolu ; f< f= f0< f0= verifies
+  conformes -1, idx 905/907/911/910).
+- Builds : debug + release OK, 0 erreur, 413 warnings (baseline inchangee).
+
+VERIFICATION LOGIQUE (statique)
+-------------------------------
+- JumpIfZero teste val == 0 (interpreter.rs:10131) : -1 est vrai, identique
+  a 1 pour if/until/while/of. Aucun branchement ne change de comportement.
+- Scan forth/ : aucune utilisation de comparaison ne lit le flag en tant
+  que 1. Les tests heap.fth, ipc_adv.fth, as.fth, vm.fth, time_adv.fth,
+  net_adv.fth attendaient deja '\ -1' : ils passent du rouge au vert.
+- 'true'/'false' existaient deja (push -1/0) : coherent.
+
+A VERIFIER SUR MATERIEL (par l'utilisateur)
+--------------------------------------------
+- exec TESTS/core2012.fth : Section A verte, B0/B1 vertes (NB-FAILS = 0),
+  B2/B2b/B2c rouges (rshift, 2/, -rot, tuck : Jours 9-10+).
+- Verifier qu'un driver/script qui branche sur des comparaisons se comporte
+  toujours correctement (regression possible nulle en theorie).
+
+
+FICHE DE MODIFICATION - FLAGS -1/0 (ISO 2012 true flag = -1, false = 0)
+------------------------------------------------------------------------
+
+1) PERIMETRE EXACT
+   Les 10 comparaisons entieres retournent 1 au lieu de -1 :
+   = <> < > <= >= 0= 0<> 0< 0>
+   - interpreter.rs (exec_primitive) : idx 37 (l.1816), 58 (l.1910),
+     59 (l.1915), 60 (l.1920), 61 (l.1925), 62 (l.1930), 63 (l.1933),
+     64 (l.1934), 65 (l.1935), 66 (l.1936). Pattern : push(1 si vrai).
+   - jit.rs (chemins JIT compiles) : prim_eq (l.1878), prim_ne (l.2098),
+     prim_lt (l.2106), prim_gt (l.2114), prim_le (l.2122), prim_ge (l.2130),
+     prim_zeroeq (l.2138), prim_zerone (l.2145), prim_zerolt (l.2152),
+     prim_zerogt (l.2159). Pattern : sete/setne/setl/... + movzx -> 0/1.
+   Les DEUX chemins doivent etre corriges ensemble (le JIT est actif par
+   defaut, interpreter.rs:473, jit_enabled:true) : sinon divergence.
+
+2) ANALYSE DE SECURITE (pourquoi ce correctif ne casse rien)
+   - Branchements if/until/while/of : compiles en Op::JumpIfZero qui teste
+     val == 0 (interpreter.rs:10131-10136). -1 est non nul -> vrai. Identique
+     a 1. AUCUNE logique de controle ne depend de la valeur exacte 1.
+   - Scan complet de forth/ (stdlib, drivers, config, TESTS) : toutes les
+     utilisations de =/<>/</>/<=/>=/0=/0<>/0</0> sont en conditions
+     (if/until/0<> if ...) ou en comparaisons de VALEURS (dup 0x01 = if).
+     Aucune ne lit le flag en tant que 1.
+   - Tests existants qui IMPRIMENT le flag et attendent '\ -1' :
+     heap.fth (0<> . \ -1), ipc_adv.fth, as.fth, vm.fth, time_adv.fth,
+     net_adv.fth. Aujourd'hui ils affichent 1 -> ROUGES. Apres correctif :
+     -1 -> VERTS. Le correctif est donc attendu par les tests existants.
+   - 'true'/'false' existent deja (interpreter.rs 11625-11626 compile,
+     11864-11865 immediat) : true = -1, false = 0. Coherent.
+   - Comparaisons flottantes (f< f> f= f<= f>= f0= f0<, idx 905-911)
+     retournent DEJA -1 : le correctif aligne les entiers sur les flottants.
+   - constant_fold du JIT (jit.rs:1681) ne plie AUCUNE comparaison (seulement
+     + - * dup 1+ 1-). Aucun autre point a corriger.
+   - Aucun appel Rust direct aux mots de comparaison (seule la registration
+     group0 interpreter.rs:628).
+
+3) PLAN DE MODIFICATION
+   a) interpreter.rs : 10 edits `{ 1 }` -> `{ -1 }`.
+   b) jit.rs : 10 edits, inserer `em.not_r(RAX); em.add_imm8(1, RAX);`
+      apres `em.movzx_r8(RAX, RAX);` (not+inc = negation de 0/1 : 0->0,
+      1->-1).
+   c) Tests : ajouter a forth/TESTS/core2012.fth une Section B0 "Vrai/Faux"
+      (true . / false . / true 0<> verif / false 0= verif) et corriger les
+      commentaires (Section B1 passe au vert).
+   d) Docs : forth_audit_2012.md (l.19, l.84 marquer RESOLU J8),
+      docs/API_V1.md (l.191 retirer comparaisons de la liste non conforme),
+      forth/std/CORE_WORDS.md (l.82 C6 ; l.43-46 f-comparaisons deja
+      conformes -1), core2012.fth commentaires.
+   e) Builds debug + release (0 erreur, warnings inchanges ou -1).
+
+4) TESTS PREVUS (verification)
+   - Section B1 core2012.fth doit passer au vert (NB-FAILS = 0).
+   - heap/ipc_adv/as/vm/time_adv/net_adv : leurs lignes '\ -1' passent au vert.
+   - Verification code : rg "if a == b { 1 }" ne doit plus rien trouver.
+
+5) RISQUES RESIDUELS
+   - Scripts utilisateur a la racine (BUREAU.FTH, DESKTOP.FTH, etc., non
+     charges au boot) : hors perimetre boot ; leur compatibilite depend de
+     l'usage des flags. A surveiller si l'utilisateur les charge.
+   - Le pseudo-flag 1 reste utilise par d'autres mots de STATUT (touche?,
+     souris?, i2c probe, drv:probe/ok?) : hors perimetre Jour 8 (ce sont des
+     predicats de statut, pas des comparaisons ISO). Documente.
+============================================================================
