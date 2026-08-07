@@ -48,23 +48,10 @@ PREPARATION DE LA CLE USB :
   3. (Optionnel) Copiez vos fichiers .FTH a la racine
   4. Demarrez l'ordinateur sur la cle USB (touche F12 ou F2 au demarrage)
 
+  Epona OS possede un terminal avec :
 
-LE BUREAU :
------------
-  Epona OS possede un bureau graphique avec :
-  - Des icones a gauche (double-clic pour ouvrir)
-  - Une barre des taches en bas
-  - Un bouton "Epona OS" (ou touche F1) pour le menu
-  - L'heure en bas a droite
-
-
-  Icones disponibles :
     Terminal    — Console de commandes et Forth
-    Editeur     — IDE pour ecrire du code Forth
-    PCI         — Explorateur de peripheriques
-    Calc        — Calculatrice
-    Paint       — Zone de dessin
-    Aide        — Guide rapide
+   
 
 
 SOURIS ET CLAVIER :
@@ -100,19 +87,6 @@ RACCOURCIS GLOBAUX :
   F12           — Mode souris clavier
 
 
-RACCOURCIS EDITEUR :
---------------------
-  F3            — Charger demo Paint
-  F4            — Charger demo Rebond
-  F5            — Compiler et executer le code
-  F6            — Sauvegarder sur cle USB
-  F7            — Charger depuis cle USB
-  F8            _ Compile en JIT
-  Echap         — Fermer la fenetre
-  PgUp / PgDn   — Defiler le code
-
-
-
 ================================================================================
 2. LE TERMINAL (SHELL)
 ================================================================================
@@ -136,15 +110,9 @@ COMMANDES FICHIERS :
   touch <fichier> — Cree un fichier vide
   mkdir <dossier> — Cree un dossier
   rm <fichier>    — Supprime un fichier
-  save <fichier>  — Sauvegarde l'editeur principal (+ cache .JIT)
-  load <fichier>  — Charge un fichier dans un editeur (+ cache .JIT)
-  edit <fichier>  — Idem que load
-  newedit <fich>  — Ouvre dans un nouvel editeur
-
 
    Note : si le nom du fichier contient des espaces, mettez-le
    entre guillemets :
-     load "mon fichier.fth"
      exec "test final.fth"
      save "mon projet v2.fth"
      cd "Program Files"
@@ -2071,95 +2039,6 @@ BOOT.FTH (exemple réel) :
     cr ." Bureau en cours..." cr
     begin 100 ms again ;
 
-
-
-================================================================================
-7. L'EDITEUR DE CODE (IDE)
-================================================================================
-
-
-L'editeur integre permet d'ecrire, sauvegarder et executer du code Forth.
-
-
-INTERFACE :
------------
-  - Zone d'edition avec numeros de lignes
-  - Coloration syntaxique :
-      Vert   = commentaires (lignes commencant par \)
-      Rouge  = definitions (lignes commencant par :)
-      Noir   = code normal
-  - Barre de statut en bas (erreurs en rouge)
-
-
-RACCOURCIS :
-------------
-  F3            — Charger la demo Paint
-  F4            — Charger la demo Rebond
-  F5            — Compiler et executer
-  F6            — Sauvegarder sur USB (+ cache .JIT)
-  F7            — Charger depuis USB (+ cache .JIT)
-  F8            — Compiler + executer + JIT natif + affiche stats
-  Echap         — Fermer l'editeur
-  PgUp / PgDn   — Defiler
-  Tab           — Indenter (2 espaces)
-
-
-ERREURS :
----------
-  Quand une erreur est detectee, la barre de statut devient rouge
-  et indique le numero de ligne. La ligne en erreur est surlignee
-  en rose dans l'editeur. L'editeur defilera automatiquement vers
-  la ligne en question.
-
-
-
-================================================================================
-8. APPLICATIONS INTEGREES
-================================================================================
-
-
-CALCULATRICE :
---------------
-  Une calculatrice simple avec les 4 operations.
-  Cliquez sur les boutons ou utilisez le clavier :
-    0-9     — Chiffres
-    + - * / — Operations
-    =       — Resultat
-    C       — Effacer
-
-
-ZONE DE DESSIN (PAINT) :
--------------------------
-  Dessinez avec la souris !
-  - Cliquez et glissez pour peindre
-  - Palette de 8 couleurs en bas
-  - Bouton "Effacer" pour tout nettoyer
-  - La derniere couleur (blanc) sert de gomme
-
-
-EXPLORATEUR PCI :
------------------
-  Affiche tous les peripheriques connectes au bus PCI :
-  - Adresse (bus:device.function)
-  - Identifiants fabricant et peripherique
-  - Classe (stockage, reseau, graphique...)
-
-
-CANVAS FORTH :
---------------
-  Zone d'execution pour les programmes Forth graphiques.
-  Taille : 400 x 300 pixels.
-  S'ouvre automatiquement quand vous compilez (F5) un programme
-  qui definit le mot "principal".
-  Echap pour quitter.
-
-
-WATCHDOG DIAGNOSTIQUE :
------------------------
-  Affiche l'etat du watchdog timer :
-  - Init : OK ou code d'erreur
-  - Feeds : nombre de rafraichissements
-  - Erreurs eventuelles
 
 
 
