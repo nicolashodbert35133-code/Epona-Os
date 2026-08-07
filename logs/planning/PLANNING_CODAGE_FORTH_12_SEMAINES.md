@@ -385,10 +385,38 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Vérifier sa compatibilité avec `@` et `!`.
 - Écrire le test avant le changement.
 
+> **FAIT (2026-08-07)** — Analyse terminée, correction prévue pour le Jour 16.
+> **Constat** : `state` (idx 100) pousse la valeur `self.state` (u8 Rust) ;
+> l'état est un champ du VM, invisible depuis Forth → non conforme
+> (`STATE ( -- a-addr )`).
+> **Adresse retenue** : cellule mémoire réservée `state_addr = MAX_MEM-2`
+> (4094), sur le modèle de `>in` = MAX_MEM-1. `@` / `!` y fonctionneront
+> naturellement (même espace que HERE/`@`/`!`).
+> **Stratégie** : faire de `memory[state_addr]` la source de vérité de l'état
+> — le tokenizer (`:`, `;`, `]`, `[`, `compile`, `throw`) lira/écrira la
+> cellule au lieu du champ `self.state` ; ainsi `state !` changera réellement
+> le mode du compilateur. `self.state` deviendra obsolète.
+> **Test** : Section B5 ajoutée à core2012.fth (test avant changement) —
+> `state 0<> verif` doit échouer aujourd'hui (state→0) et passer après le
+> Jour 16. En-tête SECTIONS à jour.
+> **Aucune modif Rust aujourd'hui** → pas de build.
+> Log détaillé : `logs/planning/week01-day15.txt`.
+
 ### Jour 16 — Correction de `STATE`
 
 - Implémenter l’adresse modifiable.
 - Tester interprétation, compilation et modification indirecte.
+
+> **FAIT (2026-08-07)** — cellule réservée `state_addr = MAX_MEM-2` (4094),
+> source de vérité du tokenizer. `state` (100) pousse `state_addr` ; `]` (101)
+> et les mots `:`/`;`/`[`/`]` du tokenizer lisent/écrivent la cellule ; champ
+> Rust `self.state` supprimé ; sauvegardes/restaurations sys:load/include/
+> require recâblées. Test B5 réécrit (lecture, `: st-set state 5 ! ... ;`,
+> bascule réelle `1 state ! [` puis retour). Builds debug + release : 0 erreur,
+> 413 warnings. Docs à jour (audit, devguide 5.1, PRIMITIVES_REFERENCE,
+> primitive md, rapport). **Reste : validation matérielle** — `exec
+> TESTS/core2012.fth` → B5 vert, NB-FAILS=0 hors B2c. Log :
+> `logs/planning/week01-day16.txt`.
 
 ### Jour 17 — Analyse de `FIND`
 
@@ -396,25 +424,63 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Comparer avec `( c-addr -- c-addr 0 | xt 1 | xt -1 )`.
 - Ne pas casser `lookup_word()`.
 
+> **FAIT (2026-08-07)** — analyse terminée : signature actuelle `( addr len
+> -- idx|-1 )` non conforme (pas de chaîne comptée, c-addr non restitué, pas
+> de flag immédiat). Chaînes Epona = 1 octet/cellule dans `memory[]`
+> (`s"` recopie vers HERE), noms `[u8;64]` NUL-terminé, `lookup_word(&str)`
+> insensible à la casse par vocabulaire. Conception retenue : primitive 103
+> lit longueur puis nom depuis c-addr, push `(c-addr 0)` si absent,
+> `(xt flag)` sinon avec flag = -1 si immédiat (xt = dict_idx, cohérent avec
+> `execute`). Aucun usage de la primitive dans BOOT.FTH/drivers → pas de
+> régression. Test B6 ajouté à core2012.fth (rouge attendu : `here find
+> depth 2 = verif`, `rot drop 1 = verif`, cas absent `0 = verif`). Log :
+> `logs/planning/week01-day17.txt`.
+
 ### Jour 18 — Correction de `FIND`
 
 - Implémenter le contrat retenu.
 - Tester mot trouvé, mot absent et mot compilable.
+
+> **FAIT (2026-08-07)** — primitive 103 réécrite : lit longueur puis nom
+> depuis une chaîne comptée (1 octet/cellule, format des chaînes `s"` à
+> l'exécution), `lookup_word` inchangé ; absent → `(c-addr 0)`, trouvé →
+> `(xt flag)` avec flag = -1 si immédiat (xt = index dictionnaire). Aucun
+> usage de l'ancienne signature dans BOOT.FTH/drivers (pas de régression).
+> Test B6 (présent non immédiat, absent) + builds debug UEFI : 0 erreur,
+> 413 warnings ; `qemu_img` resynchronisé. Docs à jour (audit, devguide 5.2,
+> PRIMITIVES_REFERENCE, primitive md, rapport). **Reste : validation
+> matérielle** — `exec TESTS/core2012.fth` → B6 vert, NB-FAILS=0 hors B2c.
+> Log : `logs/planning/week01-day18.txt`.
 
 ### Jour 19 — `PARSE-NAME`
 
 - Corriger les séparateurs non standards.
 - Tester parenthèses, espaces, ligne vide et `>IN`.
 
-### Jour 20 — `PARSE`
+> **FAIT (2026-08-07)** — primitive 329 corrigée : délimiteurs = espaces
+> uniquement (`(`/`)` ne coupent plus le nom) ; `c-addr` = `source_addr +
+> start` (nom dans le buffer d'entrée, plus de copie ni d'avancement de
+> `HERE`), `>IN` avancé après le nom. Test B7 ajouté (u=11 pour
+> `(commentaire…`, espaces multiples, `>IN`=5, `HERE` inchangé) ; build UEFI
+> debug : 0 erreur, 413 warnings. Docs à jour (audit, devguide 5.3,
+> PRIMITIVES_REFERENCE, primitive md, rapport). **Reste : validation
+> matérielle** — `exec TESTS/core2012.fth` → B7 vert, NB-FAILS=0 hors B2c.
+> Log : `logs/planning/week01-day19.txt`.
 
-- Corriger le traitement du délimiteur initial.
-- Tester champs vides et délimiteurs consécutifs.
+### Jour 20 — `PARSE` ✅ (2026-08-07)
 
-### Jour 21 — Revue semaine 3
+- Corriger le traitement du délimiteur initial : **fait** — la primitive 330 (`src/interpreter.rs:4808`) ne saute plus les délimiteurs initiaux (délimiteur en premier caractère → champ vide, u=0 ; délimiteurs consécutifs → champs vides).
+- Tester champs vides et délimiteurs consécutifs : **fait** — section B8 ajoutée dans `forth/TESTS/core2012.fth` (4 tests : champ vide via `evaluate`, parse normal, `>IN` inchangé → affiche 0, `HERE` inchangé).
+- Corrections conformité supplémentaires : `c-addr = source_addr + >IN` (plus de copie dans `HERE`) ; `PARSE` ne modifie plus `>IN` (conforme ISO, l'appelant le gère) ; aucun usage de `parse` dans BOOT.FTH/drivers → sans régression.
+- Builds debug + release : 0 erreur / 413 warnings (baseline).
+- Docs à jour : audit (tableaux l.40/51/100), devguide 5.3, PRIMITIVES_REFERENCE ×2 (330 `parse` + 331 `refill` + 332 `>in`), primitive md l.777, rapport item 8.
+- Log : `logs/planning/week01-day20.txt`. Validation matérielle rétroactive : `exec TESTS/core2012.fth` → B5/B6/B7/B8 verts, NB-FAILS=0 hors B2c.
 
-- Rejouer parsing, dictionnaire et tests de boot.
-- Documenter toute incompatibilité conservée.
+### Jour 21 — Revue semaine 3 ✅ (2026-08-07)
+
+- Rejouer parsing, dictionnaire et tests de boot : **fait** — relecture statique de J15→J20 (STATE/FIND/PARSE-NAME/PARSE + tokenizer) ; code cohérent ; aucune régression (grep : aucun usage des mots recâblés dans BOOT.FTH/drivers/std/apps).
+- Documenter toute incompatibilité conservée : **fait** — DÉCOUVERTE MAJEURE : `compile()` passe TOUT le fichier à `set_source` (l.10765) et `>IN` est un résidu global → les tests B7/B8 d'origine (« source = ligne courante ») étaient non déterministes. Réécrits en source contrôlée (`evaluate`) + construction octet par octet pour les parenthèses/espaces initiaux ; B4 restaure `>IN`, B6 nettoyé. Incompatibilités conservées listées (audit, revue S3 + log).
+- Log : `logs/planning/week01-day21.txt`. Validation matérielle : `exec TESTS/core2012.fth` → NB-FAILS = 2 (B2c seulement).
 
 **Livrable :** dictionnaire et parsing suffisamment prévisibles pour la bibliothèque Forth.
 
@@ -428,11 +494,15 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Lister `here`, `variables`, `string_pool`, `source_buffer`, `to_in_addr`.
 - Identifier les usages cellule, octet, MMIO et pointeur natif.
 
+**FAIT (2026-08-07) :** 278 occurrences `self.memory` classées (119 adresse / 82 octet / 50 cellule / 27 resize). Découvertes clés : `c@..cmove` (73-80) = **MMIO natif** (`i2c_hid::mmio_*`), pas `memory` ; `move`/`erase` = pointeur natif brut ; chaînes = 1 octet **par cellule** alors que `cells` = n×8 ; `here` mixte (cellule pour les données, octet pour les chaînes) ; `variables` = index de cellule = `variables.len()` à l'insertion ; `state`/`>in` (4094/4095) **dans** l'espace utilisateur ; 9 ambiguïtés structurelles listées (audit, Jour 22). Log : `logs/planning/week01-day22.txt`. Aucun changement de code.
+
 ### Jour 23 — Contrat d’adressage
 
 - Choisir l’unité d’adresse Forth.
 - Définir `CELL`, `CHAR`, alignement et endianness.
 - Écrire les invariants dans `devguide_Forth_Iso_2012.md`.
+
+**FAIT (2026-08-07) :** décision validée par l'utilisateur : **1 unité d'adresse = 1 cellule i64** (chars larges 64 bits, permis par Forth 2012). Primitives 152 `cell+` (+8→+1), 153 `cells` (n×8→n), 154 `aligned` (align-8→identité) corrigées (`src/interpreter.rs:2836-2850`) ; `cell`/`char` = constantes Forth `1 constant cell/char` au boot (`forth/boot/BOOT.FTH`). Vérifié : `cells`/`aligned`/`cell+` inutilisés par les apps → aucun impact. Endianness little-endian natif. Restriction documentée : `CHAR <c>` parsing non supporté (utiliser `[char]`). Test B9 ajouté. Build 0 erreur/413 warnings. Log : `logs/planning/week01-day23.txt`. Retour en arrière sur un 1er essai (primitives 171/172 en conflit avec `nvme:init`/`nvme:read` — remplacées par des constantes Forth, sans collision).
 
 ### Jour 24 — Helpers mémoire
 
