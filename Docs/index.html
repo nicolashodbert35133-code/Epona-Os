@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Epona OS — Système d’exploitation Rust UEFI Bare-Metal avec VM Forth et JIT x86-64</title>
+
+    <meta name="description" content="Epona OS est un système d’exploitation français souverain, bare-metal, développé en Rust pour UEFI. Il intègre une machine virtuelle Forth, un compilateur JIT x86-64 et plus de 700 primitives natives.">
+    <meta name="keywords" content="Epona OS, Rust, UEFI, OSDev, Forth, JIT x86-64, système d'exploitation, bare-metal, Bretagne, souveraineté numérique, kernel Rust, USB XHCI, NVMe, PCI, GPU, Forth VM">
+    <meta name="author" content="Nicolas Hodbert">
+
+    <meta property="og:title" content="Epona OS — Système d’exploitation Rust UEFI Bare-Metal">
+    <meta property="og:description" content="OS souverain français en Rust, avec VM Forth, JIT x86-64, commande Forth et accès matériel direct.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nicolashodbert35133-code.github.io/Epona-Os">
+    <meta property="og:image" content="https://nicolashodbert35133-code.github.io/Epona-Os/epona-banner.png">
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; color: #222; }
+        header { background: #222; color: #fff; padding: 40px 20px; text-align: center; }
+        header h1 { margin: 0; font-size: 2.8em; }
+        header p { font-size: 1.2em; opacity: 0.8; }
+        section { max-width: 900px; margin: 40px auto; padding: 20px; background: #fff; border-radius: 8px; }
+        h2 { margin-top: 0; font-size: 1.8em; color: #444; }
+        ul { line-height: 1.6; }
+        a.button { display: inline-block; padding: 12px 20px; background: #444; color: #fff; border-radius: 6px; text-decoration: none; margin-top: 20px; }
+        a.button:hover { background: #000; }
+        footer { text-align: center; padding: 20px; color: #666; }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Epona OS</h1>
+    <p>Système d’exploitation Rust UEFI — Bare-Metal, Forth VM, JIT x86-64, Forth.</p>
+</header>
+
+<section>
+    <h2>Présentation</h2>
+    <p>
+        <strong>Epona OS</strong> est un système d’exploitation français, libre et souverain, développé en Bretagne.
+        Il combine un noyau Rust bare-metal sécurisé avec une machine virtuelle Forth ouverte, un compilateur JIT x86‑64 natif,
+        un environnement shell, et plus de <strong>700 primitives natives</strong>.
+    </p>
+    <p>
+        Conçu pour les développeurs bas‑niveau, les makers, les hackers hardware et les passionnés d’architecture,
+        Epona OS offre un contrôle total du matériel : PCI, USB XHCI, NVMe, SATA, GPU, MMIO, ports I/O, etc.
+    </p>
+</section>
+
+<section>
+    <h2>Fonctionnalités principales</h2>
+    <ul>
+        <li>Noyau Rust 64‑bit autonome (ExitBootServices)</li>
+        <li>Machine virtuelle Forth + compilateur JIT x86‑64 natif</li>
+        <li>700+ primitives Forth natives</li>
+        <li>Accès matériel direct : PCI, USB 3.0 XHCI, NVMe, SATA AHCI, GPU</li>
+        <li>Shell hybride avec 70 commandes natives</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Roadmap 2028–2035</h2>
+    <ul>
+        <li>Scheduler CPU préemptif V2</li>
+        <li>VFS arborescent DevFS / ProcFS / RamFS / NVMe FAT32</li>
+        <li>Agent IA autonome de détection matérielle</li>
+        <li>Pile Bluetooth HCI + Wi‑Fi 802.11 + Audio HDA</li>
+        <li>Store souverain Forth signé</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Documentation & Code source</h2>
+    <p>Le projet est entièrement open‑source et documenté :</p>
+    <a class="button" href="https://github.com/nicolashodbert35133-code/Epona-Os">Accéder au dépôt GitHub</a>
+</section>
+
+<section>
+    <h2>Installation USB Live</h2>
+    <p>Copiez <strong>BOOTX64.EFI</strong> dans <code>EFI/BOOT/</code> sur une clé USB FAT32, ajoutez <strong>BOOT.FTH</strong> et les dossiers <code>forth/</code>, <code>drivers/</code>, <code>demos/</code>, puis démarrez en UEFI.</p>
+</section>
+
+<footer>
+    © 2026 — Epona OS • Projet souverain développé en Bretagne
+</footer>
+
+</body>
+</html>
