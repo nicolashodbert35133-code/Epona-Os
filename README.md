@@ -184,7 +184,7 @@ Epona OS résout le dilemme entre sécurité bas niveau et extensibilité commun
 - 🖥️ **700+ Primitives Forth Natives** : Arithmétique 64-bit, flottants SSE2 (`fsin`, `fcos`, `fsqrt`), accès registres MMIO, ports I/O (`inb`, `outb`), scan PCI et compositage GUI 2D/3D.
 - ⌨️ **Terminal Shell Hybride (70 Commandes)** : Support de l'autocomplétion `Tab`, de l'historique, des pipelines `|`, des redirections `>` et du fallback automatique vers l'interpréteur Forth.
 - 🔌 **Accès Matériel Direct via USB 3.0 & PCI** : Pilotez des puces custom, FPGA, cartes réseau ou microcontrôleurs directement depuis la console Forth.
-- 🎵 **Multimédia & Réseau** : Pilote Intel High Definition Audio (HDA), pile réseau TCP/IP, UDP, ICMP Ping et Wi-Fi Realtek.
+
 
 ---
 
