@@ -1,0 +1,81 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 15 (ANALYSE STATE)
+Date : 2026-08-07
+Statut : FAIT (analyse + test avant changement)
+============================================================================
+
+FICHE D'ANALYSE - STATE ( -- a-addr )
+-------------------------------------
+
+1) ETAT ACTUEL (code)
+   a) primitive `state` (idx 100, interpreter.rs l.2236) :
+        self.stack.push(self.state as i64)
+      -> pousse la VALEUR du flag de compilation. NON CONFORME : la norme
+      exige l'adresse d'une cellule modifiable.
+   b) champ Rust `self.state: u8` (l.290) : 0 = interpretation,
+      1 = compilation. Utilise par le tokenizer :
+        - `:`  (l.11716) : self.state = 1  (debut de definition)
+        - `;`  (l.11070) : self.state = 0  (fin de definition)
+        - `]`  (l.11721) : self.state = 1
+        - `[`  (l.10981) : self.state = 0
+        - compile() l.10903 : self.state = 0 (reset en debut de ligne)
+        - throw (l.3411) : self.state != 0 -> op compilable
+      L'etat est donc porte par un champ Rust, invisible depuis le code
+      Forth. STATE ne renvoie pas d'adresse, et `state !` ne changerait
+      jamais l'etat reel du compilateur.
+
+2) REFERENCE FORTH 2012
+   STATE ( -- a-addr ) : a-addr est l'adresse d'une cellule contenant
+   l'etat de compilation. La valeur est implementation-defined mais 0 doit
+   signifier interpretation et une valeur non nulle compilation.
+   Un programme peut LIRE et ECRIRE cette cellule (a un moment bien choisi).
+   L'adresse doit rester stable et coherente avec @ / ! du systeme.
+
+3) ADRESSE RETENUE
+   Reserver une cellule memoire dediee, comme deja fait pour >in :
+     - >IN   : to_in_addr = MAX_MEM - 1 (4095)
+     - STATE : state_addr = MAX_MEM - 2 (4094)
+   memory est un Vec<i64> initialise a 0 -> la cellule vaut 0 (interpretation)
+   par defaut. C'est le meme espace que @ / ! / HERE -> adresses coherentes.
+
+4) SOLUTION PREVUE (Jour 16)
+   Faire de memory[state_addr] la SOURCE DE VERITE de l'etat :
+     - la primitive state (100) pousse state_addr ;
+     - le tokenizer lit l'etat via self.memory[self.state_addr] au lieu de
+       self.state (`:` / `;` / `]` / `[` / compile() / throw) ;
+     - ainsi `state !` modifie reellement le mode du compilateur (conforme).
+   Le champ self.state devient obsolète (a supprimer si aucun autre usage).
+
+5) IMPACT / RISQUES
+   - Tous les usages de self.state a recabler (l.3411, 10903, 10979, 10981,
+     11070, 11716, 11721).
+   - Attention : state_addr ne doit jamais etre utilise par HERE/ALLOT/chaines
+     (meme reserve que to_in_addr -> reste hors de l'espace de donnees actif).
+   - `state !` avec une valeur non nulle en pleine ligne ferait passer le
+     tokenizer en compilation a partir du token suivant : a tester avec
+     prudence (une seule valeur, puis restauration dans la meme ligne).
+   - Aucun impact sur BOOT.FTH / drivers (grep "state" : aucun usage hors
+     tokenizer et tests).
+
+6) TEST ECRIT (avant le changement) : core2012.fth Section B5
+   - state 0<> verif           \ -1 : adresse NON NULLE
+                               \   Aujourd'hui : state -> 0 -> ECHEC (rouge)
+   - state @ 0= verif          \ -1 : @ de l'adresse = 0 en interpretation
+   - state @ dup 5 ! state @ . \ 5 : modifiable via ! (valeur sauvegardee)
+   - state !                   \ restaure la valeur initiale
+   - state @ 0= verif          \ -1 : restauration OK
+   NB : aujourd'hui, `state` pousse 0, donc ces tests ecrivent dans
+   memory[0] (espace de donnees, valeur sauvegardee/restauree) -> instables ;
+   apres correction ils operent sur la cellule reservee 4094 -> stables.
+
+7) RESUME JOUR 15
+   - Analyse terminee, adresse retenue (MAX_MEM-2), strategie documentee.
+   - Test B5 ajoute a core2012.fth (en-tete SECTIONS a jour) : ROUGE attendu.
+   - Aucune modification de code Rust aujourd'hui -> pas de build.
+   - Prochain (Jour 16) : implanter state_addr + recabler le tokenizer.
+
+VALIDATION MATERIELLE ATTENDUE
+------------------------------
+exec TESTS/core2012.fth : B5 doit etre ROUGE (state 0<> -> 0, NB-FAILS > 0).
+Apres le Jour 16 : B5 VERT, NB-FAILS = 0 (hors B2c tuck/-rot).
+============================================================================

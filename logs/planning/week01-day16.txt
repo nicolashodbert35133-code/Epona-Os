@@ -1,0 +1,62 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 16 (CORRECTION STATE)
+Date : 2026-08-07
+Statut : FAIT (code + builds + docs ; validation materielle a faire)
+============================================================================
+
+CORRECTION APPLIQUEE - STATE ( -- a-addr )
+------------------------------------------
+
+1) CELLULE RESERVEE (comme prevu Jour 15)
+   - state_addr = MAX_MEM - 2 = 4094   (model >in = MAX_MEM-1 = 4095)
+   - champ Rust ajoute : `pub state_addr: usize` (l.332)
+   - constructeur : state_addr: MAX_MEM - 2 (l.451)
+   - init boot : vm.memory[vm.state_addr] = 0 (l.473)
+
+2) SOURCE DE VERITE = memory[state_addr]
+   Recablage de tous les usages du champ self.state (supprime) :
+   - primitive state (100, l.2237) : push(self.state_addr) -> adresse, plus
+     la VALEUR. Conforme : STATE ( -- a-addr ).
+   - primitive ] (101, l.2238) : memory[state_addr] = 1.
+   - tokenizer compile() (l.10904) : reset a 0 en debut de ligne.
+   - mode compilation (l.10980) : if memory[state_addr] != 0.
+   - `[`  (l.10981-10982) : memory[state_addr] = 0.
+   - `;`  (l.11071) : memory[state_addr] = 0.
+   - `:`  (l.11717) : memory[state_addr] = 1.
+   - `]`  (l.11722) : memory[state_addr] = 1.
+   - throw (l.3412) : if memory[state_addr] != 0 -> op compilable.
+   - sys:load / include / require (l.12039-12041, 12073-12075,
+     12111-12113) : sauvegarde / restauration de memory[state_addr].
+
+3) TESTS (core2012.fth Section B5, reecrite)
+   - state 0<> verif        \ -1 : adresse NON NULLE
+   - state @ 0= verif       \ -1 : @ = 0 en interpretation
+   - : st-set state 5 ! state @ . 0 state ! ; st-set
+                            \ 5 : cellule modifiable via ! puis restauree
+                            \ (modif testee DANS une definition compilee pour
+                            \ ne pas basculer le tokenizer en milieu de ligne)
+   - state @ 0= verif       \ -1 : toujours en interpretation
+   - 1 state ! [ state @ . 0 state !   \ 0 : bascule INDIRECTE reelle :
+                            \ ecrire 1 active la compilation (le `[` suivant
+                            \ n'est reconnu qu'en mode compilation) puis
+                            \ `[` ramene en interpretation et on restaure 0.
+
+4) DOCUMENTATION MISE A JOUR
+   - forth_audit_2012.md : STATE corrige (l.25, l.51, l.98, l.124).
+   - devguide_Forth_Iso_2012.md : section 5.1 STATE resolue.
+   - PRIMITIVES_REFERENCE.md et docs/PRIMITIVES_REFERENCE.md : idx 100
+     ( -- a-addr ).
+   - src/primitive forth Epona 2.0.md : idx 100 documente.
+   - rapport.md : item 6 et Semaine 2 marques J16.
+
+5) BUILDS
+   - cargo build (debug)        : 0 erreur, 413 warnings (baseline).
+   - cargo build --release      : 0 erreur, 413 warnings.
+
+VALIDATION MATERIELLE ATTENDUE (a faire par l'utilisateur)
+---------------------------------------------------------
+exec TESTS/core2012.fth :
+   - B5 VERT (state 0<> = -1, st-set affiche 5, bascule affiche 0),
+   - NB-FAILS = 0 hors B2c (tuck/-rot volontairement ROUGE).
+Verifier aussi : : foo 1 2 + ; foo . -> 3 ; sequence :/[/] : ; normales.
+============================================================================

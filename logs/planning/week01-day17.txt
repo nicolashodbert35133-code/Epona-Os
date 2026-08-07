@@ -1,0 +1,89 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 17 (ANALYSE FIND)
+Date : 2026-08-07
+Statut : FAIT (analyse + test avant changement)
+============================================================================
+
+FICHE D'ANALYSE - FIND ( c-addr -- c-addr 0 | xt 1 | xt -1 )
+-----------------------------------------------------------
+
+1) ETAT ACTUEL (code, interpreter.rs l.2254-2278)
+   Signature effective : ( addr len -- idx | -1 )
+     - pop len, pop addr
+     - si addr>=0 et 0<len<=256 : lit len octets de memory[addr] (1 octet
+       par cellule via & 0xFF), from_utf8, lookup_word(name)
+     - trouve : push dict_idx ; introuvable : push -1
+   NON CONFORME sur 3 points :
+     a) la signature attend un couple (addr len) au lieu d'une chaine
+        comptee ;
+     b) elle ne restitue pas c-addr ;
+     c) elle ne distingue pas immediat/non-immediat (flag 1/-1).
+
+2) FORMAT DE CHAINE ACTUEL DANS EPONA
+   - Tokenizer : tokens &str separes par des espaces (PAS de chaines
+     comptees pour l'interpretation).
+   - s" / ." / ," : texte -> string_pool, puis recopie dans
+     memory[HERE..] (1 octet par cellule i64) a l'execution -> (addr len).
+     Ce format (addr len) est utilise par `type` (119) et par l'actuel find.
+   - Noms de mots : dictionary[].name = [u8; 64] NUL-terminé, compares par
+     word_name_eq (insensible a la casse), stockes via encode_name.
+   - lookup_word(name: &str) : parcourt search_order (du plus prioritaire au
+     moins), dernier mot de chaque vocabulaire (shadowing). -> Option<usize>
+     (index dans dictionary[]).
+   - Il n'existe PAS de format de chaine comptee standard (pas de WORD, pas
+     de C" normalise) : la chaine comptee devra etre construite a la main
+     dans memory[] (ex. 1 octet/cellule : longueur puis octets du nom).
+
+3) CONTRAT STANDARD FORTH 2012
+   FIND ( c-addr -- c-addr 0 | xt 1 | xt -1 )
+     - c-addr pointe une CHAINE COMPTEE : l'octet a c-addr est la longueur,
+       les c-addr+1 .. c-addr+n sont le nom.
+     - absente       -> c-addr 0     (c-addr restitue, pas trouve)
+     - trouve, non immediat -> xt 1
+     - trouve, immediat    -> xt -1
+   Dans le cas trouve, c-addr est CONSOMME (remplace par xt) : la notation
+   `-- xt 1` ne contient pas c-addr.
+   xt Epona = index dans dictionary[] (meme convention que execute (102),
+   ' , ['], literal) : coherent, reutilisable tel quel.
+
+4) CONCEPTION PREVUE (Jour 18)
+   Reecrire la primitive 103 sans toucher a lookup_word / tokenizer :
+     - pop c-addr ;
+     - len = (memory[c-addr] & 0xFF) ; nom = len octets depuis
+       memory[c-addr+1 ..] (1 octet/cellule) ;
+     - from_utf8 -> lookup_word ;
+     - None  -> push c-addr ; push 0 ;
+     - Some(i) -> push i ; push (si dictionary[i].immediate alors -1
+       sinon 1) ;
+     - bornes : len 1..=63, verifier c-addr+1+len <= memory.len() sinon
+       traiter comme introuvable (c-addr 0).
+   Aucun autre mot ne depend de l'ancienne signature (grep BOOT.FTH et
+   drivers : aucune utilisation de la primitive `find` ; les `find-device`
+   / `drvmap:find` / `pci:find-vendor` sont des definitions Forth locales).
+   Le mot `execute` (102) utilise deja dictionary[idx] : compatible.
+
+5) TEST ECRIT (avant le changement) : core2012.fth Section B6
+   Construction de la chaine comptee "dup" dans memory[HERE..] (1 octet par
+   cellule) :
+     here 4 allot  here 3 !  here 1+ 100 !  here 2+ 117 !  here 3+ 112 !
+     ('d'=100 'u'=117 'p'=112, longueur 3)
+   Tests :
+     - here find depth 2 = verif   \ -1 : (xt flag) = 2 elements empiles
+       Aujourd'hui : find -> 1 element (-1) -> ECHEC (rouge propre, pas de
+       crash : rot/depth utilisent unwrap_or / len>=3).
+     - here find rot drop 1 = verif \ -1 : flag 1 (mot non immediat)
+       Aujourd'hui : -1 seule valeur -> rot ignore, 1 = -> faux -> ROUGE.
+     - Mot absent : chaine comptee "xyz" (120 121 122) -> find -> (c-addr 0),
+       rot drop 0 = verif -> -1 (aujourd'hui rouge egalement).
+
+6) RESUME JOUR 17
+   - Analyse terminee : signature, format de chaine, contrat, conception.
+   - Test B6 ajoute a core2012.fth (en-tete SECTIONS a jour) : ROUGE attendu.
+   - Aucune modification de code Rust aujourd'hui -> pas de build.
+   - Prochain (Jour 18) : reecrire la primitive 103 au contrat retenu.
+
+VALIDATION MATERIELLE ATTENDUE
+------------------------------
+exec TESTS/core2012.fth : B6 ROUGE aujourd'hui (depth=1, flag faux),
+NB-FAILS > 0. Apres Jour 18 : B6 VERT, NB-FAILS = 0 (hors B2c).
+============================================================================

@@ -1,0 +1,66 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 23 (CONTRAT D'ADRESSAGE)
+Date : 2026-08-07
+Statut : FAIT (decision validee par l'utilisateur + correctifs primitives)
+============================================================================
+
+1) DECISION - UNITE D'ADRESSE
+   Option validee : 1 UNITE D'ADRESSE = 1 CELLULE i64 (chars larges 64 bits,
+   permis par Forth 2012 3.1.2.3). Pas de migration Vec<u8> (option B ecartee
+   : casse JIT/atomic/variables/f64 pour un gain mineur).
+   Consequence : CELL = 1, CHAR = 1, CELLS/CHARS = identite, CELL+ = +1,
+   CHAR+ = +1, ALIGNED = identite.
+
+2) CODE MODIFIE (src/interpreter.rs)
+   - primitive 152 cell+ (l.2836-2840) : +8 -> +1 ;
+   - primitive 153 cells  (l.2841-2845) : n*8 -> n (identite) ;
+   - primitive 154 aligned (l.2846-2850) : align-8 -> identite ;
+   - char+ (155, +1) et chars (156, identite) : inchanges, deja coherents.
+   Impact verifie : ces mots etaient INUTILISES par tout le code Forth du
+   projet (grep cells|aligned|char+|chars -> seulement des commentaires).
+
+3) MOTS CELL / CHAR
+   Premier essai : primitives natives 171/172 -> CONFLIT avec nvme:init (171)
+   et nvme:read (172), enregistrees en double (l.781-782 vs l.1251). Retire.
+   Solution retenue : constantes Forth au boot (aucun risque de collision) :
+      forth/boot/BOOT.FTH :
+        1 constant cell
+        1 constant char
+   (token constant interprete : `val constant nom`, l.12287-12309).
+
+4) CONTRAT DOCUMENTE (devguide_Forth_Iso_2012.md, Phase 4 reecrite)
+   - unites/adresse : 1 AU = 1 cellule i64, bornes check_mem (l.483) ;
+   - CELL=1, CHAR=1, CELLS/CHARS/CELL+/CHAR+/ALIGNED cohérents ;
+   - endianness : little-endian natif x86_64 (s'applique aux echanges
+     binaires via byte_mem/pointeurs natifs, hors contrat Forth) ;
+   - restriction environnementale : chars 64 bits ; `CHAR <c>` parsing non
+     supporte -> utiliser `[char] <c>` (token l.11177-11181) ;
+   - c@/c! restent MMIO (73-80) -> rebranchement sur memory au J26 ;
+   - cellules systeme state/>in (4094/4095) dans l'espace utilisateur
+     (ambiguite n.5, a resoudre en J24+).
+
+5) TESTS
+   - Section B9 ajoutee dans forth/TESTS/core2012.fth : cell/char (=1),
+     5 cells (=5), 3 chars (=3), 100 cell+ (=101), 100 char+ (=101),
+     here aligned here - (=0), here 1 cells + (=here+1), ... +cell+ (=here+2).
+   - En-tete SECTIONS mis a jour.
+
+6) DOCS / LOGS
+   - PRIMITIVES_REFERENCE.md + docs/PRIMITIVES_REFERENCE.md : 152/153/154
+     corriges, 158/159 annotes (pointeur natif) ;
+   - src/primitive forth Epona 2.0.md : 2 tables (152-159) mises a jour ;
+   - forth_audit_2012.md : section Jour 23 (tableau avant/apres, justification,
+     endianness, incompatibilites, tests, validation) ;
+   - devguide Phase 4 reecrite (contrat, strategie J24-28, mots a migrer
+     ensemble, compatibilite) ;
+   - rapport.md : J23 ajoute.
+
+7) BUILD / VALIDATION
+   - cargo build : 0 erreur, 413 warnings (baseline, aucun sur les lignes
+     modifiees). Les 4 warnings "unreachable pattern" (l.1464, l.11279) sont
+     preexistants.
+   - Validation materielle attendue : exec TESTS/core2012.fth -> B9 vert,
+     NB-FAILS = 2 uniquement (B2c tuck/-rot volontairement rouges).
+   - NOTE : BOOT.FTH modifie (cell/char) -> il faut recharger le boot dans
+     QEMU (resync qemu_img) pour valider B9 sur l'image.
+============================================================================

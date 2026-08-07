@@ -1,0 +1,93 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 22 (INVENTAIRE MEMOIRE)
+Date : 2026-08-07
+Statut : FAIT (inventaire complet de src/interpreter.rs, 12939 lignes)
+============================================================================
+
+INVENTAIRE MEMOIRE (analyse statique, aucun changement de code)
+--------------------------------------------------------------
+
+1) USAGES DE self.memory (278 occurrences, toutes classees)
+   - ADRESSE  : 119 (self.memory.len(), .min(len()), comparaisons de bornes)
+   - OCTET    :  82 (lecture/ecriture d'1 octet PAR CELLULE : & 0xFF, as u8)
+   - CELLULE  :  50 (lecture/ecriture de la cellule i64 entiere)
+   - RESIZE   :  27 (25 x resize + 2 x push ; croissance dynamique)
+   Verification arithmetique : 119 + 82 + 50 + 27 = 278.
+
+2) ZONES MEMOIRE
+   - memory: Vec<i64> (MAX_MEM = 4096 cellules) : RAM "cellules" ET RAM
+     "octets" CONFONDUES (1 octet par cellule pour les chaines).
+     @/! = cellule (l.1562/1573) ; chaines s"/."/type = 1 octet/cellule
+     (l.530, 9297, 10078, 11552, 12558).
+   - here (l.294) : allocateur bump. Avance de 1 PAR CELLULE pour
+     ,/create/value/defer/allot/buffer: (l.10606, 10654, 11935, 11968,
+     12316, 12378, 12761) mais de 1 PAR OCTET pour les chaines (l.530,
+     9297, 10078, 11552, 12558). SEMANTIQUE MIXTE.
+   - variables: BTreeMap<String,usize> (l.272) : valeur = INDEX DE CELLULE
+     = variables.len() a l'insertion (l.11658-11659, 11769-11770) ->
+     adresses dependantes de l'ordre de compilation, en cellules.
+   - string_pool: Vec<u8> (l.293, 64 Ko) : noms de mots du dictionnaire
+     uniquement (store_str l.502-514). Pas les donnees runtime.
+   - source_buffer/source_addr (l.329-330) : double representation -
+     String UTF-8 (parse l.4779/4810) + copie octets dans memory a here
+     (l.529-530) ; c-addr retournes DANS la copie memory (l.4801-4804).
+   - to_in_addr = 4095, state_addr = 4094 (l.450-451) : cellules SYSTEME
+     DANS l'espace utilisateur 0..4096 (check_mem l.483 les accepte).
+   - byte_mem: Vec<u8> (l.343, 256 Ko) : memoire u8 SEPAREE (DMA/reseau),
+     primitives b@..b>c 348-356 (l.4991-5059), balloc bump sur byte_here.
+
+3) USAGES CELLULE / OCTET / MMIO / POINTEUR NATIF
+   - CELLULE i64 : @ ! +! (10/11/113), state, >in, variables, , ., value,
+     defer, buffer:, f64::to_bits (l.7958), atomic.
+   - OCTET : chaines (s", .", type, key), find (l.2263-2270), get/set-var
+     (l.2696-2755), fichiers/sys:read/disk:read (l.10322-10478,
+     12143-12282), VFS/http (l.3637-3971), gfx images (l.4471-4757).
+   - MMIO NATIF (HORS memory) : c@ c! w@ w! l@ l! fill cmove = primitives
+     73-80 -> i2c_hid::mmio_read8/write8/read16/write16/read32/write32
+     (l.1989-2060) : le jeu C@..CMOVE standard NE TOUCHE PAS memory !
+   - POINTEUR NATIF : move (158) = core::ptr::copy (l.2880-2888), erase
+     (159) = core::ptr::write_bytes (l.2889-2897) ; inb/outb/inw/outw/inl/
+     outl (740-745) = asm out (l.2087-2146) ; phys@/phys! (110/111) =
+     read/write_volatile u64 (l.2326-2335) ; alloc-phys/free-phys (105/106) ;
+     pci@/pci! ; VFS/DMA USB/disk/audio par boot_alloc_pages +
+     from_raw_parts (l.3073-3392, 4141-4379, 5424-5688, 8845-8874) ;
+     mmio-w@/mmio-w! (722/723, l.6719-6746 via drv_api) ;
+     JIT : memory.as_mut_ptr() en *mut i64 (l.10116-10128).
+   - ATOMIC : atomic:add/cas/xchg (l.8383-8428) castent la cellule en
+     *mut AtomicU8 -> seuls 8 bits verrouilles (granularite incoherente
+     avec la cellule 64 bits).
+
+4) 9 AMBIGUITES STRUCTURELLES (detail dans l'audit, Jour 22)
+   1. cells (l.2843) = n*8 mais chaines = 1 octet/cellule (facteur 8) ;
+   2. memory = RAM cellules ET RAM octets simultanement (meme tableau) ;
+   3. deux espaces d'adressage : index memory (0..4095) vs pointeurs
+      natifs physiques (move/erase/VFS/DMA) ;
+   4. croissance non bornee : seuls alloc (l.2190) et check_mem bornent ;
+      les autres resize etendent sans limite ;
+   5. state/>in (4094/4095) dans l'espace utilisateur -> corruption
+      possible par un ! utilisateur ;
+   6. variables.len() = index : adresses dependantes de l'ordre de
+      compilation et en unites melangees ;
+   7. atomic 8 bits vs cellule 64 bits ;
+   8. gfx:polygon-fill lit des paires de cellules i64 alors que le reste
+      du gfx utilise byte_mem ou le framebuffer natif ;
+   9. source en double representation (String + copie memory) -> toute
+      divergence casse la correspondance >IN/c-addr.
+
+5) CONCLUSION POUR S4
+   Le mot "adresse" n'a pas de definition unique. Blocages principaux :
+   a) memory: Vec<i64> mono-canal (cellules et octets melanges) ;
+   b) here a semantique mixte (cellule pour les donnees, octet pour les
+      chaines) ;
+   c) 119 verifications d'adresse en unites mixtes (addr en cellules +
+      len en octets) ;
+   d) pointeurs natifs hors memory (move/erase/VFS/DMA/JIT) ;
+   e) variables.len() = index (depend de l'ordre de compilation) ;
+   f) JIT verrouille sur *mut i64 ;
+   g) cellules systeme dans l'espace utilisateur.
+   => Jour 23 : trancher l'unite d'adresse avant tout changement.
+
+VALIDATION
+----------
+Aucune validation materielle requise ce jour (analyse statique).
+============================================================================

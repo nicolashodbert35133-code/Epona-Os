@@ -1,0 +1,75 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 21 (REVUE S3)
+Date : 2026-08-07
+Statut : FAIT (relecture statique + correction des tests ; validation
+         materielle a faire)
+============================================================================
+
+REVUE SEMAINE 3 (J15 -> J20 : STATE, FIND, PARSE-NAME, PARSE)
+--------------------------------------------------------------
+
+1) CODE RELU (cohérent)
+   - state (100), ]/[ (tokenizer l.10976-10978, 11717-11720), :/; (11706,
+     10983), state_addr=MAX_MEM-2 source de verite ;
+   - find (103, l.2254) : contrat ( c-addr -- c-addr 0 | xt 1 | xt -1 ),
+     chaine comptee, lookup_word, flag immediat ;
+   - parse-name (329, l.4778) : delimiteurs = espaces, c-addr dans la
+     source, >IN avance, HERE inchange ;
+   - parse (330, l.4808) : champs vides, c-addr dans la source, >IN et
+     HERE inchanges ;
+   - synchro >IN (l.10907-10911) et sys:load/include/require
+     (sauvegarde/restauration de state_addr, l.12035/12069/12107).
+   - Test B5 l.299 verifie : `1 state ! [ state @ .` affiche bien 0 car
+     le token "[" ECRIT 0 dans state_addr en sortant de compilation ; le
+     token "[" n'est reconnu qu'en mode compilation (pas de primitive
+     "[") -> la bascule est prouvee par l'absence d'erreur.
+
+2) DECOUVERTE MAJEURE - MODELE SOURCE
+   compile() appelle set_source UNE fois avec TOUT le fichier charge
+   (interpreter.rs l.10765 ; appels sys:load l.12036, boot l.6464) et
+   >IN est un residu global (le test B4 `>in 5 !` laissait 5 pour toute
+   la suite du fichier). Les tests B7/B8 d'origine supposaient
+   "source = ligne courante avec >IN=0" -> NON DETERMINISTES (ROUGES) :
+   - B7#1 `(commentaire avec x) t-pname` attendait u=11 mais parse-name
+     lit la source du FICHIER depuis >IN -> "\" (u=1) ou "===" (u~78) ;
+   - B7#2/#3/#4 et B8#2/#3/#4 idem (parse depuis une position parasite).
+
+3) CORRECTIONS TESTS (core2012.fth)
+   - Tous les tests B7/B8 reecrits en SOURCE CONTROLEE : `s" ..." evaluate`
+     (set_source remet >IN a 0) pour les chaines sans parenthese ;
+   - cas "parenthese atomique" (B7#1, nom "t-px(c" u=7) et "espaces
+     initiaux" (B7#2, source "   t-pspaces") : `s"` eclate les parenthese
+     en tokens separes et ne peut pas produire d'espaces initiaux (les
+     espaces de la ligne sont des separateurs) -> CHAINE CONSTRUITE OCTET
+     PAR OCTET dans memory puis executee via `evaluate` ;
+   - B4 : `>in 5 ! >in @ .` laissait un residu global -> restaure par
+     `0 >in !` en fin de ligne ;
+   - B6 : residus de pile (`here find` sans cleanup) nettoyes (`2drop`,
+     `drop`) ; le test `rot drop` (inexact avec la pile polluee) est
+     remplace par `drop` + comparaison directe du flag.
+   - En-tete SECTIONS : note J21 (revue S3).
+
+4) REGRESSION
+   Aucun usage des mots recables (state, find, parse, parse-name, >in)
+   dans BOOT.FTH / forth/boot / config / std / drivers / apps racine
+   (grep). `find-device`, `drvmap:find`, `acpi-find`, `pci:find-vendor`
+   sont des noms de mots locaux (pas la primitive). Aucun impact.
+
+5) INCOMPATIBILITES CONSERVEES (documentees dans l'audit, revue S3)
+   - S\" consomme HERE (interprete l.12519-12529, PushStr compile) ;
+   - tuck/-rot (B2c) : rouges volontaires (2 bugs connus) ;
+   - modele Vec<i64> : unites d'adresse incoherentes ;
+   - arithmetique double 32 bits (FM/MOD, SM/REM, UM*, UM/MOD) ;
+   - CREATE/VARIABLE/DOES>, CATCH/THROW, 21 mots Core absents,
+     Core Extensions et jeux optionnels non fournis ;
+   - EVALUATE ne sauvegarde/restaure pas l'entree precedente ;
+   - les ( ) sont eclates en tokens separes -> impossible d'executer un
+     nom/mot contenant une parenthese (limite testable de la correction
+     PARSE-NAME ; a re-evaluer avec le chantier memoire S4).
+
+VALIDATION MATERIELLE ATTENDUE (a faire par l'utilisateur)
+---------------------------------------------------------
+exec TESTS/core2012.fth :
+   - B4/B5/B6/B7/B8 VERTs (source controlee), NB-FAILS = 2 uniquement
+     pour B2c (tuck/-rot volontairement ROUGES).
+============================================================================

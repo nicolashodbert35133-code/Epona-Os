@@ -1,0 +1,68 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 20 (PARSE)
+Date : 2026-08-07
+Statut : FAIT (code + builds + docs ; validation materielle a faire)
+============================================================================
+
+CORRECTION PARSE (330, interpreter.rs l.4808)
+----------------------------------------------
+
+1) PROBLEMES IDENTIFIES (devguide 5.3)
+   a) les delimiteurs initiaux etaient SAUTES : un delimiteur en premier
+      caractere (ou des delimiteurs consecutifs) ne produisait JAMAIS un
+      champ vide -> NON CONFORME (champs vides / separateurs consecutifs).
+   b) le texte etait COPIE dans memory[HERE..] et HERE avançait a chaque
+      appel (consommation de l'espace de donnees, meme defaut que PARSE-NAME
+      avant Jour 19).
+   c) >in etait avance JUSQU'APRES le delimiteur de fermeture -> NON
+      CONFORME : PARSE ne modifie PAS >in (le standard laisse >in tel quel,
+      l'appelant le gere).
+
+2) CORRECTION APPLIQUEE
+   - suppression de la boucle qui sautait les delimiteurs initiaux : si le
+     parse area commence par le delimiteur -> champ VIDE (u=0) ; delimiteurs
+     consecutifs -> champs vides successifs ;
+   - c-addr = source_addr + start : adresse du texte DANS le buffer
+     d'entree (conforme) ; plus de copie dans HERE, plus d'avancement ;
+   - >in : NON modifie (retrait de memory[to_in_addr] = new_pos) ;
+   - delimiteur absent -> le texte va jusqu'a la fin de la source ;
+   - parse area vide (pos >= len) -> u=0.
+
+3) TESTS (core2012.fth Section B8)
+   - : t-p8 ( -- flag ) 116 parse nip 0 = ;
+     s" t-p8" evaluate verif    \ -1 : champ vide au DEBUT (source "t-p8",
+                                   delimiteur 't'=116 en 1er caractere -> u=0).
+                                   Avant : 't' saute -> u=3 ("-p8") -> ROUGE.
+   - : t-p9 ( -- flag ) 32 parse nip 4 = ;
+     t-p9 verif                 \ -1 : parse normal jusqu'a l'espace.
+   - : t-p10 ( -- n ) 32 parse 2drop >in @ ;
+     t-p10 .                    \ 0 : PARSE ne modifie plus >in.
+                                   Avant : >in = 6 -> ROUGE.
+   - : t-p11 here 32 parse 2drop here - 0 = ;
+     t-p11 verif                \ -1 : HERE ne bouge plus (avant : -5).
+   >in remis a 0 par set_source a chaque ligne -> independance des tests.
+
+4) REGRESSION
+   Aucun usage de la primitive parse dans BOOT.FTH / drivers / std (grep :
+   seule mention dans des commentaires) -> pas de regression. Le tokenizer
+   a son propre mecanisme de tokenisation (independant de la primitive).
+
+5) DOCUMENTATION MISE A JOUR
+   - forth_audit_2012.md : PARSE corrige (l.40, l.51, l.100).
+   - devguide_Forth_Iso_2012.md : section 5.3 PARSE corrige.
+   - PRIMITIVES_REFERENCE.md et docs/ : idx 330 parse (+ 331 refill + 332
+     >in ajoutes ; l'ancienne ligne 330 ">in" etait erronee).
+   - src/primitive forth Epona 2.0.md : 330 detaille (l.777).
+   - rapport.md : item 8 et Semaine 2 marques J20.
+
+6) BUILD
+   - cargo build (x86_64-unknown-uefi, debug) : 0 erreur, 413 warnings.
+   - cargo build --release : 0 erreur, 413 warnings.
+
+VALIDATION MATERIELLE ATTENDUE (a faire par l'utilisateur)
+---------------------------------------------------------
+exec TESTS/core2012.fth :
+   - B8 VERT (champ vide u=0, parse normal, >in=0, HERE stable),
+   - NB-FAILS = 0 hors B2c (tuck/-rot volontairement ROUGE),
+   - B5/B6/B7 toujours VERT (regression).
+============================================================================

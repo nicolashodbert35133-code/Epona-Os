@@ -1,0 +1,64 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 19 (PARSE-NAME)
+Date : 2026-08-07
+Statut : FAIT (code + builds + docs ; validation materielle a faire)
+============================================================================
+
+CORRECTION PARSE-NAME (329, interpreter.rs l.4778)
+-------------------------------------------------
+
+1) PROBLEMES IDENTIFIES (devguide 5.3)
+   a) `(` et `)` etaient des delimiteurs de nom -> NON CONFORME : les
+      delimiteurs PARSE-NAME sont uniquement les espaces.
+   b) le nom etait COPIE dans memory[HERE..] et HERE avancait a chaque
+      appel (consommation de l'espace de donnees, comme PARSE/S\").
+
+2) CORRECTION APPLIQUEE
+   - boucle de fin : seuls ' ' '\t' '\n' '\r' coupent le nom (suppression
+     de b'(' b')') ;
+   - c-addr = source_addr + start : l'adresse du nom DANS le buffer
+     d'entree (conforme : "c-addr pointe dans le buffer d'entree") ;
+     plus de copie dans HERE, plus d'avancement de HERE ;
+   - >in = end (position apres le nom) : inchangé, conforme.
+   - Cas ligne vide / que des espaces : start = end = len -> u=0, >in=len.
+
+3) INTERACTION TOKENIZER / COMMENTAIRES
+   Le tokenizer retire ( ... ) des TOKENS a executer, mais parse-name lit
+   source_buffer BRUT. Donc sur une ligne commencant par un commentaire,
+   parse-name (appele depuis un mot) part de >in=0 et voit le "mot"
+   "(commentaire" en premier -> test direct de la non-reconnaissance de '('.
+   Le test precedent (ROUGE) : '(' coupait -> u=0.
+
+4) TESTS (core2012.fth Section B7)
+   - : t-pname ( -- flag ) parse-name nip 11 = ;
+     (commentaire avec x) t-pname verif   \ -1 : '(' non delimiteur -> u=11
+   - : t-pspaces ( -- flag ) parse-name nip 9 = ;
+        t-pspaces  verif                  \ -1 : espaces multiples sautes
+   - : t-pin ( -- n ) parse-name 2drop >in @ ;
+     t-pin .                              \ 5 : >in avance apres "t-pin"
+   - : t-phere here parse-name 2drop here - 0 = ;
+     t-phere verif                        \ -1 : HERE ne bouge plus (avant : -7)
+   >in est remis a 0 par set_source a chaque ligne (l.534) -> independance.
+
+5) REGRESSION
+   Aucun usage de la primitive parse-name dans BOOT.FTH / drivers / std
+   (grep : seule mention dans des commentaires) -> pas de regression.
+   Parite avec PARSE (330) : meme deux problemes ; correction prevue J20.
+
+6) DOCUMENTATION MISE A JOUR
+   - forth_audit_2012.md : PARSE-NAME corrige (l.39, l.51, l.100).
+   - devguide_Forth_Iso_2012.md : section 5.3 PARSE-NAME corrige.
+   - PRIMITIVES_REFERENCE.md et docs/ : idx 329 (delimiteurs = espaces).
+   - src/primitive forth Epona 2.0.md : 329 detaille (l.776).
+   - rapport.md : item 9 et Semaine 2 marques J19.
+
+7) BUILD
+   - cargo build (x86_64-unknown-uefi, debug) : 0 erreur, 413 warnings.
+
+VALIDATION MATERIELLE ATTENDUE (a faire par l'utilisateur)
+---------------------------------------------------------
+exec TESTS/core2012.fth :
+   - B7 VERT (u=11, espaces, >in=5, HERE stable),
+   - NB-FAILS = 0 hors B2c (tuck/-rot volontairement ROUGE),
+   - B5/B6 toujours VERT (regression).
+============================================================================

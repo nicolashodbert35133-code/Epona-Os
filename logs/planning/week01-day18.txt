@@ -1,0 +1,53 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 3, JOUR 18 (CORRECTION FIND)
+Date : 2026-08-07
+Statut : FAIT (code + builds + docs ; validation materielle a faire)
+============================================================================
+
+CORRECTION APPLIQUEE - FIND ( c-addr -- c-addr 0 | xt 1 | xt -1 )
+------------------------------------------------------------------
+
+1) PRIMITIVE 103 (interpreter.rs l.2254) REECRITE
+   - pop c-addr (entier, cast usize) ;
+   - len = memory[c-addr] & 0xFF ;
+   - valide si 1 <= len <= 63 ET c-addr+1+len <= memory.len() ;
+   - nom = len octets de memory[c-addr+1..] (1 octet par cellule) ;
+   - from_utf8 puis lookup_word(name) (INCHANGE : recherche par
+     vocabulaire, insensible a la casse, shadowing) ;
+   - trouve     -> push dict_idx ; push (-1 si Word.immediate sinon 1) ;
+   - absent     -> push c-addr ; push 0  (c-addr restitue) ;
+   - c-addr ou len hors bornes -> traite comme absent (c-addr 0) ;
+   - sous-pile (pop None) -> push 0 ; push 0.
+   L'ancienne signature ( addr len -- idx|-1 ) est REMPLACEE : aucun usage
+   dans BOOT.FTH / drivers / std (grep) -> pas de regression.
+
+2) TESTS (core2012.fth Section B6)
+   Chaine comptee construite a la main dans memory[HERE..] (1 octet/cellule,
+   meme format que les chaines s" a l'execution) :
+     here 4 allot  here 3 !  here 1+ 100 !  here 2+ 117 !  here 3+ 112 !
+   (longueur 3, 'd'=100 'u'=117 'p'=112 -> "dup")
+   - here find depth 2 = verif  \ -1 : (xt flag) = 2 elements
+   - here find rot drop 1 = verif  \ -1 : flag 1 (dup non immediat)
+   - Mot absent "xyz" (120 121 122) : here find rot drop 0 = verif  \ -1
+   Attention : rot sur pile de 1 element est un no-op (len>=3) -> le test
+   ROUGE precedent ne plantait pas.
+
+3) DOCUMENTATION MISE A JOUR
+   - forth_audit_2012.md : FIND corrige (l.51, l.98, l.124).
+   - devguide_Forth_Iso_2012.md : section 5.2 FIND resolue.
+   - PRIMITIVES_REFERENCE.md et docs/PRIMITIVES_REFERENCE.md : idx 103
+     ( c-addr -- c-addr 0 | xt 1 | xt -1 ).
+   - src/primitive forth Epona 2.0.md : idx 103 documente.
+   - rapport.md : item 7, emplacement l.2254, Semaine 2 marques J18.
+
+4) BUILDS + SYNC QEMU
+   - cargo build (cible x86_64-unknown-uefi, debug) : 0 erreur, 413 warnings.
+   - qemu_img synchronise : BOOTX64.efi + forth/ (source -> image QEMU).
+
+VALIDATION MATERIELLE ATTENDUE (a faire par l'utilisateur)
+---------------------------------------------------------
+exec TESTS/core2012.fth :
+   - B6 VERT (depth=2, flag 1, mot absent flag 0),
+   - NB-FAILS = 0 hors B2c (tuck/-rot volontairement ROUGE),
+   - B5 STATE toujours VERT (regression).
+============================================================================
