@@ -7,12 +7,12 @@ Epona OS démarre directement sur le processeur — pas de Windows,
 pas de Linux, pas de couche intermédiaire. Tapez du Forth,
 manipulez le matériel en temps réel.
 
-![Bureau Epona OS](screenshots/desktop.png)
+
 
 ## ✨ Fonctionnalités
 
-- 🖥️ Bureau graphique avec fenêtres et icônes
-- ⌨️ Interpréteur Forth complet (290+ primitives)
+
+- ⌨️ Interpréteur Forth complet (700+ primitives)
 - 🎮 GPU Intel/AMD — accélération 2D native
 - 🌐 Réseau TCP/UDP/HTTP (Intel e1000, Realtek)
 - 💾 Stockage NVMe + SATA (FAT32, NTFS, ext4)
