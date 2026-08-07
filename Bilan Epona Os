@@ -1,5 +1,46 @@
 # Bilan complet — EponaForth aujourd'hui
 
+### devguide_Forth_Iso_2012.md - Spécifications ISO Forth
+
+#### Spécifications ISO 2012
+- **Mots standard Forth** : `:` `;` `if` `else` `then` `begin` `again` `until` `while` `repeat` `do` `loop` `+loop` `i` `j`
+- **Variables** : `variable`, `constant`, `create`, `does>`
+- **Mots immédiats** : `:` (state 0), `;` (state 1)
+- **Structure de contrôle** : `[` (mode interprétation) `]` (mode compilation)
+- **Caractères** : `(` `\` (commentaires), `[if]` `[else]` `[then]`
+
+#### Adaptations Epona
+| Adaptation | Description |
+|------------|-------------|
+| `c"` | Chargement de chaîne (state 0/1) |
+| `s"` | Chaîne standard |
+| `."` | Affiche chaîne compilée |
+| `'` | Lit xt d'un mot |
+| `[']` | Compile xt |
+| `to` | Modifie valeur |
+| `is` | Associe à defer |
+| `action-of` | Lit xt de defer |
+| `{` `}` | Variables locales |
+| `.(` | Affiche littéral |
+| `c"` | Chaîne counted |
+| `s"` | Chaîne standard |
+
+#### Ce qui reste à faire
+- [ ] Compléter la documentation des mots standard Forth
+- [ ] Ajouter les mots immédiats manquants (if, else, then, begin, repeat, do, loop, etc.)
+- [ ] Implémenter la structure de contrôle `[` `]` (mode compilation)
+- [ ] Ajouter les mots de gestion de variables (variable, constant)
+- [ ] Documenter le système de dictionnaire
+- [ ] Intégrer la bibliothèque de chaînes (strings)
+- [ ] Compléter les primitives de pile avancée (dup, drop, swap, over, rot, nip, tuck, etc.)
+- [ ] Développer le système d'exécution Forth (execute, find, literal, etc.)
+- [ ] Ajouter les primitives de compilation (state 1, etc.)
+- [ ] Documenter le système de mots immédiats (immediate)
+- [ ] Intégrer le système de mots (words) dans l'OS
+- [ ] Compléter les primitives de manipulation de chaînes (strcpy, strcat, strlen, etc.)
+
+---
+
 ## Ce qui est implémenté et fonctionnel
 
 ### Runtime de base
