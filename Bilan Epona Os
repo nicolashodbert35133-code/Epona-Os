@@ -39,7 +39,6 @@
 - [ ] Intégrer le système de mots (words) dans l'OS
 - [ ] Compléter les primitives de manipulation de chaînes (strcpy, strcat, strlen, etc.)
 
----
 
 ## Ce qui est implémenté et fonctionnel
 
