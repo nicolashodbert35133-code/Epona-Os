@@ -19,6 +19,15 @@
 \   B3 - SEARCH : VERD depuis Jour 11
 \   B4 - SOURCE / >IN : VERD depuis Jour 13
 \   B2c - -rot, tuck : rouges (a corriger)
+\   B5 - STATE adresse modifiable : VERT depuis Jour 16 (correction STATE)
+\   B6 - FIND chaîne comptée : VERT depuis Jour 18 (correction FIND)
+\   B7 - PARSE-NAME délimiteurs/>IN/HERE : VERT depuis Jour 19
+\   B8 - PARSE champs vides/>IN/HERE : VERT depuis Jour 20
+\   J21 (revue S3) : B4/B6/B7/B8 reecrits en SOURCE CONTROLEE (evaluate)
+\     car source_buffer = TOUT le fichier (et non la ligne courante) ;
+\     B7/B8 testent des-parentheses/espaces via construction manuelle.
+\   B9 - CONTRAT D'ADRESSAGE (Jour 23) : cell=1, char=1, cells/chars/aligned
+\     identite, cell+/char+ = +1 (1 cellule = 1 unite d'adresse).
 \
 \ BUGS DECOUVERTS (en plus de l'audit) :
 \   -rot (idx 38) a la MEME implementation que rot (idx 9) : -rot est faux
@@ -255,13 +264,14 @@ drop
 \ source ( -- addr u ) : retourne le buffer source courant SANS avancer HERE
 \   (avant Jour 13 : copiait dans memory et avançait HERE a chaque appel).
 \ >in ( -- a-addr ) : adresse (cellule memory) modifiable du pointeur de
-\   parsing. Attention : modifier >IN avec une valeur >= offset du token
-\   suivant fait sauter ce token (tokenizer) -> valeur modeste ici (5 < 8).
+\   parsing. NB : dans Epona la source = TOUT le fichier charge ; >in est un
+\   residu global -> ce test RESTAURE >in=0 en fin de ligne (sinon les tests
+\   suivants qui lisent >in partiraient avec une valeur parasite).
 \ ---------------------------------------------------------------------------
 here source 2drop here - .      \ 0   (SOURCE n'avance plus HERE)
 : src-len  source drop . ;
 s" src-len" evaluate            \ 7   (contenu : longueur du buffer courant)
->in 5 ! >in @ .                 \ 5   (>IN modifiable via ! et @)
+>in 5 ! >in @ .  0 >in !         \ 5   (>IN modifiable via ! et @, puis restaure)
 
 \ ---------------------------------------------------------------------------
 \ SECTION B2c - tuck / -rot (BUGS DECOUVERTS)
@@ -272,6 +282,143 @@ s" src-len" evaluate            \ 7   (contenu : longueur du buffer courant)
 \ ---------------------------------------------------------------------------
 1 2 3 -rot . . .   \ 2 1 3  (actuellement 1 3 2 - BUG)
 1 2 tuck . . .     \ 2 1 2  (actuellement 2 1 1 - BUG)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B5 - STATE : adresse modifiable (Jour 15 : test ecrit AVANT la
+\ correction, il doit echouer aujourd'hui et passer apres le Jour 16).
+\ state ( -- a-addr ) : la norme exige l'adresse d'une cellule modifiable
+\ dont @ donne l'etat (0=interpretation, non-zero=compilation). Aujourd'hui
+\ state pousse la VALEUR (0 en interpretation) -> `state 0<>` echoue.
+\ Correction (Jour 16) : cellule reservee MAX_MEM-2, source de verite du
+\ tokenizer (`state !` change reellement le mode de compilation).
+\ NB : la modification est testee DANS une definition compilee (st-set) pour
+\ ne pas basculer le tokenizer en plein milieu d'une ligne top-level.
+\ ---------------------------------------------------------------------------
+state 0<> verif             \ -1 : adresse NON NULLE (avant correction : ECHEC)
+state @ 0= verif            \ -1 : en interpretation, @ de l'adresse = 0
+: st-set  state 5 ! state @ . 0 state ! ;
+st-set                      \ 5 : cellule modifiable via ! (puis restauree)
+state @ 0= verif            \ -1 : restauree, toujours en interpretation
+\ Modification INDIRECTE : ecrire 1 dans state active reellement le mode
+\ compilation (le token `[` qui suit n'est reconnu qu'en compilation), puis
+\ `[` nous ramene en interpretation et on restaure 0.
+1 state !  [  state @ .  0 state !   \ 0 : bascule compilation OK puis retour
+
+\ ---------------------------------------------------------------------------
+\ SECTION B6 - FIND : chaîne comptée (Jour 17 : test ecrit AVANT la
+\ correction, il doit echouer aujourd'hui et passer apres le Jour 18).
+\ FIND ( c-addr -- c-addr 0 | xt 1 | xt -1 ) : c-addr pointe une CHAINE
+\ COMPTEE (l'octet a c-addr est la longueur, le nom suit). Aujourd'hui find
+\ a la signature ( addr len -- idx|-1 ) -> 1 seul resultat, pas de flag.
+\ On construit la chaine comptee "dup" dans memory[HERE..] (1 octet par
+\ cellule, comme les chaines s" a l'execution) :
+\   here 4 allot puis longueur=3 et 'd'=100 'u'=117 'p'=112.
+\ ---------------------------------------------------------------------------
+here 4 allot drop
+here 3 !              \ longueur = 3
+here 1+ 100 !         \ 'd'
+here 2+ 117 !         \ 'u'
+here 3+ 112 !         \ 'p'
+here find depth 2 = verif 2drop   \ -1 : (xt flag) = 2 elements empiles
+here find drop 1 = verif          \ -1 : flag 1 (mot non immediat)
+\ Mot ABSENT : chaine comptee "xyz" -> ( c-addr 0 )
+here 4 allot drop
+here 3 !              \ longueur = 3
+here 1+ 120 !         \ 'x'
+here 2+ 121 !         \ 'y'
+here 3+ 122 !         \ 'z'
+here find drop 0 = verif          \ -1 : flag 0 (mot absent)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B7 - PARSE-NAME : delimiteurs, >IN, HERE (Jour 19)
+\ parse-name ( "<spaces>name" -- c-addr u ) : saute les espaces de debut,
+\ parse jusqu'au premier ESPACE, avance >IN. Les ( ) ne sont PAS des
+\ delimiteurs (avant Jour 19 : coupaient sur ( et ) et copiaient le nom
+\ dans HERE en avançant HERE).
+\ NB : la source est controlee via `evaluate` (set_source remet >IN a 0).
+\ Dans Epona, source_buffer = TOUT le fichier charge (compile appele une
+\ seule fois set_source), et >IN est un residu global -> tester parse-name
+\ sur la "ligne courante" serait non deterministe. Revue Jour 21 : tous les
+\ tests B7/B8 sont reecrits en source controlee (evaluate).
+\ ---------------------------------------------------------------------------
+\ 1) Parenthese NON delimiteur : nom "t-px(c" (u=7) avec '(' au milieu.
+\    NB : `s"` eclate les parentheses (tokens separes) -> impossible de
+\    passer une parenthèse atomique dans une chaine s". On construit la
+\    chaine OCTET PAR OCTET dans memory puis on l'execute via `evaluate`
+\    (la source de evaluate est le buffer brut, la parenthese y est). 
+\    Avant J19 : '(' coupait -> u=4 ("t-px") -> ECHEC.
+: t-px ( -- flag ) parse-name nip 7 = ;
+here 7 allot drop
+here 116 ! here 1+ 45 ! here 2+ 112 ! here 3+ 45 ! here 4+ 120 !
+here 5+ 40 ! here 6+ 99 !
+here 7 evaluate verif     \ -1
+\ 2) Espaces multiples sautes avant le mot : source "   t-pspaces" (3
+\    espaces + "t-pspaces" = 9 caracteres). `s"` ne peut pas produire des
+\    espaces initiaux (separateurs de tokens) -> construction manuelle.
+: t-pspaces ( -- flag ) parse-name nip 9 = ;
+here 12 allot drop
+here 32 ! here 1+ 32 ! here 2+ 32 !
+here 3+ 116 ! here 4+ 45 ! here 5+ 112 ! here 6+ 115 ! here 7+ 112 !
+here 8+ 97 ! here 9+ 99 ! here 10+ 101 ! here 11+ 115 !
+here 12 evaluate verif     \ -1
+\ 3) >IN avance apres le mot ("t-pin" = 5 caracteres).
+: t-pin ( -- n ) parse-name 2drop >in @ ;
+s" t-pin" evaluate .          \ 5
+\ 4) PARSE-NAME n'avance plus HERE : c-addr pointe dans la source.
+\    Avant Jour 19 : copie dans HERE -> HERE bouge de 7 -> ECHEC.
+: t-phere here parse-name 2drop here - 0 = ;
+s" t-phere" evaluate verif    \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B8 - PARSE : champs vides, >IN, HERE (Jour 20)
+\ parse ( char "ccc<char>" -- c-addr u ) : parse depuis >IN jusqu'au
+\ delimiteur char (SANS sauter les delimiteurs initiaux : un delimiteur en
+\ premier caractere -> champ VIDE, u=0), c-addr pointe dans la source, et
+\ PARSE NE MODIFIE PAS >IN (conformite). Avant Jour 20 : sautait les
+\ delimiteurs initiaux, copiait dans HERE et avançait >IN.
+\ NB : source controlee via evaluate (cf. section B7).
+\ ---------------------------------------------------------------------------
+\ 1) Champ vide au debut : source "t-p8" (via evaluate), delimiteur 't'
+\    (116). PARSE ne saute pas le 't' initial -> u=0.
+\    Avant : sautait le 't' -> u=3 ("-p8") -> ECHEC.
+: t-p8 ( -- flag ) 116 parse nip 0 = ;
+s" t-p8" evaluate verif        \ -1
+\ 2) Parse normal jusqu'a l'espace : "t-p9" = 4 caracteres.
+: t-p9 ( -- flag ) 32 parse nip 4 = ;
+s" t-p9" evaluate verif        \ -1
+\ 3) PARSE ne modifie pas >IN : apres parse de "t-p10" (dans la source
+\    evaluee), >IN reste 0. Avant : >IN = 6 -> ECHEC.
+: t-p10 ( -- n ) 32 parse 2drop >in @ ;
+s" t-p10" evaluate .           \ 0
+\ 4) PARSE n'avance plus HERE : c-addr pointe dans la source.
+\    Avant Jour 20 : copie dans HERE -> HERE bouge -> ECHEC.
+: t-p11 here 32 parse 2drop here - 0 = ;
+s" t-p11" evaluate verif       \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B9 - CONTRAT D'ADRESSAGE (Jour 23)
+\ 1 unite d'adresse = 1 cellule i64 (chars larges permis par Forth 2012).
+\ CELL = 1, CHAR = 1 (constantes Forth definies au boot) ; CELLS/CHARS =
+\ identite ; CELL+ / CHAR+ = +1 ; ALIGNED = identite.
+\ ---------------------------------------------------------------------------
+cell .             \ 1   (taille cellule en unites d'adresse)
+1 = verif          \ -1
+char .             \ 1   (taille char en unites d'adresse)
+1 = verif          \ -1
+5 cells .          \ 5   (cells = identite, Jour 23)
+5 = verif          \ -1
+3 chars .          \ 3   (chars = identite)
+3 = verif          \ -1
+100 cell+ .        \ 101 (cell+ = +1, Jour 23)
+101 = verif        \ -1
+100 char+ .        \ 101 (char+ = +1)
+101 = verif        \ -1
+here aligned .     \ = here  (aligned = identite, Jour 23)
+here - 0 = verif   \ -1
+here 1 cells + .   \ = here+1  (adresse cellule suivante)
+here - 1 = verif   \ -1
+here 1 cells + cell+ .   \ = here+2
+here - 2 = verif   \ -1
 
 \ ---------------------------------------------------------------------------
 \ RESUME
