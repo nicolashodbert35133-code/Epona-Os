@@ -1,0 +1,58 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 26 (FENETRE MEMOIRE)
+Date : 2026-08-07
+Statut : FAIT (fenetre memory/MMIO sur 73-80, tests B12)
+Décision utilisateur : "Fenetre : memory si < 4096, sinon MMIO" (recommande)
+============================================================================
+
+1) PRIMITIVES MIGREES (src/interpreter.rs:2010-2163)
+   - 73 c@   : check_mem -> read_byte (octet bas cellule) ; sinon mmio_read8
+   - 74 c!   : check_mem -> write_byte (masque 8 bits) ; sinon mmio_write8
+   - 75 w@   : check_mem -> read_cell & 0xFFFF ; sinon mmio_read16
+   - 76 w!   : check_mem -> write_cell(val & 0xFFFF) ; sinon mmio_write16
+   - 77 l@   : check_mem -> read_cell & 0xFFFFFFFF ; sinon mmio_read32
+   - 78 l!   : check_mem -> write_cell(val & 0xFFFFFFFF) ; sinon mmio_write32
+   - 79 fill : check_mem(addr) -> memory[a..min(a+n,4096)] = byte&0xFF ;
+               sinon mmio_write8 x n
+   - 80 cmove: check_mem(src) && check_mem(dst) -> copie memory clampée
+               (chevauchement gere, cnt borne par MAX_MEM-src/dst) ;
+               sinon mmio_read8/write8 (comportement anterieur)
+   read_byte/write_byte : #[allow(dead_code)] retires (utilises par c@/c!).
+
+2) POURQUOI LA FENETRE
+   - Les apps (EDITEUR/KEYLOG/DESKTOP) utilisent c@/c!/fill/cmove sur des
+     buffers creates (< 4096) : avant, c@ lisait la VRAIE memoire physique
+     aux petites adresses (incoherent avec @/! et allot). Maintenant les
+     buffers sont dans self.memory et coherents.
+   - heap/mmap (~1 TiB, TESTS/heap.fth) et MMIO haut : >= 4096 -> acces
+     reel conserve (heap.fth/ipc_adv.fth/audio.fth intacts).
+
+3) POINT PRE-EXISTANT (signale, non lie a J26)
+   - alloc (95) est borne a MAX_MEM=4096. EDITEUR.fth fait
+     "10000 alloc constant buf-addr" -> -1 (echec) depuis toujours.
+     "2048 alloc constant debug-buf" passe si memoire libre suffisante.
+     A revoir si l'editeur doit charger des fichiers de 10000 cellules.
+
+4) TESTS - section B12 (forth/TESTS/core2012.fth)
+   - 123 here c! here c@ = 123            (stockage octet)
+   - 256 here c! here c@ = 0              (masque 8 bits)
+   - 0x1234 here w! here w@ = 0x1234      (16 bits)
+   - 65536 here w! here w@ = 0            (masque 16 bits)
+   - 0x12345678 here l! here l@ = 0x12345678 (32 bits)
+   - here 4 0xAB fill / c@ et 1+ c@ = 0xAB (fill)
+   - here 16 ! here 1+ 32 ! here here 1+ 1 cmove / 1+ @ = 16 (cmove)
+   - En-tete SECTIONS mis a jour (B12).
+
+5) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth/TESTS/core2012.fth
+     resynchronises.
+
+6) DOCS
+   - devguide 6.2 : J26 fait (fenetre) ; PRIMITIVES_REFERENCE : 73-80 annotes ;
+     audit : Jour 26 (fenetre + point alloc + B12) ; planning : J26 FAIT ;
+     rapport : J26 ajoute.
+
+7) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9/B10/B11/B12 verts, NB-FAILS = 2 (B2c seul).
+============================================================================

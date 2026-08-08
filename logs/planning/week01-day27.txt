@@ -1,0 +1,46 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 27 (MOVE/ERASE)
+Date : 2026-08-07
+Statut : FAIT (fenetre memory/pointeur natif sur 158/159, tests B13)
+============================================================================
+
+1) CONTEXTE
+   - FILL (79) / CMOVE (80) deja migres en J26 (fenetre).
+   - Restaient MOVE (158) et ERASE (159) : pointeurs natifs bruts
+     (core::ptr::copy / write_bytes) en OCTETS, incoherents avec
+     l'unite d'adresse (1 AU = 1 cellule i64).
+
+2) MIGRATION FENETRE (src/interpreter.rs:2948-2992)
+   - 158 move ( src dest u -- ) :
+       check_mem(src) && check_mem(dst) -> copie self.memory de u cellules,
+       chevauchement gere : s < d -> arriere (rev), sinon -> avant ;
+       cnt = min(u, MAX_MEM-s, MAX_MEM-d) (clamp, jamais au-dela de 4096).
+       sinon (>= 4096 ou negatif) -> core::ptr::copy (comportement anterieur).
+   - 159 erase ( addr u -- ) :
+       check_mem(addr) -> self.memory[a..min(a+u,4096)] = 0 (cellules).
+       sinon -> core::ptr::write_bytes (comportement anterieur).
+   Utilise par EDITEUR (insert-char/delete-char sur buf-addr < 4096).
+
+3) TESTS - section B13 (forth/TESTS/core2012.fth)
+   - move src<dest (arriere) : 10/20/30 -> copie 2 vers dest+1 : 10, 20.
+   - move dest<src (avant) : 10/20/30/40 -> dest=src+2 : 30, 40.
+   - move longueur nulle : memoire inchangee.
+   - erase : here 3 0xAA fill here 2 erase -> 2 cellules a 0, 3e = 0xAA.
+   - erase longueur nulle : memoire inchangee.
+   - En-tete SECTIONS mis a jour (B13).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth/TESTS/core2012.fth
+     resynchronises.
+
+5) DOCS
+   - devguide 6.2 : J27 fait ; PRIMITIVES_REFERENCE : 158/159 annotes ;
+     audit : Jour 27 (fenetre + B13 + Jour 28 prevu) ; planning : J27 FAIT ;
+     rapport : J27 ajoute.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B13 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : J28 - Revue S4 (stabilite migration, set_source/
+     Op::PushStr non bornes, appels residuels aux pointeurs natifs).
+============================================================================

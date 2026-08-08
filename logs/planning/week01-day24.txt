@@ -1,0 +1,45 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 24 (HELPERS MEMOIRE)
+Date : 2026-08-07
+Statut : FAIT (helpers ajoutes + @ ! +! migres + tests bornes)
+============================================================================
+
+1) HELPERS AJOUTES (src/interpreter.rs:494-510)
+   - read_cell (&self, addr) -> Option<i64>   : check_mem borne
+   - write_cell (&mut self, addr, val) -> bool
+   - read_byte  (&self, addr) -> Option<u8>   : (v & 0xFF) octet bas
+   - write_byte (&mut self, addr, val) -> bool : cellule mise a val (8 bits)
+   Signatures Option/bool pour signaler le debordement sans crash.
+   read_byte/write_byte : modele "1 octet par cellule" (celui des chaines et
+   des apps). Annotes #[allow(dead_code)] : branches sur C@ / C! au Jour 26.
+
+2) MIGRATIONS
+   - primitive 10  @   (l.1580-1590) : self.memory[a] -> read_cell(a)
+   - primitive 11  !   (l.1591-1603) : self.memory[a] = v -> write_cell(a,v)
+   - primitive 113 +!  (l.2360-2372) : read_cell + write_cell(wrapping_add)
+   Comportement identique a l'avant : message "sandbox bloque adresse",
+   pile inchangee en cas de debordement.
+
+3) TESTS - section B10 (forth/TESTS/core2012.fth)
+   - 123 here !  /  here @ .  -> 123   (verif -1)
+   - 5 here +!   /  here @ .  -> 128   (verif -1)
+   - 42 4096 @ . -> 42   (adresse hors bornes : @ ne pousse rien)
+   - 5 4096 !  et  5 4096 +!  -> bloques (messages sandbox)
+   - here @ . -> 128   (memory inchangee apres les tentatives bloquees)
+   - En-tete SECTIONS mis a jour (B10).
+
+4) BUILD
+   - cargo build : 0 erreur, 413 warnings (baseline). Warning temporaire
+     "read_byte/write_byte never used" elimine par #[allow(dead_code)].
+
+5) DOCS / LOGS
+   - devguide Phase 4, section 6.2 : J24 coche (fait) ;
+   - forth_audit_2012.md : section Jour 24 (helpers, migrations, tests B10) ;
+   - PRIMITIVES_REFERENCE : 10/11/113 annotes (via helpers) ;
+   - rapport.md : J24 ajoute ;
+   - planning : J24 FAIT.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9/B10 verts, NB-FAILS = 2 uniquement (B2c).
+   - Recharger BOOTX64.efi (build release) + TESTS dans qemu_img.
+============================================================================

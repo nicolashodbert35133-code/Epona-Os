@@ -1,0 +1,57 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 33 (S" compile)
+Date : 2026-08-08
+Statut : FAIT (chaine copiee une fois a la compilation, plus de derive HERE)
+============================================================================
+
+1) ETAT AVANT J33 (analyse de l'audit, l.467)
+   - Op::PushStr (genere par S" compile) recopiait la chaine dans
+     memory[here..] a CHAQUE execution puis avançait HERE -> dans une
+     boucle, la chaine est recopiee a chaque iteration : consommation
+     infinie de HERE (derive indéfinie de l'espace de donnees).
+   - S" interprete (l.12664) : copie ponctuelle a l'execution - comportement
+     standard (une reservation par S" interprete) - conserve tel quel.
+   - ." compile (Op::PrintStr) : lit directement string_pool vers le
+     print_buffer, aucune copie memory/HERE - pas de bug.
+   - ," compile : ecrit deja UNE FOIS (octet de longueur + octets) dans
+     memory[here] a la compilation - modele de reference.
+
+2) CORRECTIF (Option standard)
+   - S" compile (l.11654) : la chaine est copiee UNE FOIS dans memory[here]
+     (donnees compilees, comme ,/allot), bornee MAX_MEM avec message
+     "Erreur: s\" - memoire depassee (MAX {})", here inchange si echec.
+     L'op genere est Op::PushStrAddr(addr, len) au lieu de
+     Op::PushStr(off, len).
+   - Op::PushStrAddr(u32, u16) (enum l.48) : runtime (l.10227) pousse
+     (addr, len) SANS avancer HERE.
+   - Serialisation JIT : code 48 (serie l.259 + deseriel l.315). Le JIT ne
+     compile pas cet op (_ => return false) -> fallback interpreteur.
+   - Op::PushStr conserve (enum, runtime, serialisation) pour compat des
+     images existantes ; plus genere par aucun site.
+   - Compatibilite : les chaines compilées vivent dans memory[here] (> 4096).
+     TYPE/COUNT/COMPARE lisent memory direct -> OK (verifie COUNT l.4620).
+     restore-marker restaure HERE -> les chaines sont recuperees par
+     marker/forget. c@ utilisateur reste fenetre (MMIO > 4096, J26) - limite
+     preexistante documentee, les primitives natives accedent a memory.
+
+3) TESTS - section B18 (forth/TESTS/core2012.fth)
+   - : hi18 s" hello" ; : here avance de 5 a la COMPILATION (copie unique).
+   - hi18 drop 5 = verif (len = 5) ; hi18 drop here < verif (addr dans
+     l'espace de donnees).
+   - 3x hi18 2drop : here INCHANGE (avant J33 : +5 a chaque execution).
+   - : hi18b s" xyz" ; hi18b drop 3 = verif (2e chaine, len = 3).
+   - En-tete SECTIONS mis a jour (B18).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 33 (etat avant, correctif, B18) ; section "Chaines compilees"
+     de l'audit mise a jour (PushStrAddr) ; PRIMITIVES_REFERENCE : s"
+     annote ; planning : J33 FAIT ; log week01-day33.txt ; rapport : J33.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B18 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : J34 - EVALUATE (sauvegarder/restaurer source et >IN).
+============================================================================

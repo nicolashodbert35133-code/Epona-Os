@@ -1,0 +1,58 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 29 (VARIABLE)
+Date : 2026-08-08
+Statut : FAIT (VARIABLE alloue dans HERE + mot dictionnaire, tests B15)
+============================================================================
+
+1) CONTEXTE
+   - Diagnostic audit (l.394) : "VARIABLE n'ajoute pas de mot au
+     dictionnaire, n'alloue pas une cellule alignee dans HERE, et ses
+     adresses entrent en collision avec les chaines et la source."
+   - Cause racine (l.74) : variables = BTreeMap avec valeur = index de
+     cellule = variables.len() a l'insertion -> adresses 0,1,2,...,
+     dependantes de l'ordre de compilation, en bas de memory (zone non
+     protegee : source, chaines, boot).
+
+2) CORRECTIF (src/interpreter.rs:515-541)
+   - Helper create_variable, calque sur CREATE (l.12415-12441), branche
+     sur les 2 sites "variable" (interprete l.11905 + compile l.11796) :
+       1. data_addr = here; here += 1  (borne MAX_MEM, message d'erreur,
+          here inchange si echec).
+       2. memory[data_addr] = 0  (initialisation).
+       3. mot dictionnaire [Push(data_addr), Exit] -> visible de ' / FIND.
+       4. self.variables.insert(nom, data_addr) : map toujours a jour
+          (compat watchpoints/debug/marker ; resolution par nom toujours
+          prioritaire via la map -> pas de dependance a un doublon).
+   - Alignement : CELL=1 (J23) -> ALIGNED = identite -> toujours aligne.
+   - Securite source : set_source copie la source puis avance here
+     (l.576-591) -> les variables creees pendant l'execution tombent apres
+     la source, pas de collision.
+
+3) TESTS - section B15 (forth/TESTS/core2012.fth)
+   - here avance de 1 cellule a la creation.
+   - cellule initialisee a 0, utilisable via ! / @ (42 V15 ! V15 @ = 42).
+   - adresses distinctes entre 2 variables (V15B V15 <>).
+   - ' V15 0 > : mot au dictionnaire (xt valide).
+   - coherence d'unite avec , (donnee suivante a +1).
+   - En-tete SECTIONS mis a jour (B15).
+
+4) IMPACT APPS
+   - EDITEUR (W H BARRE_Y MY ...), TESTS (NB-FAILS S1) : acces par nom ->
+     transparent. Adresses 0..n -> ~HERE (aucun usage en dur verifie).
+   - BOOT.FTH : aucun variable -> sans impact. constant/value inchange.
+
+5) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth/TESTS/core2012.fth
+     resynchronises.
+
+6) DOCS
+   - audit : Jour 29 (correctif + B15) ; diagnostic l.394 barre/corrige
+     J29 ; ordre conseille item 5 (CREATE/DOES> = J31, VARIABLE fait) ;
+     planning : J29 FAIT ; log week01-day29.txt ; rapport : J29 ajoute.
+
+7) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B15 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : J30 - CONSTANT et VALUE (verifier adresses/valeurs,
+     tester TO si deja present).
+============================================================================

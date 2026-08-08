@@ -1,0 +1,72 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 31 (CREATE/DOES>)
+Date : 2026-08-08
+Statut : FAIT (create ne reserve plus, body does> atteignable, tests B17)
+============================================================================
+
+1) ETAT AVANT J31 (analyse de l'audit, l.394)
+   - CREATE reservait 1 cellule (here += 1) des sa creation, avant le
+     , ou ALLOT : memoire a decalage de 1 par rapport au standard Forth
+     (create X N allot donnait N+1 cellules utilisables).
+   - DOES> : le nouveau mot cree etait ops = [Push(addr), Exit], puis le
+     body does> etait ETENDU APRES l'Exit -> code inatteignable (2 sites :
+     bloc ; l.11155-11157, resolution interpretee d'un defining word
+     l.12951-12959).
+   - Aucun usage de DOES> dans les apps ; create utilise par
+     KEYLOG.fth (LOG_BUF 4000 allot, NUM_BUF 12 allot, NUM_DIGS 12 allot),
+     bureau3.fth (CLK_BUF 6 allot). Aucun test B existant ne couvre create.
+
+2) DECISION (Option A - standard)
+   - CREATE ne reserve PLUS : data_addr = here, identique a buffer:
+     (alloue size cellules sans +1). La memoire est reservee par , ou
+     ALLOT apres CREATE. Compatible avec toutes les apps verifiees
+     (create X N allot -> X = base utilisable, N cellules).
+   - DESKTOP.FTH "variable num-buf 16 allot" : avec la semantique J29
+     (variable = 1 cellule dans here) + allot 16 -> 17 cellules, ecritures
+     jusqu'a num-buf+15 : OK.
+
+3) CORRECTIFS (src/interpreter.rs)
+   - create interprete (l.12484) : retrait de "here += 1" (data_addr =
+     here).
+   - Resolution interpretee d'un defining word (l.12945) : retrait de
+     "here += 1" (+ resize memoire inutile).
+   - Op::CreateWord runtime (l.10793) : retrait de "here += 1".
+   - Op::CreateDefining runtime (l.10842) : retrait de "here += 1".
+   - DOES> (site effectif - resolution interpretee, l.12967) : new_ops =
+       [Push(data_addr), ...does, Exit] si does non vide (le body est
+       insere AVANT l'Exit final ; avant : extend apres [Push,Exit] ->
+       inatteignable).
+   - Decouverte d'analyse : le bloc does_offset du ";" (ex-l.11159) etait
+     REDONDANT - le body does> est deja extrait par rposition(DoesMarker)
+     (l.11147) dans does_ops, et ops du mot est reecrit apres avec
+     compiling_ops. Bloc supprime (nettoie, aucun changement de
+     comportement).
+   - Semantique conservee : le body does> recoit data_addr sur la pile
+     (Push precede le body), conforme au standard.
+
+4) TESTS - section B17 (forth/TESTS/core2012.fth)
+   - create X17 : here inchange, X17 pousse data_addr = here.
+   - create BUF17 5 allot : here +5, BUF17 = base, ! et @ dans le buffer
+     (2 cellules).
+   - : my-const create , does> @ ; 11 my-const ELEVEN : ELEVEN 11 = verif
+     (pattern "constante", body does> lit la valeur stockee par ,).
+   - : plus-data create , 2 allot does> @ 10 + ; 5 plus-data PD : PD 15 =
+     verif (body consomme data_addr puis ajoute).
+   - : make-buf create 3 allot ; make-buf CB17 : here = CB17 + 3
+     (CreateWord compile).
+   - En-tete SECTIONS mis a jour (B17).
+
+5) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+6) DOCS
+   - audit : Jour 31 (analyse, decision Option A, correctifs, B17) ;
+     PRIMITIVES_REFERENCE : create/does> annotes ; planning : J31 FAIT ;
+     log week01-day31.txt ; rapport : J31 ajoute.
+
+7) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B17 verts, NB-FAILS = 2 (B2c seul).
+   - Les apps (KEYLOG/bureau3/DESKTOP) restent compatibles (verification
+     manuelle au prochain passage bureautique).
+============================================================================

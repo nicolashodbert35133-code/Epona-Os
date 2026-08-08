@@ -1,0 +1,61 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 30 (CONST/VALUE)
+Date : 2026-08-08
+Statut : FAIT (value compile via ValueCreate, bornage MAX_MEM, tests B16)
+============================================================================
+
+1) ETAT AVANT J30
+   - constant interprete (l.12422) : pop val, Word [Push(val), Exit] sans
+     allocation - conforme. Compile : Op::ConstantCreate - conforme.
+   - value interprete (l.12096) : pop val, alloue 1 cellule dans HERE,
+     memory[addr]=val, Word [ValueAddr(addr)], create_data=addr - conforme
+     mais NON BORNE MAX_MEM.
+   - to interprete (l.12122) / compile (Op::ToValue l.11430) : ecrit la
+     cellule via create_data - conforme.
+   - MANQUE : "value" en mode compile n'avait aucun cas -> eerr
+     "Mot inconnu : value" dans toute definition (par exemple
+     : init 42 value X ;).
+
+2) CORRECTIF
+   - Op::ValueCreate(u32,u16) (enum l.61) + runtime (l.10790-10816),
+     calque sur ConstantCreate : pop val, alloue 1 cellule dans HERE
+     (borne MAX_MEM, message "Erreur: value - memoire depassee", here
+     inchange si echec), memory[addr]=val, Word [ValueAddr(addr)] avec
+     create_data=addr. Cas compile "value" (l.11771-11776) ajoute.
+   - Serialisation JIT (jit.rs) : code 47 pour ValueCreate (serie l.238 +
+     deseriel l.312). Le JIT ne compile pas cet op (_ => return false
+     l.1387) -> execution par l'interpreteur (fallback normal).
+   - Comptage string_pool du forget complete (l.2918).
+   - value interprete borne MAX_MEM (garde identique a variable).
+
+3) SEMANTIQUE DU SYSTEME (documentee)
+   - Les defining words (constant/value/create) dans une definition
+     s'executent AU RUNTIME (Op::ConstantCreate/ValueCreate/CreateWord),
+     pas a la compilation. Conséquence : "5 to X" compile exige que X
+     existe deja a la COMPILATION (to resout l'adresse via create_data).
+     Teste avec definitions separees (B16).
+
+4) TESTS - section B16 (forth/TESTS/core2012.fth)
+   - 42 constant C42 : C42 42 = verif ; pas d'allocation (here inchange).
+   - 7 value V16 : here +1, V16 7 = verif ; 99 to V16 : V16 99 = verif.
+   - : init16 123 value V16C ; init16 : V16C 123 = verif (compile).
+   - : set16 5 to V16C ; set16 : V16C 5 = verif (to compile).
+   - : init16b 777 constant C777 ; init16b : C777 777 = verif.
+   - En-tete SECTIONS mis a jour (B16).
+
+5) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth/TESTS/core2012.fth
+     resynchronises.
+
+6) DOCS
+   - audit : Jour 30 (etat avant, correctif, semantique, B16) ;
+     PRIMITIVES_REFERENCE : constant/value annotes ; planning : J30 FAIT ;
+     log week01-day30.txt ; rapport : J30 ajoute.
+
+7) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B16 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : J31 - CREATE (definir l'adresse produite et le
+     moment de l'allocation, tester CREATE + ALLOT ; DOES> dans l'audit
+     reste a corriger : code ajoute apres Exit -> inatteignable).
+============================================================================

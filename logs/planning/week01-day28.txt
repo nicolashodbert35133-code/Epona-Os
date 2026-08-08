@@ -1,0 +1,63 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 4, JOUR 28 (REVUE S4)
+Date : 2026-08-08
+Statut : FAIT (MAX_MEM 65536, alloc repare, tests B14)
+============================================================================
+
+1) CONTEXTE
+   - Migration memoire J24-J27 (helpers, bornage HERE/ALLOT/,,C,, fenetre
+     C@/C!/W@/W!/L@/L!/FILL/CMOVE/MOVE/ERASE) en revue de fin de semaine.
+   - Decouverte : la source est stockee dans l'espace de donnees a
+     1 octet/cellule. core2012.fth = 23 630 octets -> here ~25 000 > 4096.
+     Les bornages J25-J27 (MAX_MEM=4096) etaient inoperants en pratique.
+
+2) MAX_MEM 4096 -> 65536 (src/interpreter.rs:260)
+   - Debloque les fichiers source jusqu'a ~64 Ko.
+   - state_addr/to_in_addr = MAX_MEM-2/-1 -> recalculs auto (65534/65535).
+   - check_mem (l.482-484) porte par construction.
+   - B10 mis a jour : 42 4096 @ -> 42 100000 @ (adresse > borne).
+
+3) ALLOC (95) REPARE (src/interpreter.rs:2253-2271)
+   - Avant : poussait memory.len() -> echec systematique (EDITEUR
+     10000 alloc -> -1).
+   - Desormais : reserve size cellules depuis here via checked_add ;
+     message "Erreur: alloc - memoire insuffisante (demande {}, libre {})" ;
+     here inchange si echec.
+   - VM:ALLOC (vm.fth, pages physiques) != ALLOC (95) : separes.
+
+4) RESIDUS POINTEURS NATIFS
+   - Plus que 2 acces core::ptr : branches natives de MOVE (158) / ERASE
+     (159) pour adresses >= MAX_MEM (heap/mmap ~1 TiB conserves).
+
+5) TESTS - section B14 (forth/TESTS/core2012.fth)
+   - alloc reserve u cellules depuis here (here avant/apres compares).
+   - BUF initialise puis relu via @ / ecrit via ! (lecture/ecriture
+     coherentes).
+   - alloc geant (1 000 000) -> -1, here inchange.
+   - Commentaires 4096 -> 65536 ; "65536 here w!" conserve (masque 16 bits
+     != borne). En-tete SECTIONS mis a jour (B14).
+
+6) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth/TESTS/core2012.fth
+     resynchronises.
+
+7) DOCS
+   - devguide 6.2 : J28 fait (revue S4) ; PRIMITIVES_REFERENCE : 73/74/315/
+     316/note here/allot/alloc -> 65536, alloc (95) annote ;
+     audit : Jour 28 (revue S4) + bilan final et ordre conseille mis a jour
+     (adressage J23, memoire caractere J26/J27, memory-alloc J28) ;
+     planning : J28 FAIT ; log week01-day28.txt ; rapport : J28 ajoute.
+
+8) LIMITE RESIDUELLE DOCUMENTEE
+   - here croit a chaque chargement de source (set_source) : source non
+     recyclee. Deux chargements successifs ~doublent l'empreinte. Separation
+     source/espace de donnees = refonte ulterieure (section "Chaines
+     compilees" de l'audit).
+
+9) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B14 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : Semaine 5 (J29 VARIABLE, J30 CONSTANT/VALUE, J31
+     CREATE) - verifier l'usage alloc dans EDITEUR (10000 alloc desormais
+     fonctionnel).
+============================================================================
