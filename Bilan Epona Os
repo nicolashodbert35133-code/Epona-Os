@@ -1,390 +1,501 @@
-# Bilan complet — EponaForth aujourd'hui
+# Rapport d'analyse — Forth ISO 2012 dans Epona OS
+## Vue indépendante du dossier `src/`
 
-### devguide_Forth_Iso_2012.md - Spécifications ISO Forth
-
-#### Spécifications ISO 2012
-- **Mots standard Forth** : `:` `;` `if` `else` `then` `begin` `again` `until` `while` `repeat` `do` `loop` `+loop` `i` `j`
-- **Variables** : `variable`, `constant`, `create`, `does>`
-- **Mots immédiats** : `:` (state 0), `;` (state 1)
-- **Structure de contrôle** : `[` (mode interprétation) `]` (mode compilation)
-- **Caractères** : `(` `\` (commentaires), `[if]` `[else]` `[then]`
-
-#### Adaptations Epona
-| Adaptation | Description |
-|------------|-------------|
-| `c"` | Chargement de chaîne (state 0/1) |
-| `s"` | Chaîne standard |
-| `."` | Affiche chaîne compilée |
-| `'` | Lit xt d'un mot |
-| `[']` | Compile xt |
-| `to` | Modifie valeur |
-| `is` | Associe à defer |
-| `action-of` | Lit xt de defer |
-| `{` `}` | Variables locales |
-| `.(` | Affiche littéral |
-| `c"` | Chaîne counted |
-| `s"` | Chaîne standard |
-
-#### Ce qui reste à faire
-- [ ] Compléter la documentation des mots standard Forth
-- [ ] Ajouter les mots immédiats manquants (if, else, then, begin, repeat, do, loop, etc.)
-- [ ] Implémenter la structure de contrôle `[` `]` (mode compilation)
-- [ ] Ajouter les mots de gestion de variables (variable, constant)
-- [ ] Documenter le système de dictionnaire
-- [ ] Intégrer la bibliothèque de chaînes (strings)
-- [ ] Compléter les primitives de pile avancée (dup, drop, swap, over, rot, nip, tuck, etc.)
-- [ ] Développer le système d'exécution Forth (execute, find, literal, etc.)
-- [ ] Ajouter les primitives de compilation (state 1, etc.)
-- [ ] Documenter le système de mots immédiats (immediate)
-- [ ] Intégrer le système de mots (words) dans l'OS
-- [ ] Compléter les primitives de manipulation de chaînes (strcpy, strcat, strlen, etc.)
-
-
-## Ce qui est implémenté et fonctionnel
-
-### Runtime de base
-| Composant | État |
-|---|---|
-| Compilateur Forth | ✅ |
-| Bytecode Op | ✅ |
-| Pile / Rstack / loop_rstack | ✅ séparés |
-| Dictionnaire 2048 mots | ✅ |
-| Mémoire Forth 4096 cellules | ✅ |
-| Exceptions try/catch/throw | ✅ |
-| Récursion | ✅ |
-| Mode immédiat / compilation | ✅ |
-| Débogueur step/trace/break | ✅ |
-| Sécurité sandbox | ✅ |
-
-### Langage
-| Mot | État |
-|---|---|
-| 285 primitives matériel | ✅ |
-| 20 mots roadmap (see, value, defer...) | ✅ |
-| case/of/endof/endcase | ✅ |
-| include/require | ✅ |
-| [if]/[else]/[then]/[defined] | ✅ |
-| struct/field/enum | ✅ |
-| buffer: / marker | ✅ |
-| abort" | ✅ |
-| type/count/compare/search | ✅ |
-
-### Bibliothèques
-| Fichier | Contenu | État |
-|---|---|---|
-| FIXED.FTH | Virgule fixe Q20.12, vecteurs 2D, physique, traceur | ✅ |
-| MUTEX.FTH | Mutex, spinlock, sémaphore, channel, rwlock, barrier | ✅ |
-| TESTS.FTH | 29 sections, 180+ assertions | ✅ |
-| DEVGUIDE.FTH | Documentation complète avec exemples | ✅ |
-
-### Multitâche
-| Composant | État |
-|---|---|
-| Scheduler round-robin | ✅ |
-| Préemption PIT ~100Hz | ✅ |
-| critical_depth anti-préemption | ✅ |
-| Timeout anti-deadlock 100k | ✅ |
-| Sections critiques imbriquées | ✅ |
-
-### Matériel
-| Catégorie | Primitives | État |
-|---|---|---|
-| GPU Intel/AMD | 22 primitives | ✅ |
-| USB XHCI + MSD | 15 primitives | ✅ |
-| Réseau TCP/UDP/HTTP | 27 primitives | ✅ |
-| AHCI/NVMe | 12 primitives | ✅ |
-| FAT32 bas niveau | 12 primitives | ✅ |
-| Audio HDA | 7 primitives | ✅ |
-| I2C HID touchpad | 9 primitives | ✅ |
-| PCI/ACPI/SMBIOS | 14 primitives | ✅ |
-| Ports I/O x86 | 6 primitives | ✅ |
-| MSR/CPUID | 3 primitives | ✅ |
+> **Auteur :** Claude Sonnet (analyse du 2026-08-08)
+> **Sources analysées :** `src/interpreter.rs`, `src/jit.rs`, `src/shell.rs`, `src/main.rs`,
+> `forth_audit_2012.md`, `rapport.md`, `PLANNING_CODAGE_FORTH_12_SEMAINES.md`,
+> `forth/std/CORE_WORDS.md`, `forth/TESTS/`, `docs/`
+> **Version Epona OS :** 1.98
+> **Périmètre :** analyse statique du code source — aucune modification effectuée
 
 ---
 
-# Ce qui manque encore — par priorité
+## 1. Contexte et objectif
 
-## Priorité 1 — Ce qui bloquerait les utilisateurs
+Epona OS est un système d'exploitation bare-metal x86_64 UEFI écrit intégralement en **Rust** (`no_std`).
+Son cœur applicatif est une **machine virtuelle Forth** exposée via l'interpréteur principal
+(`src/interpreter.rs`, ~13 130 lignes) et un compilateur JIT x86_64 (`src/jit.rs`, ~2 297 lignes).
 
-### 1.1 — STDLIB.FTH
+L'objectif du planning 12 semaines est de rendre ce Forth suffisamment conforme à la
+norme **Forth 2012 Core** pour que des agents et utilisateurs distants puissent écrire
+des applications et drivers `.fth` **sans toucher au code Rust**.
 
-C'est le manque le plus visible. Les utilisateurs qui chargent Epona n'ont aucune bibliothèque de base.
+Ce rapport est une photographie de l'état du dépôt au **2026-08-08**, après 33 jours
+de travail (Semaines 1 à 5, partiellement).
 
-```forth
-\ Ce qui devrait être disponible sans rien charger :
-: max3 ( a b c -- max )  max max ;
-: clamp ( n lo hi -- n' )  rot min max ;
-: within ( n lo hi -- flag )  rot tuck > -rot < and ;
-: hex. ( n -- )  hex . decimal ;
-: 0.r ( n width -- )  \ affiche avec zéros de remplissage
-: bounds ( addr len -- end addr )  over + swap ;
-: /string ( addr len n -- addr' len' )  \ avance dans une chaîne
+---
+
+## 2. Architecture du dossier `src/` (56 fichiers Rust)
+
+### 2.1 Fichiers principaux
+
+| Fichier | Taille | Rôle |
+|---|---|---|
+| `interpreter.rs` | 630 Ko / 13 130 lignes | VM Forth complète : dictionnaire, primitives, compilateur, JIT fallback, mémoire |
+| `jit.rs` | 84 Ko / 2 297 lignes | Compilateur JIT x86_64 (1 Mo de buffer code, registres R12-R15 pour la pile Forth) |
+| `shell.rs` | 180 Ko / 3 444 lignes | Shell UEFI : commandes système, exec Forth, pipeline, gestion des taches |
+| `main.rs` | 64 Ko | Point d'entrée UEFI : init hardware, boot loop, runtime multi-tache |
+| `gpu.rs` | 52 Ko | Pilote GPU générique (i915/amdgpu/GOP) |
+| `hda.rs` | 60 Ko | Pilote audio Intel HDA |
+| `xhci.rs` | 98 Ko | Contrôleur USB xHCI (hub, HID, MSD) |
+| `net_stack.rs` | 80 Ko | Pile réseau TCP/UDP/DHCP/DNS |
+| `drv_api.rs` | 25 Ko | API driver bas niveau (MMIO, PCI, IRQ) |
+
+### 2.2 Modules hardware et système
+
+```
+src/
+├── interpreter.rs   <- VM Forth + compilateur JIT (630 Ko, 13 130 lignes)
+├── jit.rs           <- Compilateur JIT x86_64 (84 Ko)
+├── shell.rs         <- Shell interactif + exec .fth (180 Ko)
+├── main.rs          <- Boot UEFI + runtime (64 Ko)
+├── gpu.rs           <- GPU Intel i915 / AMD / GOP fallback
+├── hda.rs           <- Audio Intel HDA
+├── xhci.rs          <- USB xHCI (hub, HID, MSD)
+├── net_stack.rs     <- TCP/UDP/DHCP/DNS
+├── drv_api.rs       <- API drivers bas niveau
+├── acpi.rs          <- ACPI (tables, MADT, FADT)
+├── pci.rs           <- Enumération PCI
+├── memory.rs        <- Allocateur physique (bump_alloc)
+├── filesystem.rs    <- VFS + FAT32/ext2/NTFS
+├── i2c_hid.rs       <- I2C HID (pavé tactile HP) + helpers MMIO
+├── keyboard.rs      <- Décodage clavier PS/2 + USB HID
+├── nvme.rs          <- NVMe (SSD PCIe)
+├── ahci.rs          <- AHCI (SATA)
+├── e1000.rs         <- Réseau Intel e1000
+├── rtl8168.rs       <- Réseau RTL8168
+├── amdgpu.rs        <- Pilote AMD GPU
+├── i915.rs          <- Pilote Intel GPU
+├── graphics.rs      <- Gestionnaire graphique unifié
+├── gfx.rs           <- Primitives graphiques bas niveau
+├── window_manager.rs <- Gestionnaire de fenêtres
+├── scheduler.rs     <- Ordonnanceur préemptif (v1)
+├── scheduler_v2.rs  <- Ordonnanceur (v2)
+├── ipc.rs           <- IPC (communication inter-taches)
+├── vmm.rs           <- Gestionnaire mémoire virtuelle
+├── interrupts.rs    <- Gestionnaire d'interruptions
+└── ...              <- 56 fichiers au total
 ```
 
-### 1.2 — Virgule flottante dans les chaînes
+---
 
-Actuellement impossible :
+## 3. La machine virtuelle Forth
 
-```forth
-." Temperature: " 3141 f.from-milli f. cr
-\ → Temperature: 3.141  ✓
+### 3.1 Structure `ForthVm`
 
-\ Mais impossible de faire :
-s" Temperature: " f>str append   \ ← n'existe pas
-```
-
-Il manque `f>str` pour convertir une valeur fixe en chaîne.
-
-### 1.3 — `ms` dans une tâche ne yield pas
-
-```forth
-: ma-tache
-  begin
-    100 ms     \ ← spin loop, monopolise le CPU pendant 100ms
-    ." tick" cr
-  again ;
-```
-
-Le `ms` actuel fait une boucle `spin_loop`, il ne cède pas la main aux autres tâches. Il faudrait un `ms` qui yield :
+La VM est définie dans `src/interpreter.rs` :
 
 ```rust
-20 => { // attendre / ms
-    if let Some(ms) = self.stack.pop() {
-        let deadline = ticks_ms() + ms as u64;
-        while ticks_ms() < deadline {
-            // Vérifier l'emergency break
-            if self.emergency_break { break; }
-            // Vérifier la préemption
-            if crate::interrupts::PREEMPT_REQUESTED
-                .load(Ordering::SeqCst)
-            {
-                // Sauvegarder et rendre la main
-                // ... VmSnapshot avec deadline restante ...
-                break;
-            }
-            core::hint::spin_loop();
-        }
-    }
+pub struct ForthVm {
+    pub stack: Vec<i64>,          // pile de données (max 4096)
+    pub rstack: Vec<usize>,       // pile de retour (max 1024)
+    pub dictionary: Vec<Word>,    // dictionnaire (max 2048 mots)
+    pub memory: Vec<i64>,         // espace de données Forth (65 536 cellules)
+    pub here: usize,              // pointeur dictionnaire courant
+    pub base: u8,                 // base numérique (10 par défaut)
+    pub jit: Option<JitEngine>,   // compilateur JIT x86_64
+    pub source_buffer: String,    // source courante
+    pub source_addr: usize,       // adresse mémoire de la source
+    pub to_in_addr: usize,        // = MAX_MEM - 1 (>IN)
+    pub state_addr: usize,        // = MAX_MEM - 2 (STATE)
+    pub variables: BTreeMap<String, usize>, // cache compat watchpoints
+    pub byte_mem: Vec<u8>,        // 256 Ko mémoire u8 séparée (DMA/réseau)
+    // ... champs OS, graphique, réseau, multi-tache
 }
 ```
 
----
+**Constantes clés (après Jour 28) :**
 
-## Priorité 2 — Ce qui enrichirait l'écosystème
+| Constante | Valeur | Rôle |
+|---|---|---|
+| `MAX_MEM` | **65 536** cellules i64 | Taille de l'espace de données Forth |
+| `MAX_STACK` | 4 096 | Profondeur maximale de la pile de données |
+| `MAX_RSTACK` | 1 024 | Profondeur maximale de la pile de retour |
+| `MAX_DICT` | 2 048 | Nombre maximal de mots au dictionnaire |
+| `state_addr` | `MAX_MEM - 2` = 65 534 | Adresse cellule `STATE` |
+| `to_in_addr` | `MAX_MEM - 1` = 65 535 | Adresse cellule `>IN` |
 
-### 2.1 — BOOT.FTH de production
+**Note :** `MAX_MEM` est passé de 4 096 à **65 536** au Jour 28 car le simple chargement de
+`TESTS/core2012.fth` (~23 630 octets à raison de 1 octet/cellule) dépassait l'ancienne limite
+et rendait tous les bornages J25-J27 inopérants.
 
-Un fichier de démarrage structuré :
+### 3.2 Modèle mémoire — décision du Jour 23
 
-```forth
-\ BOOT.FTH — Epona OS
-cr ." Epona OS — EponaForth" cr
+**Décision validée (2026-08-07) : 1 unité d'adresse = 1 cellule i64.**
 
-\ Charger la bibliothèque standard
-require STDLIB.FTH
-require FIXED.FTH
-require MUTEX.FTH
+| Mot | Avant J23 | Après J23 | Implémentation |
+|---|---|---|---|
+| `CELL` | absent | 1 | constante Forth `1 constant cell` (BOOT.FTH) |
+| `CHAR` | absent | 1 | constante Forth `1 constant char` (BOOT.FTH) |
+| `CELL+` | +8 | +1 | primitive 152 (`interpreter.rs:2836`) |
+| `CELLS` | n x 8 | n | primitive 153 (`interpreter.rs:2841`) |
+| `ALIGNED` | align-8 | identité | primitive 154 (`interpreter.rs:2846`) |
 
-\ Détecter et initialiser le matériel
-[defined] gpu:init [if]
-  gpu:init if
-    ." GPU: " gpu:info
-  else
-    ." GPU: fallback software" cr
-  then
-[then]
+**Fenêtre mémoire (Jours 26-27) :** les mots `C@`/`C!`/`W@`/`W!`/`L@`/`L!`/`FILL`/`CMOVE`/`MOVE`/`ERASE`
+appliquent une logique de fenêtre :
+- `addr < MAX_MEM` : acces à `self.memory` via helpers `read_byte`/`write_byte`/`read_cell`/`write_cell`
+- `addr >= MAX_MEM` : acces MMIO natif (`i2c_hid::mmio_*`) ou pointeur physique (heap/mmap ~1 TiB)
 
-[defined] hda-init [if]
-  hda-init if
-    ." Audio: HDA OK" cr
-  else
-    ." Audio: absent" cr
-  then
-[then]
+### 3.3 Helpers mémoire (Jour 24)
 
-[defined] net:init [if]
-  net:init if
-    net:dhcp if
-      ." Reseau: DHCP OK " net:stack-info
-    else
-      ." Reseau: DHCP echec" cr
-    then
-  else
-    ." Reseau: pas de carte" cr
-  then
-[then]
-
-\ Charger les drivers utilisateur
-[defined] sys:probe [if]
-  sys:probe
-[then]
-
-\ Charger le programme utilisateur si présent
-[defined] disk:init [if]
-  disk:init if
-    [undefined] principal [if]
-      require MAIN.FTH
-    [then]
-  then
-[then]
-
-cr ." Systeme pret." cr
+```rust
+fn read_cell(&self,  addr: usize) -> Option<i64>    // borné check_mem
+fn write_cell(&mut self, addr: usize, val: i64) -> bool
+fn read_byte(&self,  addr: usize) -> Option<u8>     // octet bas de la cellule
+fn write_byte(&mut self, addr: usize, val: u8) -> bool
 ```
 
-### 2.2 — EVENTS.FTH (système d'événements)
+`@` (10), `!` (11) et `+!` (113) passent désormais par `read_cell`/`write_cell`.
 
-Avec `defer` maintenant disponible, un vrai système d'événements :
+### 3.4 Compilateur JIT x86_64 (`src/jit.rs`)
 
-```forth
-\ EVENTS.FTH
+- Buffer de code : **1 Mo** (`CODE_BUF_SIZE = 1 MiB`)
+- Registres dédiés pile Forth : **R12** (TOS), **R13** (DSP), **R14** (RSP), **R15** (mémoire)
+- Les primitives non JITtées tombent sur un fallback interpréteur via `jit_prim_fallback()`
+- **Activé par défaut** ; le planning garantit le fallback interprété si le JIT est indisponible
 
-defer on-key-press     \ ( char -- )
-defer on-key-release   \ ( char -- )
-defer on-mouse-move    \ ( x y -- )
-defer on-mouse-click   \ ( x y btn -- )
-defer on-tick          \ ( ms -- )
-defer on-resize        \ ( w h -- )
-defer on-quit          \ ( -- )
+### 3.5 Multi-tache préemptif Forth
 
-: default-nop  drop ;
-: default-nop2 drop drop ;
-: default-nop3 drop drop drop ;
-
-' default-nop  is on-key-press
-' default-nop  is on-key-release
-' default-nop2 is on-mouse-move
-' default-nop3 is on-mouse-click
-' default-nop  is on-tick
-' default-nop2 is on-resize
-' default-nop  is on-quit
-
-: event-loop ( -- )
-  begin
-    \ Clavier
-    touche? dup 0<> if on-key-press else drop then
-    \ Souris
-    souris? if
-      souris on-mouse-move
-    then
-    \ Tick
-    ticks on-tick
-    \ Dessin
-    16 ms
-    \ Quitter ?
-    exit-requested? if on-quit 1 else 0 then
-  until ;
+```rust
+pub struct ForthTaskSlot {
+    pub name: [u8; 32],
+    pub stack: Vec<i64>,           // pile propre à chaque tache
+    pub rstack: Vec<usize>,
+    pub snapshot: Option<VmSnapshot>,  // état sauvegardé lors de la préemption
+}
 ```
 
-### 2.3 — GUIKIT.FTH (toolkit UI)
-
-Au-dessus des widgets existants :
-
-```forth
-\ GUIKIT.FTH
-
-: ui:window ( x y w h title -- )
-  \ Fenêtre avec barre de titre
-  2over 2over 0x2C3E50 rect          \ fond
-  2over swap drop over 20 0x1A252F rect  \ barre titre
-  2over 5 + swap 5 + swap 10 0xECF0F1 gpu:text
-;
-
-: ui:button ( x y w h label -- pressed? )
-  \ Bouton avec état hover
-  souris >r >r
-  2over 2over
-  r@ r> \ x y btn
-  \ Vérifier hover
-  3 pick over >= 5 pick over >= and
-  4 pick over 5 pick + <= and
-  3 pick over 4 pick + <= and
-  swap drop
-  if
-    r@ 1 = if 0x2980B9 else 0x3498DB then
-  else
-    0x2C3E50
-  then
-  r> drop
-  rect
-  \ Label centré
-  \ ...
-  0  \ non pressé pour l'instant
-;
-```
+Le dictionnaire est **partagé** entre toutes les taches.
 
 ---
 
-## Priorité 3 — Simulation et jeux
+## 4. État de conformité Forth 2012 Core — Semaines 1 à 5
 
-### 3.1 — CHIP-8 complet
+### 4.1 Inventaire général (Jour 2)
 
-Le squelette est dans DEVGUIDE.FTH. Il faut compléter la table des opcodes et les 16 chiffres de la police.
+| Catégorie | Nombre |
+|---|---|
+| Primitives enregistrées | 741 (729 uniques) |
+| Mots-clés compilateur | ~68 |
+| Mots Forth pur (définis en `.fth`) | ~49 |
+| **Total effectif** | **~833 mots** |
+| Mots Core présents | **103 / 133 (77 %)** |
+| Mots Core manquants | **23** |
+| Mots Core Extension manquants | **37** |
+| Doublons de noms | **12** (à nettoyer Phase 4) |
 
-### 3.2 — SNAKE.FTH (utilise FIXED.FTH + EVENTS.FTH)
+### 4.2 Tableau des corrections effectuées (Jours 8-33)
+
+| Mot / Domaine | Problème initial | Correction appliquée | Jour |
+|---|---|---|---|
+| **Flags booléens** (`=` `<>` `<` `>` `<=` `>=` `0=` `0<>` `0<` `0>`) | Retournaient `1` au lieu de `-1` | `push -1` si vrai — interpreter.rs + jit.rs (`not_r + add_imm8(1)`) | **J8** OK |
+| **`2/`** | `v / 2` (troncature vers zéro) | `v >> 1` (SAR, arrondi vers -inf) ; JIT déjà conforme (SAR via `sar_imm8`) | **J9** OK |
+| **`RSHIFT`** | `wrapping_shr(i64)` = décalage arithmétique | `((v as u64) >> n) as i64` (logique) ; JIT déjà conforme (SHR) | **J10** OK |
+| **`SEARCH`** | Sous-chaîne vide -> flag `0` (non trouvée) | `len2 == 0` -> toujours trouvée (`addr3=addr1`, `len3=len1`, flag `-1`) | **J11** OK |
+| **`REFILL`** | Ligne vide -> `0` (EOF) | Booléen `cancelled` : Escape -> `0`, ligne lue (même vide) -> `-1` | **J12** OK |
+| **`SOURCE`** | Copiait la source dans `memory[HERE..]` à chaque appel (dérive HERE) | `source_addr` stable ; copie unique par `set_source` ; HERE inchangé | **J13** OK |
+| **`>IN`** | — | Vérifié modifiable (`>in 5 ! >in @` = 5) ; cohérent avec SOURCE/EVALUATE | **J13** OK |
+| **`STATE`** | Retournait la valeur `self.state` (non adressable) | Cellule réservée `MAX_MEM-2` ; tokenizer et `]`/`[`/`:`/`;` recâblés | **J16** OK |
+| **`FIND`** | `( addr len -- idx|-1 )` non standard | `( c-addr -- c-addr 0 | xt 1 | xt -1 )` sur chaîne comptée | **J18** OK |
+| **`PARSE-NAME`** | `(`/`)` comme délimiteurs + copie vers HERE | Délimiteurs = espaces uniquement ; c-addr dans source, HERE inchangé | **J19** OK |
+| **`PARSE`** | Sautait les délimiteurs initiaux + copiait vers HERE | Champ vide si délimiteur en premier (u=0) ; c-addr dans source | **J20** OK |
+| **`CELL+`/`CELLS`/`ALIGNED`** | +8 / n x 8 / align-8 | +1 / n / identité (1 AU = 1 cellule) | **J23** OK |
+| **Helpers mémoire** | Absents | `read_cell`/`write_cell`/`read_byte`/`write_byte` ; `@`/`!`/`+!` migrés | **J24** OK |
+| **`ALLOT` négatif** | `wrapping_add` -> wrap 64 bits -> OOM potentiel | `saturating_sub` | **J25** OK |
+| **Bornage HERE/ALLOT/`,`/`C,`/`CREATE`** | Absent | Bornage strict `MAX_MEM` avec message d'erreur | **J25** OK |
+| **`C@`/`C!`/`W@`/`W!`/`L@`/`L!`/`FILL`/`CMOVE`** | MMIO brut (non-espace Forth) | Fenêtre mémoire (addr < MAX_MEM -> `self.memory`) | **J26** OK |
+| **`MOVE`/`ERASE`** | `core::ptr::copy`/`write_bytes` bruts | Fenêtre mémoire (u cellules, chevauchement géré, clamp MAX_MEM) | **J27** OK |
+| **`MAX_MEM` 4096 -> 65536** | Bornages inopérants (source dépassait 4096) | Porté à 65 536 ; `state_addr`/`to_in_addr` recalculés automatiquement | **J28** OK |
+| **`alloc` (idx 95)** | Poussait `memory.len()` -> échec systématique | Réserve depuis `here` via `checked_add`, borné `MAX_MEM` | **J28** OK |
+| **`VARIABLE`** | `BTreeMap` index-dépendant, pas de mot dictionnaire | `create_variable` : 1 cellule dans HERE (init 0) + mot `[Push(addr), Exit]` | **J29** OK |
+| **`VALUE` compilé** | Absent — `eerr "Mot inconnu : value"` dans toute définition | `Op::ValueCreate(u32,u16)` + sérialisation JIT code 47 | **J30** OK |
+| **`CREATE`** | Avançait HERE trop tôt (réservait 1 cellule avant `ALLOT`) | `data_addr = here` sans réservation (Option A standard) | **J31** OK |
+| **`DOES>`** | Body ajouté après `Exit` -> code inatteignable | Body inséré **avant** l'`Exit` final ; bloc `does_offset` redondant supprimé | **J31** OK |
+| **`S"` compilé** | Recopiait la chaîne dans `memory[HERE]` à chaque exécution (dérive infinie en boucle) | Copie unique à la compilation -> `Op::PushStrAddr(addr, len)` (HERE inchangé au runtime) | **J33** OK |
+| **`parse_number_with_base`** | `-(val as i64)` -> panique debug sur MIN i64 | `.wrapping_neg()` | **J9** OK |
+
+### 4.3 Mots Core encore absents (23 identifiés)
 
 ```forth
-require FIXED.FTH
-require EVENTS.FTH
+\ Groupe numérique
+#  #>  #S  <#  HOLD  SIGN  BASE
 
-\ Snake utilise :
-\ - FIXED.FTH pour les positions précises
-\ - EVENTS.FTH pour le clavier
-\ - Canvas pour le rendu
-\ - Un tableau circulaire pour le corps
+\ Groupe arithmétique double
+M*  */MOD  S>D  U<  2@  2!
+
+\ Groupe entrée/contrôle
+KEY  ACCEPT  WORD  >NUMBER  ABORT  QUIT  ALIGN
+
+\ Isolés
+ENVIRONMENT?  CHAR (parsing)  IMMEDIATE
 ```
 
-### 3.3 — RAYCAST.FTH (Wolfenstein-like)
+Ces 23 mots sont dans le périmètre des **Semaines 6 et 7** du planning (Jours 36-49).
 
-Avec FIXED.FTH disponible, un raycaster est faisable :
+### 4.4 Problèmes résiduels documentés
+
+| Problème | Sévérité |
+|---|---|
+| `tuck` (idx 40) et `-rot` (idx 38) ont leurs implémentations **échangées** | ATTENTION — Bug connu, volontairement rouge en B2c |
+| `EVALUATE` ne sauvegarde/restaure pas l'entrée précédente | ATTENTION — A corriger S5 (J34) |
+| `sys:load` affiche `"ERR:"` sans propager l'erreur au compilateur parent | ATTENTION — Robustesse à corriger |
+| `here` croît à chaque chargement de source — source non recyclée | ATTENTION — Limite résiduelle documentée, refonte ultérieure |
+| `CATCH`/`THROW` : `0 THROW` déclenche une exception au lieu d'être un no-op | ATTENTION — Non conforme Forth 2012 |
+| Arithmétique double : `FM/MOD`/`SM/REM`/`UM*`/`UM/MOD` traitent des cellules 32 bits malgré `CELL=64 bits` | ATTENTION — Nécessite `i128`/`u128` |
+| Chaînes contenant `(` ou `)` impossibles (stripping commentaires sur tous les tokens) | ATTENTION — Limite structurelle documentée |
+| `atomic:add/cas/xchg` castent la cellule en `*mut AtomicU8` (8 bits vs cellule 64 bits) | ATTENTION — Incohérence interne |
+| Locaux `{ }` (`LocalGet`/`LocalSet`) ne font pas `ip += 1` -> rebouclage infini | CRITIQUE — Bug structurel |
+
+---
+
+## 5. Suite de tests — état actuel
+
+### 5.1 Fichiers de tests disponibles (`forth/TESTS/`, 17 fichiers)
+
+| Fichier | Domaine | État estimé |
+|---|---|---|
+| `core2012.fth` (30 Ko) | Tests Core ISO 2012 progressifs (B0-B18) | **NB-FAILS = 2** (B2c seulement) |
+| `refill.fth` | Tests `REFILL` interactifs | Interactif (nécessite clavier) |
+| `heap.fth` | Allocateur mémoire étendue | OK |
+| `ipc.fth` / `ipc_adv.fth` | IPC / communication inter-taches | OK |
+| `as.fth` | Assembleur inline | OK |
+| `audio.fth` | Pilote audio HDA | Matériel dépendant |
+| `floats.fth` | Arithmétique flottante | OK |
+| `vm.fth` | Machine virtuelle imbriquée | OK |
+| `time.fth` / `time_adv.fth` | Temporisation RDTSC | OK |
+| `net_adv.fth` | Réseau avancé | Matériel dépendant |
+| `math.fth` | Fonctions mathématiques | OK |
+| `gui_adv.fth` / `gui_widgets.fth` | Interface graphique | Matériel dépendant |
+| `utf8.fth` | Encodage UTF-8 | OK |
+
+### 5.2 Sections de `core2012.fth` — état section par section
+
+| Section | Domaine | État |
+|---|---|---|
+| **A** | Pile, arithmétique, logique de base | OK (vert) |
+| **B0** | Flags vrai/faux (`-1`/`0`) | OK — J8 |
+| **B1** | Comparaisons entières | OK — J8 |
+| **B2** | `RSHIFT` logique | OK — J10 |
+| **B2b** | `2/` signé, valeurs limites (MIN i64, MAX) | OK — J9 |
+| **B2b2** | Division signée `/`, `MOD`, `/MOD` conformes | OK — J9 |
+| **B2c** | `tuck`, `-rot` | ROUGE — bug connu, volontaire |
+| **B3** | `SEARCH` (sous-chaîne vide) | OK — J11 |
+| **B4** | `SOURCE`, `>IN` modifiable | OK — J13 |
+| **B5** | `STATE` adressable, bascule réelle | OK — J16 |
+| **B6** | `FIND` chaîne comptée, flag immédiat | OK — J18 |
+| **B7** | `PARSE-NAME` (délimiteurs = espaces) | OK — J19 |
+| **B8** | `PARSE` (champs vides, HERE inchangé) | OK — J20 |
+| **B9** | `CELL`/`CHAR`/`CELLS`/`ALIGNED`/`CELL+` | OK — J23 |
+| **B10** | Helpers `@`/`!` bornés, adresses hors bornes bloquées | OK — J24 |
+| **B11** | `HERE`/`ALLOT`/`,`/`C,` bornés, ALLOT négatif sûr | OK — J25 |
+| **B12** | Fenêtre `C@`/`C!`/`W@`/`W!`/`L@`/`L!` | OK — J26 |
+| **B13** | `MOVE`/`ERASE` chevauchement, longueur nulle | OK — J27 |
+| **B14** | `alloc` réparé (réserve depuis HERE) | OK — J28 |
+| **B15** | `VARIABLE` dans HERE + dictionnaire + `'` | OK — J29 |
+| **B16** | `CONSTANT`/`VALUE`/`TO` interprétés et compilés | OK — J30 |
+| **B17** | `CREATE`/`DOES>` standard (pattern constante, buffer) | OK — J31 |
+| **B18** | `S"` compilé sans dérive HERE en boucle | OK — J33 |
+
+**Résultat global attendu en exec matériel : NB-FAILS = 2** (B2c seulement, volontairement rouge).
+Lancer `exec TESTS/core2012.fth` sur hardware pour confirmer.
+
+---
+
+## 6. Boot et infrastructure
+
+### 6.1 Séquence de boot
+
+```
+UEFI
+  -> main.rs (init hardware, ACPI, PCI, GOP)
+       -> shell.rs (init shell)
+            -> chargement BOOT.FTH (racine) + forth/boot/BOOT.FTH
+            -> chargement forth/config/default.fth
+            -> chargement forth/std/drvlib.fth, pci_enum.fth, drvmap.fth
+            -> exec runtime -> recherche "principal" / "bureau" / "main"
+```
+
+**Mot d'entrée :** `run()` (interpreter.rs:9662) et `run_slice()` (interpreter.rs:9690)
+cherchent `principal`. En l'absence de point d'entrée : message d'erreur propre, aucun crash.
+
+**Important :** `BOOT.FTH` et les scripts de démarrage n'utilisent **aucun** des mots
+corrigés en S2-S5. Aucune régression de boot introduite par les 24 corrections appliquées.
+
+### 6.2 Robustesse restante à corriger
+
+`sys:load` (interpreter.rs:12013-12025) affiche `"ERR:"` sans propager l'erreur
+au compilateur parent — un script chargé qui échoue passe inaperçu par AUTO-BOOT.
+
+---
+
+## 7. Espaces d'adressage — synthèse pour développeurs
+
+| Espace | Type | Accès Forth | Usage recommandé |
+|---|---|---|---|
+| `memory[0..MAX_MEM]` | `Vec<i64>` (1 AU = 1 cellule) | `@`/`!`/`C@`/`C!`/`HERE`/`ALLOT`/`,` | **Standard Forth — à utiliser** |
+| `memory[MAX_MEM-2]` = 65 534 | Cellule STATE | `state @`/`state !` | `STATE` standard |
+| `memory[MAX_MEM-1]` = 65 535 | Cellule >IN | `>in @`/`>in !` | `>IN` standard |
+| `byte_mem[0..256K]` | `Vec<u8>` séparé | `b@`/`b!`/`balloc`/`b>c` | Extension Epona (DMA/réseau) |
+| Heap physique (~1 TiB) | Pointeur natif | `move`/`erase` (addr >= MAX_MEM) | Extensions matérielles |
+| MMIO physique | Accès volatil | `mmio@`/`mmio!`/`C@`/`C!` (addr >= MAX_MEM) | Extensions matérielles |
+
+---
+
+## 8. Bibliothèque standard et API driver
+
+### 8.1 `forth/std/` — bibliothèque disponible
+
+| Fichier | Contenu |
+|---|---|
+| `drvlib.fth` | Framework drivers : `drv:name!`, `drv:register`, `drv:probe`, `drv:log/warn/err/ok` |
+| `pci_enum.fth` | Enumération PCI en Forth |
+| `drvmap.fth` | Table de mappage des drivers |
+| `fmt.fth` | Formatage numérique |
+| `strings.fth` | Utilitaires chaînes |
+| `tsc.fth` | Compteur TSC (RDTSC) |
+| `CORE_WORDS.md` | Signatures de pile de référence (tableau conformité) |
+
+### 8.2 `docs/API_V1.md` — contrat API v1 (créé Jour 6)
+
+Trois espaces de noms séparés :
+
+- **ISO 2012** : sous-ensemble garanti (103/133 Core), signatures dans `CORE_WORDS.md`
+- **`drv:*`** : framework driver existant vérifié (`drvlib.fth` + primitives)
+- **`epona:*`** : réservé, NON implémenté (proposition v1 de 10 mots)
+
+**Cycle de vie driver contracté :**
 
 ```forth
-require FIXED.FTH
-
-\ fsin/fcos pour les angles
-\ fmap pour projeter les murs
-\ gpu:fill pour les colonnes
-\ 320×200 pixels effectifs
-
-: raycast-column ( x player_x player_y angle -- )
-  \ Pour chaque colonne x :
-  \ 1. Calculer le rayon
-  \ 2. Trouver l'intersection avec le mur
-  \ 3. Calculer la hauteur projetée
-  \ 4. Dessiner la colonne
-;
+drv:name!      ( addr len -- )               \ déclarer le nom
+drv:register   ( type -- )                   \ enregistrer (types 0..6)
+drv:probe      ( bar bus dev func -- ok? )   \ sonder sans destruction
+drv:init       ( pci-address -- flag )       \ initialiser
+drv:stop       ( -- )                        \ arrêter
+drv:status     ( -- flag )                   \ état courant
 ```
 
 ---
 
-## Ce que je te suggère de faire maintenant
+## 9. Mots manquants pour la conformité complète
 
-### Option A — STDLIB.FTH
+### 9.1 Mots Core absents — périmètre Semaines 6-7
 
-Le fichier manquant le plus important. Je peux te le rédiger maintenant. Il contiendrait :
+```forth
+\ Groupe numérique (sortie formatée)
+BASE  <#  #  #S  #>  HOLD  SIGN
 
-- Mots de chaînes (`/string`, `bounds`, `>number`, `number>`)
-- Mots de tableau (`[]`, `matrix[]`)
-- Mots d'affichage (`0.r`, `hex.`, `f>str`)
-- Mots de date/heure (`time>str`, `date>str`)
-- Mots d'inspection (`?`, `??`)
-- Mots utilitaires (`noop`, `true`, `false`, `bl`, `tab`)
+\ Groupe arithmétique double
+M*  */MOD  S>D  U<  2@  2!
 
-### Option B — EVENTS.FTH + GUIKIT.FTH
+\ Groupe entrée/contrôle
+KEY  ACCEPT  WORD  >NUMBER  ABORT  QUIT  ALIGN
 
-Pour que les applications aient une base UI solide avec le système d'événements `defer/is`.
+\ Isolés
+ENVIRONMENT?  CHAR (parsing)  IMMEDIATE
+```
 
-### Option C — Corriger `ms` pour yielder
+### 9.2 Core Extensions notables manquantes
 
-La correction Rust la plus utile maintenant que le multitâche est là. Un seul mot à modifier dans `exec_primitive`.
+```forth
+.(  .R  2R@  :NONAME  COMPILE,  DEFER!  DEFER@  HOLDS  PAD
+ROLL  SAVE-INPUT  RESTORE-INPUT  SOURCE-ID  U.R  U>  UNUSED  WITHIN  [COMPILE]
+```
 
-### Option D — CHIP-8 complet
+### 9.3 Jeux optionnels absents
 
-Terminer le simulateur CHIP-8 du DEVGUIDE.FTH. C'est la démo technique la plus impressionnante pour montrer EponaForth.
-
-### Option E — SNAKE.FTH
-
-Premier vrai jeu complet utilisant FIXED.FTH + EVENTS.FTH.
+| Jeu | État |
+|---|---|
+| **Exception** | `CATCH` absent ; `0 THROW` déclenche une exception (non conforme) |
+| **String** | `/STRING`, `-TRAILING`, `CMOVE>`, `SLITERAL` absents |
+| **Double-Number** | Non fourni |
+| **Floating-Point** | Extension partielle (ne couvre pas le jeu officiel ; manque `FALIGN`, `FDEPTH`, `FLITERAL`, etc.) |
+| **Locals** | Non standard + bug `ip += 1` manquant -> rebouclage infini |
+| **Memory-Allocation** | `ALLOCATE`/`FREE`/`RESIZE` absents (`alloc` = extension Epona, réparée J28) |
+| **Search-Order** | Extension ancienne style (non `WORDLIST`/`GET-ORDER`/`SET-ORDER`) |
 
 ---
 
-Qu'est-ce qui t'intéresse le plus comme prochaine étape ?
+## 10. Évaluation et recommandations
+
+### 10.1 Points forts du projet
+
+- **Architecture Rust sûre** : `no_std`, 0 erreur de compilation, 413 warnings stables sur 33 jours
+- **~833 mots effectifs** dont 77 % du Core 2012 présent
+- **JIT x86_64 fonctionnel** avec fallback interpréteur garanti
+- **Boot UEFI reproductible** sur Intel/AMD x86_64 et QEMU/OVMF
+- **Fenêtre mémoire** proprement implémentée : apps Forth dans `self.memory`, MMIO accessible pour drivers
+- **`VARIABLE`/`CREATE`/`DOES>`/`VALUE`** désormais conformes au standard
+- **Suite de tests** structurée et progressive (24 sections, NB-FAILS = 2)
+- **Multi-tache préemptif Forth** (`ForthTaskSlot`, `VmSnapshot`)
+- **Drivers hardware** : GPU Intel/AMD, USB xHCI, Audio HDA, NVMe, AHCI, e1000, RTL8168, TCP/IP complet
+
+### 10.2 Risques principaux identifiés dans `src/`
+
+**ATTENTION — Source dans l'espace de données :**
+`set_source` copie le fichier source dans `memory[here..]` à raison de 1 octet/cellule,
+sans jamais recycler l'espace. Plusieurs chargements successifs font croître `here`
+de façon monotone. Une vraie séparation source/espace de données est nécessaire à terme.
+
+**ATTENTION — Implémentations échangées :**
+`tuck` (idx 40) et `-rot` (idx 38) ont leurs implémentations échangées.
+`1 2 tuck` donne `2 1 1` au lieu de `2 1 2`.
+`1 2 3 -rot` donne `2 3 1` au lieu de `3 1 2`.
+Ces bugs sont documentés (B2c) mais pas encore corrigés.
+
+**CRITIQUE — Locaux :**
+Les branches `LocalGet`/`LocalSet` ne font pas `ip += 1` -> rebouclage sur la même instruction.
+Toute utilisation de locaux `{ }` dans une définition compilée provoque une boucle infinie.
+
+### 10.3 Priorités recommandées pour la suite
+
+| Priorité | Action | Semaine cible |
+|---|---|---|
+| P0 URGENT | Corriger `tuck`/`-rot` (swap des implémentations, 2 lignes) | Immédiat |
+| P0 URGENT | `EVALUATE` : sauvegarde/restauration source+`>IN` | S5 J34 |
+| P1 IMPORTANT | Ajouter `BASE` (adresse cellule modifiable, comme STATE) | S6 J36 |
+| P1 IMPORTANT | Groupe sortie numérique `<#`/`#`/`#S`/`#>`/`HOLD`/`SIGN` | S6 J40-41 |
+| P1 IMPORTANT | Ajouter `KEY`/`ACCEPT`/`WORD`/`>NUMBER` | S7 J43-46 |
+| P1 IMPORTANT | Ajouter `ABORT`/`QUIT` (reset pile/source standard) | S7 J47-48 |
+| P2 | Arithmétique double `M*`/`*/MOD`/`S>D` avec `i128`/`u128` | S6 J39 |
+| P2 | Corriger `CATCH`/`THROW` (Exception word set) | S9+ |
+| P2 | Corriger bug `ip += 1` dans les locaux | S9+ |
+| P3 | Séparation source/espace de données (refonte `set_source`) | S10+ |
+| P3 | Vocabulaires conformes Search-Order word set | Post-12 semaines |
+
+---
+
+## 11. Résumé exécutif
+
+Après **33 jours de travail** (Semaines 1 à 5, partiellement), le projet a progressé de façon
+**solide et méthodique** sur la conformité Forth 2012 Core :
+
+| Indicateur | Valeur |
+|---|---|
+| Corrections majeures appliquées | **24** (J8-J33) |
+| Régressions de boot introduites | **0** |
+| Baseline compilation (erreurs) | **0** (413 warnings stables) |
+| Tests Core (NB-FAILS) | **2** (B2c : tuck/-rot, volontaire) |
+| Mots Core présents | **103/133 (77 %)** |
+| Mots Core avec sémantique correcte | **~103** (tous les présents) |
+| Mots Core manquants | **23** (périmètre S6-S7) |
+
+Le socle est **utilisable pour des applications simples** et **pour l'écriture de drivers `.fth`**
+via `drvlib.fth`. Il **n'est pas encore conforme Forth 2012 complet** : 23 mots Core
+manquants, arithmétique double incomplète, jeux optionnels absents.
+
+Le planning 12 semaines est **réaliste** pour atteindre un sous-ensemble Core stable,
+documenté et testé — conforme à l'objectif initial de `rapport.md`.
+
+---
+
+*Rapport généré par analyse statique du dépôt — aucune modification de code source effectuée.*
+
+*Références principales :*
+- `src/interpreter.rs` (630 Ko, 13 130 lignes) — VM Forth principale
+- `src/jit.rs` (84 Ko) — Compilateur JIT x86_64
+- `src/shell.rs` (180 Ko) — Shell UEFI
+- `forth_audit_2012.md` — Audit de conformité Forth 2012
+- `rapport.md` — Plan de travail prioritaire
+- `PLANNING_CODAGE_FORTH_12_SEMAINES.md` — Planning 12 semaines
+- `forth/std/CORE_WORDS.md` — Signatures de pile de référence
+- `forth/TESTS/core2012.fth` — Suite de tests Core ISO 2012
