@@ -28,6 +28,25 @@
 \     B7/B8 testent des-parentheses/espaces via construction manuelle.
 \   B9 - CONTRAT D'ADRESSAGE (Jour 23) : cell=1, char=1, cells/chars/aligned
 \     identite, cell+/char+ = +1 (1 cellule = 1 unite d'adresse).
+\   B10 - HELPERS MEMOIRE / BORNES (Jour 24) : @ ! +! via read_cell/write_cell,
+\     adresses hors bornes bloquees sans effet sur la pile ni memory.
+\   B11 - HERE/ALLOT/,/C, (Jour 25) : 1 unite = 1 cellule, incr. +1,
+\     alignement identite, allot negatif, debordement borne (MAX 65536).
+\   B12 - FENETRE MEMOIRE (Jour 26) : c@/c!/w@/w!/l@/l!/fill/cmove sur
+\     addr < 65536 = self.memory (masques 8/16/32 bits), au-dela = MMIO natif.
+\   B13 - MOVE/ERASE FENETRE (Jour 27) : move/erase sur addr < 65536 =
+\     self.memory (u cellules, chevauchement gere) ; au-dela = pointeur natif.
+\   B14 - ALLOC (Jour 28) : alloc reserve u cellules depuis here (reparé).
+\   B15 - VARIABLE (Jour 29) : alloue 1 cellule dans HERE (init 0) + mot
+\     dictionnaire [Push(addr),Exit] ; avant J29 : index = variables.len().
+\   B16 - CONSTANT/VALUE/TO (Jour 30) : constant = [Push(val),Exit] sans
+\     allocation ; value = cellule dans HERE + [ValueAddr], TO ecrit la
+\     cellule ; valeur compilee via Op::ValueCreate (etait absent).
+\   B17 - CREATE/DOES> (Jour 31) : create ne reserve PAS (data_addr = here,
+\     comme buffer:), ,/allot reservent ; body does> insere avant l'Exit
+\     (avant : ajoute apres -> inatteignable).
+\   B18 - S" compile (Jour 33) : chaine copiee UNE FOIS dans memory[here] a
+\     la compilation ; le runtime pousse (addr, len) sans avancer HERE.
 \
 \ BUGS DECOUVERTS (en plus de l'audit) :
 \   -rot (idx 38) a la MEME implementation que rot (idx 9) : -rot est faux
@@ -419,6 +438,234 @@ here 1 cells + .   \ = here+1  (adresse cellule suivante)
 here - 1 = verif   \ -1
 here 1 cells + cell+ .   \ = here+2
 here - 2 = verif   \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B10 - HELPERS MEMOIRE / BORNES (Jour 24)
+\ @ ! +! passent par read_cell/write_cell (bornes check_mem, mem_high=65536).
+\ Une adresse hors bornes ne modifie pas la pile ni memory.
+\ ---------------------------------------------------------------------------
+123 here !          \ ecrit 123 a here ( ! = val addr )
+here @ .            \ 123
+123 = verif         \ -1
+5 here +!           \ +5 ( +! = n addr )
+here @ .            \ 128
+128 = verif         \ -1
+42 100000 @ .       \ 42   (@ hors bornes : rien pousse, 42 reste au sommet)
+42 = verif          \ -1
+5 100000 !          \ ecriture hors bornes bloquee (message sandbox)
+5 100000 +!         \ idem +!
+here @ .            \ 128  (memory inchangee apres les tentatives bloquees)
+128 = verif         \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B11 - HERE / ALLOT / , / C, (Jour 25)
+\ 1 unite d'adresse = 1 cellule i64 : here/alloc/,( )/c, incrementent de +1.
+\ ALIGNED = identite. ALLOT negatif recule. Debordement borne (MAX 65536).
+\ ---------------------------------------------------------------------------
+here aligned swap - 0= verif          \ -1  (ALIGNED = identite)
+
+here 1 allot                       \ reserve 1 cellule
+here swap - 1 = verif              \ -1  (ALLOT 1 avance d'1 unite)
+
+here -1 allot                       \ libere 1 cellule
+here swap - -1 = verif              \ -1  (ALLOT -1 recule d'1)
+
+here 42 ,                           \ , ecrit 1 cellule (val a here)
+here swap - 1 = verif               \ -1  (, avance d'1)
+here @ 42 = verif                   \ -1  (la valeur est bien stockee)
+
+here 65 c,                          \ c, ecrit 1 char (1 cellule)
+here swap - 1 = verif               \ -1  (c, avance d'1)
+here @ 65 = verif                   \ -1  (char stocke dans la cellule)
+
+here 200000 allot                     \ allot geant : bloque (MAX 65536)
+here swap - 0= verif                 \ -1  (here inchange apres blocage)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B12 - FENETRE MEMOIRE C@ C! W@ W! L@ L! FILL CMOVE (Jour 26)
+\ Pour addr < 65536 (check_mem) : acces a self.memory (1 char/octet par
+\ cellule ; valeurs masquees 8/16/32 bits). Au-dela : MMIO natif (non teste,
+\ depend du materiel).
+\ ---------------------------------------------------------------------------
+\ c! puis c@ : octet stocke dans la cellule
+123 here c! here c@ 123 = verif      \ -1
+\ masquage 8 bits (c! ne garde que l'octet bas)
+256 here c! here c@ 0 = verif        \ -1
+
+\ w! / w@ : cellule 16 bits
+0x1234 here w! here w@ 0x1234 = verif  \ -1
+65536 here w! here w@ 0 = verif        \ -1  (masque 16 bits)
+
+\ l! / l@ : cellule 32 bits
+0x12345678 here l! here l@ 0x12345678 = verif  \ -1
+
+\ fill : 4 cellules a 0xAB
+here 4 0xAB fill
+here c@ 0xAB = verif                  \ -1
+here 1 + c@ 0xAB = verif              \ -1
+
+\ cmove : copie 1 cellule de here vers here+1
+here 16 ! here 1 + 32 !
+here here 1 + 1 cmove
+here 1 + @ 16 = verif                 \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B13 - MOVE / ERASE FENETRE (Jour 27)
+\ move/erase sur addr < 65536 = self.memory (u cellules) ; au-dela : pointeur
+\ natif (non teste). Chevauchement gere (src<dest arriere, dest<src avant).
+\ ---------------------------------------------------------------------------
+\ move : copie u cellules (src < dest, copie arriere)
+here 10 ! here 1 + 20 ! here 2 + 30 !
+here here 1 + 2 move
+here 1 + @ 10 = verif                 \ -1
+here 2 + @ 20 = verif                 \ -1
+
+\ move : chevauchement dest < src (copie avant)
+here 10 ! here 1 + 20 ! here 2 + 30 ! here 3 + 40 !
+here 2 + here 2 move
+here @ 30 = verif                     \ -1
+here 1 + @ 40 = verif                 \ -1
+
+\ move : longueur nulle (rien ne change)
+here 99 ! here 1 + 0 move
+here @ 99 = verif                     \ -1
+
+\ erase : efface u cellules
+here 3 0xAA fill
+here 2 erase
+here c@ 0 = verif                     \ -1
+here 1 + c@ 0 = verif                 \ -1
+here 2 + c@ 0xAA = verif              \ -1
+
+\ erase : longueur nulle (rien ne change)
+here 77 ! here 0 erase
+here @ 77 = verif                     \ -1
+
+\ ---------------------------------------------------------------------------
+\ SECTION B14 - ALLOC (Jour 28)
+\ alloc ( u -- addr ) : reserve u cellules a partir de here. Repare J28 :
+\ avant, il poussait memory.len() et echouait toujours (borne MAX_MEM).
+\ ---------------------------------------------------------------------------
+1000 alloc
+here swap - 1000 = verif              \ -1  (delta = taille allouee)
+
+1000 alloc constant BUF               \ BUF = adresse reservee
+BUF @ 0 = verif                       \ -1  (cellule initialisee a 0)
+123 BUF ! BUF @ 123 = verif           \ -1  (adresse utilisable via @/!)
+
+here constant H-BEFORE
+1000000 alloc drop                    \ allocation geante : echec (message)
+here H-BEFORE = verif                 \ -1  (here inchange apres l'echec)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B15 - VARIABLE (Jour 29)
+\ variable : alloue 1 cellule dans HERE (init 0), cree un mot dictionnaire
+\ [Push(addr),Exit] et l'enregistre dans la map. Avant J29, l'adresse etait
+\ l'index de la map (0,1,2,...) -> collision possible avec la source/chaines.
+\ ---------------------------------------------------------------------------
+
+here constant H15
+variable V15
+here H15 - 1 = verif                 \ -1  (here avance de 1 cellule)
+V15 @ 0 = verif                      \ -1  (cellule initialisee a 0)
+42 V15 ! V15 @ 42 = verif            \ -1  (adresse utilisable via @/!)
+
+variable V15B
+V15B V15 <> verif                    \ -1  (adresses distinctes)
+
+' V15 0 > verif                      \ -1  (mot au dictionnaire, xt valide)
+
+\ coherence avec , : la donnee suivante vient apres la variable
+here constant H15C
+99 ,
+here H15C - 1 = verif                \ -1  (unite d'adresse coherente)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B16 - CONSTANT / VALUE / TO (Jour 30)
+\ constant : mot [Push(val),Exit], aucune allocation.
+\ value : cellule dans HERE + mot [ValueAddr(addr)] ; TO ecrit la cellule.
+\ value compile (Op::ValueCreate) : etait absent en mode compile (eerr
+\ "Mot inconnu : value"). Semantique du systeme : les defining words dans
+\ une definition s'executent AU RUNTIME -> TO compile exige le value deja
+\ defini a la compilation (definitions separees ci-dessous).
+\ ---------------------------------------------------------------------------
+
+42 constant C42
+C42 42 = verif                       \ -1  (constante pousse la valeur)
+
+here constant H16
+7 value V16
+here H16 - 1 = verif                 \ -1  (value alloue 1 cellule dans HERE)
+V16 7 = verif                        \ -1  (pousse la valeur stockee)
+99 to V16
+V16 99 = verif                       \ -1  (TO met a jour la cellule)
+
+\ value compilé (ValueCreate au runtime de init16)
+: init16  123 value V16C ;
+init16
+V16C 123 = verif                     \ -1  (value cree en mode compile)
+
+\ to compilé (V16C existe a la compilation)
+: set16  5 to V16C ;
+set16
+V16C 5 = verif                       \ -1  (TO compile met a jour)
+
+\ constant compile (ConstantCreate au runtime)
+: init16b  777 constant C777 ;
+init16b
+C777 777 = verif                     \ -1  (constant compile)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B17 - CREATE / DOES> (Jour 31)
+\ create ne reserve PAS : data_addr = here (comme buffer:) ; la memoire est
+\ reservee par , ou allot apres CREATE. Le body DOES> est insere AVANT
+\ l'Exit final (avant : ajoute apres [Push,Exit] -> inatteignable). Le body
+\ recoit data_addr sur la pile.
+\ ---------------------------------------------------------------------------
+
+here constant H17
+create X17
+here H17 = verif                     \ -1  (create ne reserve pas)
+X17 H17 = verif                      \ -1  (X17 pousse data_addr = here)
+
+here constant H17B
+create BUF17 5 allot
+here H17B - 5 = verif                \ -1  (create 0 + allot 5 = 5 cellules)
+BUF17 H17B = verif                   \ -1  (BUF17 = base du buffer)
+42 BUF17 ! BUF17 @ 42 = verif        \ -1  (ecriture/lecture dans le buffer)
+7 BUF17 1 + ! BUF17 1 + @ 7 = verif  \ -1  (2e cellule)
+
+\ defining word standard : CREATE , DOES> @  (pattern "constante")
+: my-const  create , does> @ ;
+11 my-const ELEVEN
+ELEVEN 11 = verif                    \ -1  (body does> lit la valeur stockee)
+
+\ body qui consomme data_addr puis ajoute : DOES> @ 10 +
+: plus-data  create , 2 allot does> @ 10 + ;
+5 plus-data PD
+PD 15 = verif                        \ -1  (5 stocke ; body : @ puis +10)
+
+\ create compile (CreateWord au runtime de make-buf)
+: make-buf  create 3 allot ;
+make-buf CB17
+here CB17 - 3 = verif                \ -1  (CreateWord : 3 cellules reservees)
+
+\ ---------------------------------------------------------------------------
+\ SECTION B18 - CHAINES COMPILEES S" (Jour 33)
+\ S" compile copie la chaine UNE FOIS dans memory[here] (donnees compilees,
+\ comme ,/allot) ; le runtime pousse (addr, len) sans avancer HERE. Avant :
+\ recopie a chaque execution -> consommation infinie de HERE en boucle.
+\ ---------------------------------------------------------------------------
+
+here constant H18
+: hi18  s" hello" ;
+here H18 5 + = verif                 \ -1  (compilation copie la chaine, +5)
+hi18 drop 5 = verif                  \ -1  (pousse len = 5)
+hi18 drop here < verif               \ -1  (addr dans l'espace de donnees)
+hi18 2drop hi18 2drop hi18 2drop
+here H18 5 + = verif                 \ -1  (executions n'avancent PAS HERE)
+: hi18b  s" xyz" ;
+hi18b drop 3 = verif                 \ -1  (2e chaine, len = 3)
 
 \ ---------------------------------------------------------------------------
 \ RESUME
