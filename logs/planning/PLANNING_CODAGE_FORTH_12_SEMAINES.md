@@ -510,26 +510,73 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Ajouter ou concevoir `read_byte` et `write_byte`.
 - Ajouter les tests limites sans migrer tous les mots.
 
+**FAIT (2026-08-07) :** helpers ajoutés (`src/interpreter.rs:494-510`) : `read_cell`/`write_cell` (i64) et `read_byte`/`write_byte` (octet bas d'une cellule, `& 0xFF`), bornés par `check_mem` avec Option pour signaler le débordement. `@` (10), `!` (11), `+!` (113) migrés vers `read_cell`/`write_cell` (même comportement sandbox). `read_byte`/`write_byte` annotés `#[allow(dead_code)]` (branchés sur `C@`/`C!` au J26). Test B10 ajouté (valeurs normales + adresses hors bornes : pile et memory inchangées). Build 0 erreur/413 warnings. Log : `logs/planning/week01-day24.txt`.
+
 ### Jour 25 — `HERE`, `ALLOT`, `,`, `C,`
 
 - Corriger leur relation avec l’unité d’adresse choisie.
 - Tester alignement, incrément et dépassement.
+
+**FAIT (2026-08-07) :** relation déjà cohérente (1 AU = 1 cellule i64 : `ALLOT n`
+→ +n, `,`/`c,` → +1, `ALIGNED` = identité). Bornage strict `MAX_MEM`=4096 sur
+`allot` (interprété + `Op::Allot`), `,`/`c,` (primitives 315/316 + `Op::Comma`)
+et `create` : message d'erreur au dépassement. `ALLOT` négatif via
+`saturating_sub` (fini le wrap 64 bits → plus de risque de `resize` géant/OOM).
+Tests section B11 (alignement, incrément +1, allot négatif, `,`/`c,` stockage +
+delta, dépassement 65536 bloqué here inchangé). Build 0 erreur/413 warnings ;
+qemu_img resynchronisée. Log : `logs/planning/week01-day25.txt`.
 
 ### Jour 26 — `@`, `!`, `C@`, `C!`
 
 - Faire passer les mots standard par l’espace Forth.
 - Interdire l’utilisation implicite du MMIO.
 
+**FAIT (2026-08-07) — décision utilisateur « fenêtre » :** `C@`/`C!`/`W@`/`W!`/
+`L@`/`L!`/`FILL`/`CMOVE` (73-80, `src/interpreter.rs:2010-2163`) : si `addr`
+passe `check_mem` (< 4096) → `self.memory` via `read_byte`/`write_byte`/
+`read_cell`/`write_cell` (masques 8/16/32 bits, fill/cmove bornés MAX_MEM avec
+clamp + chevauchement géré) ; sinon → MMIO natif `i2c_hid::mmio_*` (comportement
+antérieur). `#[allow(dead_code)]` retirés de `read_byte`/`write_byte` (utilisés
+par `c@`/`c!`). Buffers des apps cohérents avec `@`/`!`/`allot` ; heap/mmap
+(≥ 4096) en accès réel conservé. Test B12. Build 0 erreur/413 warnings.
+Point pré-existant signalé : `alloc` borné à 4096 → `EDITEUR` `10000 alloc`
+retourne -1. Log : `logs/planning/week01-day26.txt`.
+
 ### Jour 27 — `FILL`, `CMOVE`, `MOVE`, `ERASE`
 
 - Migrer vers les helpers mémoire.
 - Tester chevauchement, longueur nulle et limites.
+
+**FAIT (2026-08-07) :** `FILL`/`CMOVE` déjà migrés en J26 (primitives 79/80).
+`MOVE` (158) / `ERASE` (159), avant pointeurs natifs bruts, migrés en
+**fenêtre** (`src/interpreter.rs:2948-2992`) : `addr` < 4096 → `self.memory`
+(u cellules, chevauchement géré src<dest arrière / dest<src avant, clamp
+MAX_MEM) ; sinon → pointeur natif (heap/mmap conservés). Tests B13
+(chevauchement 2 sens, longueur nulle, erase partiel). Build 0 erreur/413
+warnings ; qemu_img resynchronisée. Log : `logs/planning/week01-day27.txt`.
 
 ### Jour 28 — Revue semaine 4
 
 - Décider si la migration est suffisamment stable pour continuer.
 - En cas de régression grave, restaurer la branche et isoler le problème.
 - Ne pas ajouter `CREATE`/`DOES>` si l’adressage n’est pas cohérent.
+
+**FAIT (2026-08-08) :** revue S4 — **migration maintenue**. `MAX_MEM` porté
+de 4096 à **65536** (`src/interpreter.rs:260`) : la source est stockée dans
+l'espace de données à 1 octet/cellule et `core2012.fth` (23 630 octets)
+faisait croître `here` vers ~25 000 → les bornages J25-J27 étaient inopérants
+en pratique. NB : les « 4096 » cités aux J25-J27 désignent la valeur d'origine
+révisée ici. `state_addr`/`to_in_addr` (= `MAX_MEM`-2/-1) recalculés
+automatiquement. **`alloc` (95) réparé** (`src/interpreter.rs:2253-2271`) :
+réservait `memory.len()` → échec systématique (EDITEUR `10000 alloc` → -1) ;
+désormais réserve `size` cellules depuis `here` via `checked_add`, message
+« Erreur: alloc — mémoire insuffisante (demandé {}, libre {}) », `here`
+inchangé si échec. Plus que 2 accès `core::ptr` (branches natives de
+MOVE/ERASE pour heap ~1 TiB). Limite résiduelle documentée : `here` croît à
+chaque chargement de source (`set_source`) — source non recyclée ; séparation
+source/espace de données à faire (refonte). Tests B14 ajoutés. Build
+0 erreur/413 warnings ; qemu_img resynchronisée (BOOTX64.efi + core2012.fth).
+Log : `logs/planning/week01-day28.txt`.
 
 **Livrable :** contrat mémoire et premiers mots mémoire Forth cohérents.
 
@@ -543,15 +590,61 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Ajouter un vrai mot dictionnaire ou un mécanisme équivalent documenté.
 - Tester `VARIABLE`, `@`, `!` et plusieurs variables.
 
+**FAIT (2026-08-08) :** helper `create_variable` (`src/interpreter.rs:515-541`),
+calqué sur `CREATE`, branché sur les 2 sites `variable` (interprété l.11905 +
+compilé l.11796) : alloue 1 cellule dans `HERE` (init 0, borné `MAX_MEM`,
+message « Erreur: variable — mémoire dépassée (MAX {}) », here inchangé si
+échec), crée un mot dictionnaire `[Push(addr), Exit]` (visible de `'`/`FIND`)
+et garde `self.variables` (map `nom → addr`, `insert` toujours à jour) en
+cache compat watchpoints/debug/marker. Résolution par nom toujours prioritaire
+via la map. `set_source` avance here APRÈS la copie de la source → variables
+allouées après la source, pas de collision. Avant : adresses = index de la map
+(0,1,2,…) dépendantes de l'ordre de compilation (audit l.74/394). Tests B15
+(here +1, init 0, !/@, adresses distinctes, `'` xt valide, cohérence avec ,).
+Impact apps : accès par nom → transparent (EDITEUR W..MY, TESTS NB-FAILS/S1).
+Build 0 erreur/413 warnings ; qemu_img resynchronisée. Log :
+`logs/planning/week01-day29.txt`.
+
 ### Jour 30 — `CONSTANT` et `VALUE`
 
 - Vérifier les adresses et les valeurs.
 - Tester `TO` si déjà présent.
 
+**FAIT (2026-08-08) :** `constant`/`value` interprétés déjà conformes
+(`constant` = `[Push(val),Exit]` sans allocation ; `value` = cellule dans
+HERE + `[ValueAddr]`, `TO` écrit via `create_data`). **Manque corrigé** :
+`value` n'avait aucun cas en mode compilé (`eerr "Mot inconnu : value"` dans
+toute définition) → ajout de `Op::ValueCreate(u32,u16)` (enum l.61, runtime
+l.10790, cas compilé l.11771) calqué sur `ConstantCreate` : pop val, alloue 1
+cellule dans HERE (borné MAX_MEM, message, here inchangé si échec), Word
+`[ValueAddr(addr)]`. Sérialisation JIT code 47 + comptage string_pool du
+`forget` complétés. `value` interprété borné MAX_MEM (comme variable).
+Sémantique notée : les defining words dans une définition s'exécutent au
+runtime → `TO` compilé exige le value défini à la compilation. Tests B16
+(constant interprété/compilé, value interprété + to, value compilé +
+to compilé). Build 0 erreur/413 warnings ; qemu_img resynchronisée. Log :
+`logs/planning/week01-day30.txt`.
+
 ### Jour 31 — `CREATE`
 
 - Définir l’adresse produite et le moment de l’allocation.
 - Tester `CREATE` avec données et `ALLOT`.
+
+**FAIT (2026-08-08) :** Option A standard — `CREATE` ne réserve plus
+(`data_addr = here`, identique à `buffer:`) ; la mémoire est réservée par
+`,` ou `ALLOT` après `CREATE` (4 sites : create interprété l.12484,
+résolution interprétée d'un defining word, `Op::CreateWord` runtime l.10793,
+`Op::CreateDefining` runtime l.10842). `DOES>` : body inséré **avant** l'Exit
+final (`[Push(data_addr), ...body, Exit]`) à la résolution interprétée d'un
+defining word (l.12967) — avant : ajouté après `[Push,Exit]` →
+inatteignable (audit l.394). Analyse : le bloc `does_offset` du `;` était
+redondant (`does_ops` déjà extrait par `rposition(DoesMarker)`, `ops`
+réécrit avec `compiling_ops` ensuite) → supprimé, aucun changement de
+comportement. Compatibilité apps vérifiée (KEYLOG `create
+LOG_BUF 4000 allot`, bureau3 `CLK_BUF 6 allot`, DESKTOP `variable num-buf
+16 allot`). Tests B17 (create ne réserve pas, `create N allot`, pattern
+`create , does> @`, body `@ 10 +`, `CreateWord` compilé). Build 0 erreur/413
+warnings ; qemu_img resynchronisée. Log : `logs/planning/week01-day31.txt`.
 
 ### Jour 32 — `DOES>`
 
@@ -559,10 +652,31 @@ Une séance ne doit pas commencer un nouveau domaine si le test de la séance pr
 - Corriger uniquement si un test minimal peut être garanti.
 - Sinon documenter le blocage et ne pas introduire de demi-correction.
 
+**FAIT (2026-08-08, inclus dans le Jour 31) :** le flux `does>` est analysé
+et corrigé (body avant l'`Exit`, `data_addr` poussé sur la pile) ; testé par
+B17 (`my-const`/`plus-data` : le body est bien atteint et consomme
+`data_addr`). Le bloc `does_offset` du `;` s'est avéré redondant
+(`does_ops` déjà extrait par `rposition(DoesMarker)`, `ops` réécrit
+ensuite) → supprimé, sans demi-correction.
+
 ### Jour 33 — Chaînes compilées
 
 - Vérifier `S"`, `COUNT`, `TYPE` et la durée de vie des chaînes.
 - Empêcher une consommation infinie de `HERE` à chaque exécution.
+
+**FAIT (2026-08-08) :** `S"` compilé copiait la chaîne dans `memory[HERE]`
+**à chaque exécution** (dérive infinie de `HERE` en boucle, audit l.467).
+Correctif : la chaîne est copiée **une fois** à la compilation (comme
+`,`/`allot`, bornée `MAX_MEM` avec message) et l'op généré devient
+`Op::PushStrAddr(addr, len)` (enum l.48, runtime l.10227) qui pousse
+`(addr, len)` **sans** avancer `HERE`. Sérialisation JIT code 48 (fallback
+interpréteur). `Op::PushStr` conservé pour compat. `S"` interprété (copie
+ponctuelle standard) et `."` compilé (`PrintStr` → print_buffer) inchangés.
+Chaînes compilées > 4096 : `TYPE`/`COUNT`/`COMPARE` lisent `memory` en
+direct (vérifié), `restore-marker` restaure `HERE`. Tests B18 (compilation
++5, `len`, `addr < here`, `here` inchangé après exécutions répétées). Build
+0 erreur/413 warnings ; qemu_img resynchronisée. Log :
+`logs/planning/week01-day33.txt`.
 
 ### Jour 34 — `EVALUATE`
 
