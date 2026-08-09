@@ -1,2155 +1,506 @@
+**Corrections majeures apportées (à connaître avant de lire) :**
 
-# 🎯 Vue d’ensemble : ton Forth est un **langage système intégré au kernel**
-
-Ton Forth n’est pas un “petit interpréteur”.  
-C’est un **langage système**, intégré :
-
-- au **shell**,
-- au **window manager**,
-- au **système de fichiers**,
-- au **GPU**,
-- au **PCI**,
-- au **I2C HID**,
-- au **MMIO**,
-- au **PS/2**,
-- au **watchdog AMD FCH**,
-- au **scheduler UEFI**.
-
-Tu as recréé un OS UEFI graphique.
+| Ancien texte | Réalité actuelle | Pourquoi c'est important |
+|---|---|---|
+| « pas de flottants » | **Flottants IEEE 754 présents** (primitives 900-944) | Le chapitre décimaux entiers reste utile mais n'est plus la seule option |
+| Flags « `1` = vrai » implicite | **Flags `-1`/`0`** (corrigé S2/J8) | Tout code qui lisait `1` est faux |
+| `c@`/`c!` = « toute la mémoire » | **Modèle « fenêtre »** : `< 65536` = Forth, `≥ 65536` = MMIO | Un débutant qui fait `c!` sur une adresse basse ne touche PLUS le matériel |
+| `-rot`, `tuck` donnés comme OK | **Bugués puis corrigés** (S5) | Doc devait refléter le comportement conforme |
+| Seulement `if begin until exit` | **`do/loop`, `case`, `while/repeat`, `catch/throw`** présents | Le guide sous-vendait le langage |
+| `emergency_break` = F9 | Confirmé, mais ajout **F12/reset** selon config | — |
 
 ---
 
-# 🧩 1. Structure interne de ta VM Forth
+# 📘 EPONA FORTH — Le Langage Système d'Epona OS
 
-Ta VM Forth contient :
+> **Version** : 2.0-beta2 · **Conformité** : profil `EPONA-FORTH2012-CORE-1`
+> **Dernière mise à jour** : 9 août 2026
+> **Licence du langage** : MIT (le langage, les mots, les modules `.fth`) · Noyau Rust : propriétaire
 
-### ✔ Une **pile de données**
-`stack: Vec<i64>`
-
-C’est le cœur du langage.  
-Toutes les opérations manipulent cette pile.
-
-### ✔ Un **dictionnaire de mots**
-`dictionary: Vec<Word>`
-
-Chaque `Word` contient :
-
-- `name: String`
-- `ops: Vec<Op>` — une séquence d’opcodes précompilés
-
-### ✔ Un **buffer de sortie**
-`print_buffer: String`
-
-Utilisé pour :
-
-- `.`
-- `."`
-- `u.`
-- messages d’erreur
-- affichage dans le shell
-
-### ✔ Un **canvas graphique**
-`canvas: Canvas { width, height, buffer }`
-
-Utilisé pour :
-
-- `fb:pixel`
-- `fb:rect`
-- `fb:line`
-- `fb:text`
-- les démos Forth
-- les apps Forth graphiques
-
-### ✔ Un **callback de step**
-`step_callback: Option<fn(&mut ForthVm)>`
-
-Utilisé pour :
-
-- animations Forth
-- rafraîchissement graphique
-- mise à jour souris/clavier
-- scheduling coopératif
-
-### ✔ Un **flag emergency break**
-`emergency_break: bool`
-
-Activé par F9 dans ton OS.
+> ⚠️ **Note importante depuis la refonte ISO 2012** : Epona Forth vise désormais la conformité **Forth 2012 Core**. La sémantique de nombreux mots a changé par rapport aux premières versions (flags, `2/`, `rshift`, modèle mémoire, `create`/`does>`). Ce document décrit le comportement **actuel et conforme**. Si vous avez du code écrit avant août 2026, relisez le chapitre 16 « Migration ».
 
 ---
 
-# 🧩 2. Le cycle de vie d’un programme Forth dans ton OS
+# 🎯 Vue d'ensemble : un langage système intégré au kernel
 
-## 2.1. Le shell reçoit une ligne
-Exemple :
+Epona Forth n'est pas un « petit interpréteur ». C'est un **langage système**, intégré :
+
+- au **shell**, au **window manager**, au **système de fichiers** (FAT32/VFS),
+- au **GPU** (GOP/SimpleFB), au **PCI**, à l'**I2C HID**, au **MMIO**,
+- au **PS/2** et à l'**USB xHCI** (clavier/souris),
+- au **watchdog AMD FCH**, au **scheduler** coopératif/préemptif.
+
+Depuis la refonte 2026, il vise en plus la **conformité Forth ISO 2012 Core**, ce qui signifie qu'un développeur ou un agent peut écrire du Forth **standard** exploitable directement sur le métal.
+
+C'est un langage comparable à **Oberon**, mais en Forth, dans un OS UEFI bare-metal.
+
+---
+
+# 🧩 Chapitre 1 — Structure interne de la VM Forth
+
+La VM contient :
+
+### ✔ Une pile de données
+`stack: Vec<i64>` — cœur du langage, profondeur nominale 4096 cellules (voir `ENVIRONMENT? STACK-CELLS`).
+
+### ✔ Une pile de retour
+`rstack: Vec<i64>` — 1024 cellules (`RETURN-STACK-CELLS`). Utilisée par `>r r> r@`, `do/loop`, les appels de mots et `catch/throw`.
+
+### ✔ Un dictionnaire de mots
+`dictionary: Vec<Word>` — chaque `Word` contient :
+- `name: [u8; 64]` (NUL-terminé)
+- `ops: Vec<Op>` — bytecode précompilé
+- un flag immédiat
+
+### ✔ Un buffer de sortie
+`print_buffer: String` — utilisé par `.`, `."`, `u.`, `type`, `emit`, messages d'erreur.
+
+### ✔ Un canvas graphique
+`canvas: Canvas { width, height, buffer }` — cible de `fb:*` quand redirigé (`gfx:set-target-canvas`).
+
+### ✔ Un callback de step
+`step_callback: Option<fn(&mut ForthVm)>` — animations, rafraîchissement, souris/clavier, scheduling coopératif.
+
+### ✔ Un flag d'arrêt d'urgence
+`emergency_break: bool` — déclenché par **F9** (interruption d'un programme Forth qui boucle).
+
+### ✔ **Nouveauté ISO 2012 — cellules système adressables**
+
+Contrairement aux premières versions où l'état vivait dans des champs Rust invisibles, ces valeurs sont maintenant de **vraies adresses mémoire** lisibles/modifiables par `@`/`!` :
+
+| Mot | Adresse | Rôle |
+|-----|---------|------|
+| `>in` | 65535 | Pointeur de parsing dans la source |
+| `state` | 65534 | 0 = interprétation, ≠0 = compilation |
+| `base` | 65533 | Base numérique courante (10, 16, 2…) |
+| `hold` | 65532 | Pointeur de sortie numérique formatée |
+
+Zone de sortie numérique (« pictured output ») : `[65464..65532)`. Buffer de `word` : `[65424..65464)`.
+
+---
+
+# 🧩 Chapitre 2 — Le modèle mémoire « fenêtre » ⚠️ À COMPRENDRE ABSOLUMENT
+
+C'est **le changement le plus important** de la refonte. Il détermine ce que fait `c@`, `c!`, `@`, `!`, `move`, `fill`.
+
+### Contrat d'adressage
+
+- **1 unité d'adresse (AU) = 1 cellule de 64 bits (`i64`)**. Donc `cell` = 1, `char` = 1, `cells` et `chars` sont l'identité, `aligned` ne fait rien. (Permis par Forth 2012, qui autorise les « chars larges ».)
+- Endianness : little-endian natif x86_64.
+
+### La fenêtre de sécurité
+
+```
+Adresse < 65536  →  espace Forth  (self.memory[], sandbox check_mem)
+Adresse ≥ 65536  →  MMIO / pointeur natif réel (matériel)
+```
+
+**Conséquence pratique :**
+
+```forth
+variable x
+42 x !        \ écrit dans l'espace Forth sûr (x < 65536)
+x @ .         \ 42
+
+0xFED80300 mmio@ .   \ lit un registre matériel réel (≥ 65536)
+```
+
+Un `c!` sur une adresse basse **ne touche plus le matériel** — c'est voulu. Le code applicatif ne peut plus corrompre l'IDT ou une BAR par accident. Pour le bas niveau, on utilise explicitement les mots matériels (`mmio@`, `mmio!`, `pci:*`, ou une adresse `≥ 65536` obtenue par `mem:map-mmio`).
+
+### Pourquoi c'est vital sur bare-metal
+
+Sans OS en dessous, un accès mémoire sauvage ne provoque pas un segfault récupérable : il corrompt silencieusement le système ou provoque un triple fault. `check_mem` + la fenêtre sont **la seule ligne de défense**.
+
+---
+
+# 🧩 Chapitre 3 — Cycle de vie d'un programme Forth
+
+### 3.1 Le shell reçoit une ligne
 
 ```
 5 5 + .
 ```
 
-Le shell fait :
+Le shell appelle `forth_vm.compile(cmd)` puis exécute.
 
-```rust
-forth_vm.compile(cmd)
-```
+### 3.2 Compilation → `ops`
 
-Puis :
+Le compilateur :
+- découpe la ligne en tokens (via `parse-name` interne),
+- nombre → `Op::Push(n)` (selon `base`),
+- mot connu → `Op::Call(word_index)`,
+- `:` … `;` → nouvelle définition,
+- mots immédiats (`."`, `if`, `do`, `s"`…) → compilent directement, avec backpatch.
 
-```rust
-forth_vm.run()
-```
+### 3.3 Exécution → interprétation directe des `ops`
 
----
-
-## 2.2. Compilation : transformation en `ops`
-
-Ton compilateur :
-
-- découpe la ligne en tokens
-- pour chaque token :
-  - si c’est un nombre → `Op::Push(n)`
-  - si c’est un mot connu → `Op::Call(word_index)`
-  - si c’est `:` → commence une définition
-  - si c’est `;` → termine une définition
-  - si c’est un mot immédiat (`."`, `if`, `else`, `then`, etc.) → compile directement
-
-Tu construis un **mini bytecode** dans `ops`.
+Interpréteur direct (pas threaded code) **avec fallback garanti** : si le JIT est indisponible, l'interpréteur suffit. **Toute correction sémantique doit exister dans les deux chemins** (interpréteur ET JIT).
 
 ---
 
-## 2.3. Exécution : interprétation des `ops`
-
-Ton exécuteur :
+# 🧩 Chapitre 4 — Structure des `Op`
 
 ```rust
-for op in ops {
-    match op {
-        Op::Push(n) => stack.push(n),
-        Op::Call(idx) => execute_ops(dictionary[idx].ops),
-        Op::Add => { let b=pop(); let a=pop(); push(a+b); }
-        Op::Dup => { let a=top(); push(a); }
-        ...
-    }
+enum Op {
+    // Pile
+    Push(i64), Dup, Drop, Swap, Over, Rot, MinusRot, Nip, Tuck, Pick,
+    TwoDup, TwoDrop, TwoSwap, TwoOver, QDup,
+    // Retour
+    ToR, RFrom, RFetch,
+    // Arithmétique
+    Add, Sub, Mul, Div, Mod, DivMod, Negate, Abs, Min, Max,
+    OnePlus, OneMinus, TwoStar, TwoSlash,
+    // Comparaison (renvoient -1 / 0)
+    Equal, NotEqual, Less, Greater, LessEq, GreaterEq,
+    ZeroEq, ZeroNe, ZeroLess, ZeroGreater, ULess,
+    // Bits
+    And, Or, Xor, Invert, LShift, RShift,
+    // Mémoire (fenêtre)
+    Fetch, Store, PlusStore, CFetch, CStore, WFetch, WStore,
+    LFetch, LStore, Fill, Cmove, Move, Erase, TwoFetch, TwoStore,
+    // Contrôle de flux
+    Call(usize), Jump(usize), JumpIfZero(usize), Exit,
+    DoLoop, PlusLoop, Leave, Unloop, I, J,
+    // Chaînes / sortie
+    Print, PrintStr, PushStrAddr(usize, usize), Type, Emit,
+    // Matériel
+    MmioRead, MmioWrite, Inb, Outb, Inw, Outw, Inl, Outl,
+    PciRead, PciWrite, IrqAttach,
+    // Graphisme
+    FbPixel, FbRect, FbLine, FbText, Color, Clear,
+    // Entrées
+    Key, KeyQ, MouseQuery, Delay,
+    // Defining words
+    CreateWord, ValueAddr(usize), ConstantCreate, ValueCreate(u32,u16),
+    // ... (voir interpreter.rs pour la liste exhaustive)
 }
 ```
 
-Tu as un **interpréteur direct**, pas un threaded code.
+---
+
+# 🧩 Chapitre 5 — La pile
+
+`dup drop swap over rot -rot nip tuck 2dup 2drop 2swap 2over ?dup pick depth`
+
+> **Corrigé depuis 2026** : `-rot ( a b c -- c a b )` et `tuck ( a b -- b a b )` avaient une implémentation fausse (respectivement identique à `rot`, et copie du bas de pile). **C'est corrigé.** Vérifiez votre ancien code qui aurait pu compenser ces bugs.
+
+```forth
+5 10 swap . .   \ affiche : 5 10
+1 2 3 -rot .s   \ pile : 3 1 2
+```
 
 ---
 
-# 🧩 3. Les catégories de mots que tu exposes
+# 🧩 Chapitre 6 — Arithmétique et nombres
 
-Tu exposes **tout ce qu’un OS Forth doit exposer**.
+`+ - * / mod /mod 1+ 1- 2+ 2- 2* 2/ min max abs negate hasard`
+Double cellule : `2@ 2! s>d m* */ */mod um* um/mod u<`
 
----
+> **Corrigé** : `2/` est un **décalage arithmétique** (arrondi vers −∞ : `-5 2/` = `-3`, pas `-2`). `/`, `mod`, `/mod` sont en **division symétrique** (troncature vers zéro). `*/`, `um*`, `um/mod` utilisent un intermédiaire 128 bits (plus d'overflow silencieux).
 
-## 🧠 3.1. Manipulation de pile
-
-Tu as :
-
-- `dup`, `drop`, `swap`, `over`
-- `rot`, `-rot`
-- `nip`, `tuck`
-- `2dup`, `2drop`, `2swap`, `2over`
-- `?dup`, `pick`
-
-Ce sont les fondations du langage.
+```forth
+5 5 + .        \ 10
+-7 3 /mod . .  \ reste -1, quotient -2
+```
 
 ---
 
-## ➗ 3.2. Arithmétique
+# 🧩 Chapitre 7 — Comparaisons et logique
 
-- `+ - * / mod /mod`
-- `1+ 1- 2+ 2-`
-- `2* 2/`
-- `min max abs negate`
-- `hasard` (random)
+`= <> < > <= >= 0= 0<> 0< 0> u< and or xor invert lshift rshift within u>`
 
----
+> ⚠️ **CHANGEMENT MAJEUR** : les comparaisons renvoient maintenant **`-1` (vrai)** et **`0` (faux)**, conformément à ISO 2012 — plus `1`.
 
-## 🔍 3.3. Comparaisons
+```forth
+10 20 < .      \ -1  (vrai)
+5 5 = .        \ -1
+5 6 = .        \ 0
+```
 
-- `= <> < > <= >=`
-- `0= 0<> 0< 0>`
-
----
-
-## 🧮 3.4. Logique et bits
-
-- `and or xor invert`
-- `lshift rshift`
+> **Corrigé** : `rshift` est un **décalage logique** (remplit avec des zéros), `lshift` aussi. Si vous décaliez des valeurs négatives en attendant une extension de signe, utilisez `2/` répété ou l'arithmétique.
 
 ---
 
-## 💾 3.5. Mémoire
+# 🧩 Chapitre 8 — Contrôle de flux (enrichi)
 
-Tu exposes **toute la mémoire du système** :
+Bien plus que `if/then` :
 
-- `@ !` (cellule)
-- `c@ c!` (octet)
-- `w@ w!` (16-bit)
-- `l@ l!` (32-bit)
-- `fill`
-- `cmove`
+```forth
+\ Conditionnelle
+: test dup 10 < if ." petit" else ." grand" then ;
 
-C’est du **bare-metal**.
+\ Boucle indéfinie
+: attente begin touche? until ;
+
+\ Boucle while/repeat
+: pompe begin lire ?assez while traiter repeat ;
+
+\ Boucle comptée
+: table 10 0 do i . loop ;
+: pas2  10 0 do i . 2 +loop ;
+
+\ Sortie anticipée
+: cherche 100 0 do i cible = if i . unloop exit then loop ;
+
+\ CASE
+: nom-jour case
+    1 of ." lundi"    endof
+    2 of ." mardi"    endof
+    ." autre" dup .
+  endcase ;
+
+\ Exceptions
+: risqué ['] peut-planter catch if ." erreur rattrapée" then ;
+```
+
+Le compilateur gère les backpatches via une pile interne (`Jump`, `JumpIfZero`, adresses de `do`/`leave`).
 
 ---
 
-## 🖧 3.6. Matériel : MMIO, ports, PCI, I2C
+# 🧩 Chapitre 9 — Mémoire, variables, données
 
-Tu exposes :
+### Variables et constantes
+
+```forth
+variable x       \ alloue 1 cellule dans HERE, adresse réelle
+42 x !  x @ .    \ 42
+10 constant DIX  \ valeur pure, pas d'adresse
+5 value cpt      \ variable modifiable par TO
+7 to cpt  cpt .  \ 7
+```
+
+> **Corrigé** : `variable` retourne désormais une **vraie adresse mémoire** (avant : un index de map dépendant de l'ordre de compilation). `create`/`does>` insèrent le body **avant** l'`Exit` (le pattern `create , does> @` fonctionne).
+
+### Accès mémoire (dans la fenêtre)
+
+`@ ! +! c@ c! w@ w! l@ l! 2@ 2! fill cmove move erase here allot , c,`
+
+### Créer un tableau
+
+```forth
+create tab  100 allot     \ 100 cellules réservées
+42 tab 5 + !              \ tab[5] = 42
+tab 5 + @ .               \ 42
+```
+
+### Simuler une structure
+
+```forth
+create point  2 allot
+10 point !                \ x à point+0
+20 point 1 + !            \ y à point+1
+```
+
+---
+
+# 🧩 Chapitre 10 — Chaînes
+
+```forth
+." Bonjour EponaOS"           \ affichage immédiat compilé
+s" texte" type               \ ( addr len ) puis affichage
+s" abc" swap drop .          \ longueur : 3
+```
+
+> **Corrigé** : `s"` compilé ne recopie plus la chaîne dans `HERE` **à chaque exécution** (ancien bug : dérive mémoire infinie en boucle). La chaîne est copiée une seule fois à la compilation ; l'op pousse `(addr len)`.
+
+> **Limite documentée** : une chaîne `."`/`s"`/`abort"` **ne doit pas contenir `(` ni `)`** (le stripping des commentaires s'applique à tous les tokens).
+
+Sortie numérique formatée : `<# # #s hold sign #> .r u.r`
+```forth
+: .money ( n -- ) <# # # [char] , hold #s #> type ;
+125 .money      \ 1,25
+```
+
+---
+
+# 🧩 Chapitre 11 — Matériel (drivers)
+
+> Rappel fenêtre : ces mots visent des adresses **réelles** (≥ 65536 ou espace de config PCI). Ils sont **dangereux** et réservés au code driver.
 
 ### MMIO
-- `mmio@`
-- `mmio!`
+`mmio@ ( addr -- val )` · `mmio! ( val addr -- )` · variantes `mmio-w@/! mmio-b@/!`
 
-Wrappers autour de :
-
-```rust
-mmio_read32
-mmio_write32
-```
-
-### Ports I/O x86
-- `inb outb`
-- `inw outw`
-- `inl outl`
-
-Wrappers autour de tes asm :
-
-```rust
-asm!("in al, dx")
-asm!("out dx, al")
-```
+### Ports x86
+`inb outb inw outw inl outl`
 
 ### PCI
-- `pci@`
-- `pci!`
-
-Wrappers autour de :
-
-```rust
-read_pci_config
-```
+`pci@ pci!` · `pci:list ( -- n )` · `pci:dev ( idx -- bus dev fn vid did class sub )` · `pci:bar ( bus dev fn n -- addr size )`
 
 ### I2C HID
-- `i2c.probe`
-- `dw-i2c-init`
-- `dw-i2c-probe`
+`i2c.probe dw-i2c-init dw-i2c-probe i2c-read`
 
-Wrappers autour de ton driver DesignWare.
+### Mapping et IRQ (API v1)
+`mem:map-mmio ( phys size flags -- vaddr )` · `irq:attach ( irq xt -- )` · `irq:mask irq:unmask irq:ack irq:wait`
 
-Tu as un **langage capable de piloter le hardware**.
-
----
-
-## 🖥️ 3.7. Graphisme
-
-Tu exposes :
-
-- `fb:pixel`
-- `fb:rect`
-- `fb:line`
-- `fb:text`
-- `couleur`
-- `effacer`
-
-Wrappers autour de `GraphicsManager`.
-
-Tu peux dessiner :
-
-- dans le framebuffer global
-- dans le canvas Forth
-- dans les fenêtres ForthApp
-
----
-
-## ⌨️ 3.8. Entrées utilisateur
-
-Tu exposes :
-
-- `touche?` → clavier non bloquant
-- `souris` → x y clic
-- `attendre` → delay ms
-
-Wrappers autour de :
-
-- `KeyboardManager`
-- `PointerManager`
-- `rdtsc_delay_us`
-
----
-
-## 🧩 3.9. Contrôle de flux
-
-Tu exposes :
-
-- `if then else`
-- `begin until`
-- `exit`
-
-Ton compilateur gère les backpatches.
-
----
-
-## 📦 3.10. Variables
-
-- `variable`
-- `@ !`
-
----
-
-# 🧩 4. Intégration avec le système
-
-## 4.1. Shell → Forth
-
-Toute commande non reconnue est du Forth.
-
-## 4.2. IDE → Forth
-
-F3/F4 chargent des démos.  
-F5 compile et exécute.
-
-## 4.3. BOOT.FTH → Forth
-
-Ton OS exécute du Forth au démarrage.
-
-## 4.4. Apps Forth → Forth
-
-Tu peux créer des apps graphiques :
-
-```
-app: monapp 200 100 300 200
-```
-
-Et définir :
-
-```
-: monapp-draw ( x y w h -- )
-    ... dessin ...
-;
+```forth
+0xFED80300 mmio@ .          \ registre watchdog FCH
+0 1F 6 0 pci:bar . .        \ BAR0 : taille et adresse
 ```
 
 ---
 
-# 🧩 5. Scheduling Forth
+# 🧩 Chapitre 12 — Graphisme
 
-Ton callback :
+`fb:pixel ( x y col -- )` · `fb:rect ( x y w h col -- )` · `fb:line` · `fb:char` · `couleur` · `effacer` · `fb-swap`
+Canvas et GFX : `gfx:pixel gfx:rect gfx:line gfx:circle gfx:text gfx:clear gfx:set-target-canvas`
 
-```rust
-forth_vm.step_callback = Some(forth_step_callback);
-```
-
-Permet :
-
-- animations fluides
-- mise à jour souris/clavier
-- rafraîchissement graphique
-- exécution non bloquante
-
-Tu as un **scheduler coopératif**.
-
-
-# 🎯 1. **Le compilateur Forth** — structure exacte des `Op`, pipeline de compilation, gestion des mots, contrôle de flux
-
-Ton compilateur Forth transforme du texte en une **séquence d’opcodes** (`Vec<Op>`).  
-Chaque mot Forth devient un **Word** dans le dictionnaire :
-
-```rust
-struct Word {
-    name: String,
-    ops: Vec<Op>,
-}
-```
-
-Et chaque opération est un **Op** :
-
-```rust
-enum Op {
-    Push(i64),
-    Call(usize),
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Dup,
-    Drop,
-    Swap,
-    Over,
-    Rot,
-    ...
-}
-```
-
-*(La liste exacte dépend de ton `interpreter.rs`, mais c’est ce modèle.)*
-
----
-
-## 🧩 1.1. Pipeline de compilation
-
-Quand tu fais :
-
-```
-forth_vm.compile("5 5 + .")
-```
-
-Ton compilateur fait :
-
-### ✔ 1. Tokenisation  
-Tu découpes la chaîne en tokens :
-
-```
-["5", "5", "+", "."]
-```
-
-### ✔ 2. Pour chaque token, tu décides :
-
-#### **A. Nombre → `Op::Push(n)`**
-```rust
-if token.parse::<i64>().is_ok() {
-    ops.push(Op::Push(n));
-}
-```
-
-#### **B. Mot existant → `Op::Call(index)`**
-Tu cherches dans `dictionary` :
-
-```rust
-if let Some(idx) = dictionary.iter().position(|w| w.name == token) {
-    ops.push(Op::Call(idx));
-}
-```
-
-#### **C. Définition de mot : `:` … `;`**
-Quand tu vois `:` :
-
-```
-: carre dup * ;
-```
-
-Ton compilateur :
-
-1. lit le nom du mot (`carre`)
-2. crée un `Word { name: "carre", ops: Vec::new() }`
-3. compile les tokens suivants dans `ops`
-4. quand il voit `;`, il ajoute le mot au dictionnaire
-
-#### **D. Mots immédiats**
-Certains mots doivent compiler directement :
-
-- `."` → compile une séquence d’`Op::PrintString("...")`
-- `if`, `else`, `then` → compile des branchements
-- `begin`, `until` → compile des boucles
-
-Ton compilateur gère les **backpatches** :
-
-- `if` → place un `Op::JumpIfFalse(placeholder)`
-- `else` → place un `Op::Jump(placeholder)`
-- `then` → remplit les placeholders
-
----
-
-## 🧩 1.2. Structure exacte des `Op` pour le contrôle de flux
-
-Tu as forcément des opcodes comme :
-
-```rust
-Jump(usize)
-JumpIfFalse(usize)
-```
-
-Exemple :
-
-```
-if ... then
-```
-
-Compile en :
-
-```
-JumpIfFalse(addr_then)
-... code ...
-(addr_then:)
-```
-
-Pour :
-
-```
-if ... else ... then
-```
-
-Tu as :
-
-```
-JumpIfFalse(addr_else)
-... code_if ...
-Jump(addr_then)
-(addr_else:)
-... code_else ...
-(addr_then:)
-```
-
-Pour :
-
-```
-begin ... until
-```
-
-Tu as :
-
-```
-(begin_addr:)
-... code ...
-JumpIfFalse(begin_addr)
-```
-
-Ton compilateur gère ça via une **pile de backpatches**.
-
----
-
-## 🧩 1.3. Structure exacte des `Op` pour les primitives
-
-Tu as des opcodes pour :
-
-### Manipulation de pile
-- `Dup`
-- `Drop`
-- `Swap`
-- `Over`
-- `Rot`
-- `Nip`
-- `Tuck`
-- `Pick`
-- `TwoDup`
-- `TwoDrop`
-- etc.
-
-### Arithmétique
-- `Add`
-- `Sub`
-- `Mul`
-- `Div`
-- `Mod`
-- `DivMod`
-- `Negate`
-- `Abs`
-- `Min`
-- `Max`
-
-### Logique
-- `Equal`
-- `NotEqual`
-- `Less`
-- `Greater`
-- `LessEqual`
-- `GreaterEqual`
-- `ZeroEqual`
-- `ZeroLess`
-- `ZeroGreater`
-
-### Bits
-- `And`
-- `Or`
-- `Xor`
-- `Invert`
-- `LShift`
-- `RShift`
-
-### Mémoire
-- `Fetch`
-- `Store`
-- `CFetch`
-- `CStore`
-- `WFetch`
-- `WStore`
-- `LFetch`
-- `LStore`
-- `Fill`
-- `Cmove`
-
-### Matériel
-- `MmioRead`
-- `MmioWrite`
-- `Inb`
-- `Outb`
-- `Inw`
-- `Outw`
-- `Inl`
-- `Outl`
-- `PciRead`
-- `PciWrite`
-- `I2cProbe`
-- `I2cRead`
-- `I2cInit`
-
-### Graphisme
-- `FbPixel`
-- `FbRect`
-- `FbLine`
-- `FbText`
-- `Color`
-- `ClearScreen`
-
-### Entrées
-- `KeyQuery`
-- `MouseQuery`
-- `Delay`
-
-### Système
-- `Exit`
-- `EmergencyBreakCheck`
-
----
-
-# 🎯 2. **Le moteur d’exécution : `execute_ops`**
-
-Ton exécuteur est un **interpréteur direct**, pas un threaded code.
-
-Il ressemble à :
-
-```rust
-pub fn execute_ops(&mut self, ops: &[Op]) -> Result<(), String> {
-    for op in ops {
-        match op {
-            Op::Push(n) => self.stack.push(*n),
-
-            Op::Add => {
-                let b = self.stack.pop().ok_or("stack underflow")?;
-                let a = self.stack.pop().ok_or("stack underflow")?;
-                self.stack.push(a + b);
-            }
-
-            Op::Dup => {
-                let a = *self.stack.last().ok_or("stack underflow")?;
-                self.stack.push(a);
-            }
-
-            Op::Call(idx) => {
-                let word = &self.dictionary[*idx];
-                self.execute_ops(&word.ops)?;
-            }
-
-            Op::Jump(addr) => {
-                ip = *addr;
-                continue;
-            }
-
-            Op::JumpIfFalse(addr) => {
-                let flag = self.stack.pop().unwrap();
-                if flag == 0 {
-                    ip = *addr;
-                    continue;
-                }
-            }
-
-            ...
-        }
-    }
-}
-```
-
----
-
-# 🧩 2.1. Fonctionnement exact
-
-### ✔ 1. `Push(n)`
-Empile un entier.
-
-### ✔ 2. `Call(idx)`
-Appelle un mot défini par l’utilisateur ou une primitive.
-
-### ✔ 3. Primitives
-Chaque primitive manipule la pile.
-
-### ✔ 4. Contrôle de flux
-`Jump` et `JumpIfFalse` modifient l’index d’instruction (`ip`).
-
-### ✔ 5. Emergency break
-Ton exécuteur vérifie :
-
-```rust
-if self.emergency_break {
-    return Err("BREAK");
-}
-```
-
-Activé par F9 dans ton OS.
-
-### ✔ 6. Callback de step
-À chaque boucle :
-
-```rust
-if let Some(cb) = self.step_callback {
-    cb(self);
-}
-```
-
-Ce qui permet :
-
-- animations Forth
-- rafraîchissement graphique
-- mise à jour souris/clavier
-- scheduling coopératif
-
----
-
-# 🧩 2.2. Exécution d’un mot défini par l’utilisateur
-
-Exemple :
-
-```
-: carre dup * ;
-```
-
-Compile en :
-
-```
-Word {
-    name: "carre",
-    ops: [
-        Op::Dup,
-        Op::Mul,
-    ]
-}
-```
-
-Quand tu fais :
-
-```
-5 carre .
-```
-
-Ton exécuteur :
-
-1. `Push(5)`
-2. `Call("carre")`
-   - `Dup`
-   - `Mul`
-3. `Call(".")`
-   - affiche le sommet
-
----
-
-# 🧩 2.3. Exécution d’une app Forth graphique
-
-Exemple :
-
-```
+```forth
 : demo-draw ( x y w h -- )
-    couleur effacer
-    10 10 0xFF0000 pixel
-;
-```
-
-Ton Desktop fait :
-
-```rust
-self.forth_vm.stack.push(x);
-self.forth_vm.stack.push(y);
-self.forth_vm.stack.push(w);
-self.forth_vm.stack.push(h);
-self.forth_vm.execute_ops(&ops);
-```
-
-Donc ton Forth dessine **dans la fenêtre**.
-
----
-
-# 🎯 Conclusion : tu as un vrai langage système Forth
-
-Tu as :
-
-- un compilateur Forth complet  
-- un interpréteur direct  
-- un système de mots  
-- un système de contrôle de flux  
-- un accès complet au matériel  
-- un accès complet au GPU  
-- un canvas graphique  
-- un scheduler coopératif  
-- un système d’applications Forth  
-- un shell Forth  
-- un script de boot Forth  
-
-C’est un **langage système intégré**, comparable à Oberon, mais en Forth.
-
----
- **on se concentre sur TON langage Forth**, celui que tu as construit dans ton OS, pas un Forth générique.  
-Tu as créé un **dialecte Forth système**, intégré au kernel, au GPU, au FS, au PCI, à l’I2C, au MMIO, au scheduler, au shell, et aux apps graphiques.  
-Je vais t’expliquer **en profondeur**, mais de manière opérationnelle, exactement comment TON Forth fonctionne.
-
----
-
-# 🎯 1. Ton Forth n’est pas un Forth classique : c’est un *langage système intégré*
-
-Ton Forth est :
-
-- **interactif** (shell)
-- **compilant** (définitions de mots)
-- **graphique** (canvas + framebuffer)
-- **matériel** (MMIO, PCI, I2C, ports)
-- **OS‑grade** (apps Forth, fenêtres, scheduler)
-- **temps réel** (callback de step)
-- **multi‑fenêtres** (ForthAppManager)
-- **multi‑sources d’entrée** (clavier, souris, I2C HID, PS/2)
-
-Tu as créé un langage comparable à **Oberon**, mais en Forth, dans un OS UEFI.
-
----
-
-# 🧩 2. Architecture interne de ta VM Forth
-
-Ta VM contient :
-
-### ✔ Une pile de données  
-`stack: Vec<i64>`
-
-### ✔ Un dictionnaire de mots  
-`dictionary: Vec<Word>`
-
-Chaque `Word` contient :
-
-- `name: String`
-- `ops: Vec<Op>` — ton bytecode Forth
-
-### ✔ Un buffer de sortie  
-`print_buffer: String`
-
-### ✔ Un canvas graphique  
-`canvas.buffer: Vec<u32>`
-
-### ✔ Un callback de step  
-`step_callback: Option<fn(&mut ForthVm)>`
-
-### ✔ Un flag d’arrêt d’urgence  
-`emergency_break: bool`
-
----
-
-# 🧩 3. Le compilateur Forth — **structure exacte des `Op`**
-
-Ton compilateur transforme du texte en une séquence d’opcodes :
-
-### Types d’opcodes (ton style exact)
-Tu utilises un enum similaire à :
-
-```rust
-enum Op {
-    Push(i64),
-    Call(usize),
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Dup,
-    Drop,
-    Swap,
-    Over,
-    Rot,
-    Jump(usize),
-    JumpIfFalse(usize),
-    Print,
-    PrintString(String),
-    Fetch,
-    Store,
-    CFetch,
-    CStore,
-    LFetch,
-    LStore,
-    MmioRead,
-    MmioWrite,
-    Inb,
-    Outb,
-    FbPixel,
-    FbRect,
-    FbLine,
-    FbText,
-    Color,
-    Clear,
-    KeyQuery,
-    MouseQuery,
-    Delay,
-    Exit,
-}
-```
-
-*(Ton fichier exact peut varier, mais c’est cette structure.)*
-
----
-
-# 🧩 4. Pipeline de compilation — **comment TON compilateur fonctionne**
-
-Quand tu fais :
-
-```
-5 5 + .
-```
-
-Ton compilateur fait :
-
-### ✔ 1. Tokenisation  
-Tu découpes la chaîne :
-
-```
-["5", "5", "+", "."]
-```
-
-### ✔ 2. Pour chaque token :
-
-#### **A. Nombre → `Op::Push(n)`**
-```rust
-if token.parse::<i64>().is_ok() {
-    ops.push(Op::Push(n));
-}
-```
-
-#### **B. Mot connu → `Op::Call(index)`**
-```rust
-if let Some(idx) = dictionary.iter().position(|w| w.name == token) {
-    ops.push(Op::Call(idx));
-}
-```
-
-#### **C. Définition de mot : `:` … `;`**
-```
-: carre dup * ;
-```
-
-Ton compilateur :
-
-1. lit le nom `carre`
-2. crée un `Word { name: "carre", ops: Vec::new() }`
-3. compile les tokens suivants dans `ops`
-4. ajoute le mot au dictionnaire à `;`
-
-#### **D. Mots immédiats**
-Tu gères :
-
-- `." texte"` → `Op::PrintString("texte")`
-- `if` → `Op::JumpIfFalse(placeholder)`
-- `else` → `Op::Jump(placeholder)`
-- `then` → backpatch
-- `begin` → marque une adresse
-- `until` → `Op::JumpIfFalse(begin_addr)`
-
-Ton compilateur gère une **pile de backpatches**.
-
----
-
-# 🧩 5. Le moteur d’exécution — **`execute_ops` en détail**
-
-Ton exécuteur est un interpréteur direct :
-
-```rust
-pub fn execute_ops(&mut self, ops: &[Op]) {
-    let mut ip = 0;
-    while ip < ops.len() {
-        match ops[ip] {
-            Op::Push(n) => self.stack.push(n),
-
-            Op::Add => {
-                let b = self.stack.pop().unwrap();
-                let a = self.stack.pop().unwrap();
-                self.stack.push(a + b);
-            }
-
-            Op::Dup => {
-                let a = *self.stack.last().unwrap();
-                self.stack.push(a);
-            }
-
-            Op::Call(idx) => {
-                let word = &self.dictionary[idx];
-                self.execute_ops(&word.ops);
-            }
-
-            Op::Jump(addr) => {
-                ip = addr;
-                continue;
-            }
-
-            Op::JumpIfFalse(addr) => {
-                let flag = self.stack.pop().unwrap();
-                if flag == 0 {
-                    ip = addr;
-                    continue;
-                }
-            }
-
-            Op::Print => {
-                let a = self.stack.pop().unwrap();
-                self.print_buffer.push_str(&format!("{} ", a));
-            }
-
-            Op::PrintString(ref s) => {
-                self.print_buffer.push_str(s);
-            }
-
-            Op::Exit => return,
-
-            // Graphisme
-            Op::FbPixel => { ... }
-            Op::FbRect => { ... }
-            Op::FbLine => { ... }
-            Op::FbText => { ... }
-
-            // Matériel
-            Op::MmioRead => { ... }
-            Op::MmioWrite => { ... }
-            Op::Inb => { ... }
-            Op::Outb => { ... }
-
-            // Entrées
-            Op::KeyQuery => { ... }
-            Op::MouseQuery => { ... }
-
-            // Delay
-            Op::Delay => { ... }
-        }
-
-        ip += 1;
-    }
-}
-```
-
----
-
-# 🧩 6. Intégration avec ton OS — **ce qui rend ton Forth unique**
-
-### ✔ 1. Forth peut dessiner dans une fenêtre  
-Ton Desktop pousse `(x y w h)` sur la pile :
-
-```rust
-stack.push(wx+2);
-stack.push(wy+26);
-stack.push(ww-4);
-stack.push(wh-30);
-execute_ops(draw_ops);
-```
-
-### ✔ 2. Forth peut lire la souris  
-Ton callback :
-
-```rust
-vm.mouse_x = desktop.pm.x;
-vm.mouse_y = desktop.pm.y;
-vm.mouse_btn = desktop.pm.left_pressed ? 1 : 0;
-```
-
-### ✔ 3. Forth peut lire le clavier  
-`touche?` → non bloquant
-
-### ✔ 4. Forth peut accéder au matériel  
-- MMIO  
-- PCI  
-- I2C  
-- ports x86  
-- watchdog AMD FCH  
-
-### ✔ 5. Forth peut créer des apps graphiques  
-Via :
-
-```
-app: nom x y w h
-nom-draw
-nom-key
-```
-
-### ✔ 6. Forth peut être exécuté au boot  
-`BOOT.FTH`
-
----
-
-- comprendre ton Forth,  
-- programmer des applications graphiques,  
-- écrire des drivers,  
-- manipuler le matériel,  
-- créer des fenêtres,  
-- utiliser le canvas,  
-- interagir avec le système,  
-- étendre ton OS.
-
-
-# 📘 **EPONA FORTH — Le Langage Système Officiel d’Epona OS**  
-### *Guide encyclopédique complet pour développeurs, hackers, makers et auteurs de drivers*
-
----
-
-# 🧩 **Chapitre 1 — Introduction à Epona Forth**
-
-Epona Forth est un **langage système intégré** dans EponaOS, un OS UEFI bare‑metal écrit en Rust.  
-Il combine :
-
-- la simplicité d’un Forth classique,  
-- la puissance d’un langage bas niveau,  
-- l’accès direct au matériel (MMIO, PCI, I2C, ports x86),  
-- un moteur graphique,  
-- un système de fenêtres,  
-- un canvas 2D,  
-- un scheduler coopératif,  
-- un shell interactif,  
-- un système d’applications Forth.
-
-Epona Forth est conçu pour :
-
-- écrire des **applications graphiques**,  
-- écrire des **drivers**,  
-- manipuler le **matériel**,  
-- automatiser le système,  
-- créer des **démos**,  
-- écrire des **scripts de boot**,  
-- étendre l’OS sans recompiler le noyau.
-
----
-
-# 🧩 **Chapitre 2 — Types de données dans Epona Forth**
-
-Ton Forth est un langage **à pile**, avec un type principal :
-
-## ✔ 2.1. Les entiers (int)
-
-Ton VM utilise :
-
-```
-i64
-```
-
-Donc :
-
-- les nombres sont des **entiers signés 64 bits**  
-- pas de flottants  
-- pas de double  
-- pas de types complexes
-
-### Exemple
-
-```
-42
--5
-0xFF
-```
-
-Tous ces nombres sont poussés sur la pile.
-
----
-
-## ✔ 2.2. Les chaînes de caractères (string)
-
-Les chaînes sont gérées **à la compilation**, pas à l’exécution.
-
-Tu as :
-
-### `." texte"`  
-Compile un `Op::PrintString("texte")`.
-
-### Exemple
-
-```
-." Bonjour EponaOS"
-```
-
-Affiche :
-
-```
-Bonjour EponaOS
-```
-
-### Caractéristiques
-
-- Les strings ne vivent **pas sur la pile**.  
-- Elles sont stockées dans le bytecode du mot.  
-- Elles sont affichées via `print_buffer`.
-
----
-
-## ✔ 2.3. Les tableaux (arrays)
-
-Ton Forth n’a **pas de type tableau** au sens haut niveau.
-
-Mais tu as **tout ce qu’il faut pour les créer** :
-
-### 1. `variable`  
-Crée une adresse mémoire.
-
-### 2. `@ !`  
-Accès 64-bit.
-
-### 3. `c@ c!`  
-Accès octet.
-
-### 4. `w@ w!`  
-Accès 16-bit.
-
-### 5. `l@ l!`  
-Accès 32-bit.
-
-### 6. `fill`  
-Remplit une zone mémoire.
-
-### 7. `cmove`  
-Copie une zone mémoire.
-
-### Exemple : créer un tableau de 100 octets
-
-```
-variable tab
-100 tab fill
-```
-
-### Exemple : écrire dans le tableau
-
-```
-42 tab c!
-```
-
-### Exemple : lire
-
-```
-tab c@ .
-```
-
-Tu peux donc créer :
-
-- des buffers  
-- des structures  
-- des tableaux  
-- des chaînes  
-- des images  
-- des données binaires  
-
----
-
-## ✔ 2.4. Les structures (struct)
-
-Ton Forth n’a pas de struct, mais tu peux les simuler :
-
-```
-variable point
-10 point !
-20 point 8 + !
-```
-
-Tu stockes :
-
-- `x` à l’adresse `point`
-- `y` à l’adresse `point + 8`
-
----
-
-# 🧩 **Chapitre 3 — La pile**
-
-La pile est le cœur du langage.
-
-### Opérations principales
-
-- `dup`  
-- `drop`  
-- `swap`  
-- `over`  
-- `rot`  
-- `-rot`  
-- `nip`  
-- `tuck`  
-- `2dup`  
-- `2drop`  
-- `2swap`  
-- `2over`  
-- `?dup`  
-- `pick`
-
-### Exemple
-
-```
-5 10 swap . .
-```
-
-Affiche :
-
-```
-5 10
-```
-
----
-
-# 🧩 **Chapitre 4 — Arithmétique**
-
-Tu as :
-
-- `+ - * / mod /mod`
-- `1+ 1- 2+ 2-`
-- `2* 2/`
-- `min max abs negate`
-- `hasard`
-
-### Exemple
-
-```
-5 5 + .
-```
-
-Affiche :
-
-```
-10
-```
-
----
-
-# 🧩 **Chapitre 5 — Logique et comparaisons**
-
-- `= <> < > <= >=`
-- `0= 0<> 0< 0>`
-- `and or xor invert`
-- `lshift rshift`
-
-### Exemple
-
-```
-10 20 < .
-```
-
-Affiche :
-
-```
--1   (vrai)
-```
-
----
-
-# 🧩 **Chapitre 6 — Contrôle de flux**
-
-Tu as :
-
-- `if then else`
-- `begin until`
-- `exit`
-
-### Exemple
-
-```
-: test
-    dup 10 < if ." petit" else ." grand" then
-;
-```
-
----
-
-# 🧩 **Chapitre 7 — Mémoire**
-
-Tu exposes **toute la mémoire du système** :
-
-- `@ !`  
-- `c@ c!`  
-- `w@ w!`  
-- `l@ l!`  
-- `fill`  
-- `cmove`
-
-### Exemple
-
-```
-variable x
-42 x !
-x @ .
-```
-
-Affiche :
-
-```
-42
-```
-
----
-
-# 🧩 **Chapitre 8 — Matériel (drivers)**
-
-Ton Forth peut piloter le matériel :
-
-### ✔ MMIO
-
-```
-mmio@   ( addr -- val )
-mmio!   ( val addr -- )
-```
-
-### ✔ Ports x86
-
-```
-inb outb
-inw outw
-inl outl
-```
-
-### ✔ PCI
-
-```
-pci@ pci!
-```
-
-### ✔ I2C HID
-
-```
-i2c.probe
-dw-i2c-init
-dw-i2c-probe
-i2c.read
-```
-
-### ✔ Watchdog AMD FCH
-
-Ton OS gère le watchdog, Forth peut le piloter via MMIO.
-
----
-
-# 🧩 **Chapitre 9 — Graphisme**
-
-Tu exposes un moteur graphique complet :
-
-### ✔ Pixel
-
-```
-fb:pixel   ( x y col -- )
-```
-
-### ✔ Rectangle
-
-```
-fb:rect    ( x y w h col -- )
-```
-
-### ✔ Ligne
-
-```
-fb:line    ( x1 y1 x2 y2 col -- )
-```
-
-### ✔ Texte
-
-```
-fb:text    ( x y "txt" col -- )
-```
-
-### ✔ Couleur RGB
-
-```
-couleur    ( r g b -- col )
-```
-
-### ✔ Effacer
-
-```
-effacer    ( col -- )
-```
-
----
-
-# 🧩 **Chapitre 10 — Canvas Forth**
-
-Tu as un canvas off-screen :
-
-- `canvas.buffer`
-- `draw_forth_canvas`
-
-Tu peux dessiner dans une fenêtre Forth :
-
-```
-: demo-draw ( x y w h -- )
-    0 0 0 couleur effacer
+    0 couleur effacer
     10 10 0xFF0000 fb:pixel
 ;
 ```
 
 ---
 
-# 🧩 **Chapitre 11 — Entrées utilisateur**
+# 🧩 Chapitre 13 — Entrées et temps
 
-### ✔ Clavier
+`key ( -- char )` bloquant · `key? ( -- flag )` non bloquant · `touche touche?` · `souris ( -- mx my btn )` · `ms attendre stall-us ticks rdtsc`
 
-```
-touche?   ( -- char_ou_0 )
-```
-
-### ✔ Souris
-
-```
-souris    ( -- x y clic )
-```
-
-### ✔ Delay
-
-```
-attendre  ( ms -- )
-```
+> **Nouveau ISO 2012** : `key` (bloquant) et `key?` (test sans consommation) rejoignent `touche`/`touche?`. `accept ( c-addr +n -- +n2 )` lit une ligne éditée (backspace, Escape).
 
 ---
 
-# 🧩 **Chapitre 12 — Applications Forth**
+# 🧩 Chapitre 14 — Applications et boot Forth
 
-Tu peux créer des apps graphiques :
+### App graphique
 
-### 1. Définir un mot de dessin
-
-```
+```forth
 : myapp-draw ( x y w h -- )
-    0 0 0 couleur effacer
+    0 couleur effacer
     20 20 0x00FF00 fb:pixel
 ;
 ```
+Puis dans le shell : `app: myapp 200 100 300 200`
 
-### 2. Créer la fenêtre
+### Boot
 
-Dans le shell :
-
-```
-app: myapp 200 100 300 200
-```
-
-Ton OS crée :
-
-- une fenêtre  
-- un mot `myapp-draw`  
-- un mot `myapp-key` (optionnel)  
-- une entrée dans `ForthAppManager`
+`BOOT.FTH` s'exécute au démarrage. **Zéro bloatware** : seul ce qu'il contient tourne. Point d'entrée d'une app : `principal` (le shell l'enveloppe automatiquement).
 
 ---
 
-# 🧩 **Chapitre 13 — Scripts de boot**
+# 🧩 Chapitre 15 — Étendre le langage
 
-Ton OS exécute automatiquement :
-
-```
-BOOT.FTH
-```
-
-Tu peux :
-
-- charger des drivers  
-- dessiner un splash screen  
-- lancer des apps  
-- configurer le système  
-- initialiser du matériel  
-
----
-
-# 🧩 **Chapitre 14 — Drivers en Forth**
-
-Tu peux écrire des drivers :
-
-### Exemple : lire un registre PCI
-
-```
-03 00 0 0 pci@ .
-```
-
-### Exemple : lire un registre I2C HID
-
-```
-0xfedc2000 0x2c 0x01 16 i2c.read
-```
-
-### Exemple : lire un registre MMIO
-
-```
-0xfed80300 mmio@ .
-```
-
----
-
-# 🧩 **Chapitre 15 — Extensions du langage**
-
-Tu peux ajouter :
-
-- de nouveaux opcodes  
-- de nouveaux mots système  
-- de nouveaux drivers  
-- de nouveaux widgets graphiques  
-- de nouveaux types de fenêtres  
-- de nouveaux modules Forth  
-
-Ton VM est **extensible**.
-
----
-- **ajouter des opcodes**  
-- **ajouter des mots système**  
-- **ajouter des drivers**  
-- **ajouter des widgets graphiques**  
-- **ajouter des types de fenêtres**  
-- **ajouter des modules Forth**
-
-Ce sera écrit comme dans une **documentation officielle**, pour un développeur qui découvre ton OS sur GitHub et veut l’étendre.
-
-Je te fournis **des exemples complets**, avec du Rust + du Forth, adaptés à TON OS.
-
----
-
-# 📘 Chapitre 15 — Extensions du langage Epona Forth  
-### *Exemples concrets pour développeurs système*
-
----
-
-# 🧩 15.1 — Ajouter un nouvel opcode Forth  
-*(Exemple : ajouter l’opcode `sin` pour calculer un sinus)*
-
-### 1. Ajouter l’opcode dans `Op`
+## 15.1 Ajouter un opcode (Rust)
 
 ```rust
-pub enum Op {
-    ...
-    Sin,   // nouveau opcode
-}
-```
-
-### 2. Ajouter la primitive dans le compilateur
-
-Dans `compile_token()` :
-
-```rust
+// 1. enum Op
+Sin,
+// 2. compilateur
 "sin" => ops.push(Op::Sin),
-```
-
-### 3. Ajouter l’exécution dans `execute_ops`
-
-```rust
+// 3. execute_ops — attention : bornes, pas d'unwrap sur entrée user
 Op::Sin => {
-    let a = self.stack.pop().unwrap();
+    let a = self.stack.pop().ok_or("stack underflow")?;
     let r = (a as f64).sin();
     self.stack.push(r as i64);
 }
 ```
 
-### 4. Utilisation en Forth
+> ⚠️ **Bare-metal** : jamais de `unwrap()` sur une valeur venue de Forth. Un panic Rust = machine figée. Toujours `ok_or(...)` et propager l'erreur. **Et répliquer dans jit.rs** si le mot doit être JITé.
 
-```
-90 sin .
-```
+## 15.2 Mot système
 
----
-
-# 🧩 15.2 — Ajouter un mot système  
-*(Exemple : ajouter `sys:uptime` pour afficher le temps depuis le boot)*
-
-### 1. Ajouter le mot dans le dictionnaire au boot
-
-```rust
-self.add_word("sys:uptime", vec![Op::SysUptime]);
+```forth
+: sys:uptime ( -- ms ) ticks ;
 ```
 
-### 2. Ajouter l’opcode
+## 15.3 Driver capteur (adresse réelle ≥ 65536)
 
-```rust
-Op::SysUptime,
+```forth
+: sensor:read ( addr -- val ) mmio@ ;
+0xFEDC9000 sensor:read .
 ```
 
-### 3. Ajouter l’exécution
+## 15.4 Widget barre de progression
 
-```rust
-Op::SysUptime => {
-    let desktop = unsafe { &*crate::desktop_ptr() };
-    self.stack.push(desktop.ticks_ms as i64);
-}
-```
-
-### 4. Utilisation en Forth
-
-```
-sys:uptime .
-```
-
-Affiche :
-
-```
-12340   (ms depuis le boot)
-```
-
----
-
-# 🧩 15.3 — Ajouter un driver matériel en Forth  
-*(Exemple : driver pour un registre MMIO d’un capteur fictif)*
-
-### 1. Ajouter un mot Forth pour lire un registre
-
-Dans Rust :
-
-```rust
-self.add_word("sensor:read", vec![Op::SensorRead]);
-```
-
-### 2. Ajouter l’opcode
-
-```rust
-Op::SensorRead,
-```
-
-### 3. Ajouter l’exécution
-
-```rust
-Op::SensorRead => {
-    let addr = self.stack.pop().unwrap() as usize;
-    let val = unsafe { core::ptr::read_volatile(addr as *const u32) };
-    self.stack.push(val as i64);
-}
-```
-
-### 4. Utilisation en Forth
-
-```
-0xfedc9000 sensor:read .
-```
-
----
-
-# 🧩 15.4 — Ajouter un widget graphique Forth  
-*(Exemple : un widget “barre de progression”)*
-
-### 1. Ajouter un mot Forth
-
-```
+```forth
 : widget:progress ( x y w h percent -- )
-    >r  \ percent
-    2dup fb:rect  \ fond
-    r> swap 4 /   \ largeur remplie
-    0x00FF00 fb:rect
-;
+    >r 2over 2over 0x404040 fb:rect       \ fond
+    r> 3 pick * 100 /                     \ largeur remplie
+    ... 0x00FF00 fb:rect ;
 ```
 
-### 2. Utilisation dans une app Forth
+## 15.5 Module `.fth`
 
+```forth
+\ MATHADV.FTH
+: sqr ( n -- n² ) dup * ;
+: cube ( n -- n³ ) dup dup * * ;
+: clamp ( n lo hi -- n' ) rot min max ;   \ version courte et correcte
 ```
-: myapp-draw ( x y w h -- )
-    10 10 200 20 75 widget:progress
-;
-```
+Chargement : `exec MATHADV.FTH`
 
 ---
 
-# 🧩 15.5 — Ajouter un nouveau type de fenêtre  
-*(Exemple : fenêtre “Console Graphique”)*
+# 🧩 Chapitre 16 — Nombres décimaux (deux approches)
 
-### 1. Ajouter un nouvel ID
+## Approche A — Entiers scalés (recommandée pour drivers/embarqué)
 
-```rust
-pub enum AppId {
-    ...
-    GraphConsole,
-}
-```
+Représenter `1,25` par l'entier `125` (facteur 100). Déterministe, rapide, sans FPU.
 
-### 2. Ajouter le rendu
-
-Dans `render()` :
-
-```rust
-AppId::GraphConsole => self.draw_graph_console(win.x, win.y, win.w, win.h),
-```
-
-### 3. Ajouter la fonction
-
-```rust
-fn draw_graph_console(&mut self, x: i32, y: i32, w: i32, h: i32) {
-    self.g.draw_rect(x, y, w, h, 0x202020);
-    self.g.draw_string(x+10, y+10, "Console Graphique", 0xFFFFFF);
-}
-```
-
-### 4. Ouvrir la fenêtre depuis Forth
-
-```
-app: graphconsole 100 100 400 300
-```
-
----
-
-# 🧩 15.6 — Ajouter un module Forth complet  
-*(Exemple : module “math avancée”)*
-
-### 1. Créer un fichier `MATHADV.FTH`
-
-```
-: sqr ( n -- n2 ) dup * ;
-: cube ( n -- n3 ) dup dup * * ;
-: clamp ( n min max -- n' )
-    rot dup rot < if drop else
-    rot dup rot > if drop else
-    then then ;
-```
-
-### 2. Charger le module
-
-Dans le shell :
-
-```
-exec MATHADV.FTH
-```
-
-### 3. Utilisation
-
-```
-5 sqr .
-5 cube .
-120 0 100 clamp .
-```
-
----
-
-# 🧩 15.7 — Ajouter un driver complet en Forth  
-*(Exemple : driver pour un contrôleur PCI)*
-
-### 1. Lire un registre PCI
-
-```
-: pci.reg ( bus dev func reg -- val )
-    pci@
-;
-```
-
-### 2. Écrire un registre PCI
-
-```
-: pci.reg! ( val bus dev func reg -- )
-    pci!
-;
-```
-
-### 3. Lire les BARs
-
-```
-: pci.bars ( bus dev func -- )
-    6 0 do
-        dup dup i 4 * + pci.reg .
-    loop
-;
-```
-
-### 4. Utilisation
-
-```
-03 00 0 pci.bars
-```
-
----
-
-# 🧩 15.8 — Ajouter un moteur de sprites Forth  
-*(Exemple : animation dans une fenêtre)*
-
-### 1. Définir un sprite
-
-```
-variable sprx
-variable spry
-
-: sprite:draw ( x y -- )
-    0xFF0000 fb:pixel
-;
-```
-
-### 2. Animation
-
-```
-: sprite:step
-    sprx @ 1+ sprx !
-    spry @ 1+ spry !
-;
-```
-
-### 3. App Forth
-
-```
-: anim-draw ( x y w h -- )
-    sprx @ spry @ sprite:draw
-;
-```
-
-### 4. Callback de step
-
-Ton OS appelle automatiquement `step_callback`.
-
----
-
-# 🧩 15.9 — Ajouter un module “driver USB” en Forth  
-*(Exemple conceptuel)*
-
-```
-: usb:init
-    0xfcb00000 mmio@ ." XHCI CAP = " .
-;
-
-: usb:mouse
-    usb:init
-    ." Polling souris USB..." cr
-;
-```
-
----
-
-**ton Forth ne gère que des entiers (`i64`)**, donc il n’a *pas* de nombres à virgule comme `1,25` ou `3.14`.  
-Mais tu peux **parfaitement représenter des nombres décimaux** en Forth, et même faire des calculs avec, en utilisant une technique classique :
-
-> **Représenter les nombres décimaux comme des entiers *scalés***  
-> (par exemple : multiplier par 100 pour avoir 2 décimales)
-
-C’est exactement ce que font les microcontrôleurs, les DSP, les moteurs de jeux, et les langages Forth embarqués.
-
-Je vais te montrer **comment faire dans TON Forth**, avec des exemples concrets, des mots système, et des modules prêts à l’emploi.
-
----
-
-# 🧩 1. Représenter un nombre décimal : exemple `1,25`
-
-Tu veux représenter :
-
-```
-1,25
-```
-
-Ton Forth ne connaît que les entiers.  
-Donc tu le représentes comme :
-
-```
-125
-```
-
-Avec un **facteur d’échelle** de 100.
-
-### ✔ Exemple
-
-```
-\ 1,25 devient 125
-125
-```
-
----
-
-# 🧩 2. Afficher un nombre décimal avec 2 chiffres après la virgule
-
-On crée un mot :
-
-```
-: .2dec ( n -- )
-    100 /mod        \ divise par 100 → quotient et reste
-    swap            \ met le quotient en premier
-    . ." ,"         \ affiche la partie entière + virgule
-    dup 10 < if ." 0" then   \ ajoute un 0 si < 10
-    . ;
-```
-
-### ✔ Utilisation
-
-```
-125 .2dec
-```
-
-Affiche :
-
-```
-1,25
-```
-
----
-
-# 🧩 3. Faire des calculs décimaux
-
-### Addition
-
-```
-125 200 + .2dec
-```
-
-Affiche :
-
-```
-3,25
-```
-
-### Multiplication
-
-Pour multiplier deux nombres décimaux scalés :
-
-```
-: *2dec ( a b -- c )
-    * 100 / ;
-```
-
-### Exemple
-
-```
-125 200 *2dec .2dec
-```
-
-Affiche :
-
-```
-2,50
-```
-
----
-
-# 🧩 4. Créer un module complet “décimaux” pour ton OS
-
-Tu peux mettre ceci dans `DECIMAL.FTH` :
-
-```
-\ Module DECIMAL.FTH — gestion des nombres à virgule
-
-: scale ( n -- n' ) 100 * ;
-: unscale ( n -- n' ) 100 / ;
-
-: +2dec ( a b -- c ) + ;
-: -2dec ( a b -- c ) - ;
-: *2dec ( a b -- c ) * 100 / ;
-: /2dec ( a b -- c ) 100 * swap / ;
-
-: .2dec ( n -- )
+```forth
+\ DECIMAL.FTH
+: scale   ( n -- n' ) 100 * ;
+: *2dec   ( a b -- c ) * 100 / ;
+: /2dec   ( a b -- c ) 100 * swap / ;
+: .2dec   ( n -- )
     100 /mod
-    swap . ." ,"
-    dup 10 < if ." 0" then
-    . ;
+    swap 0 .r [char] , emit
+    dup 10 < if [char] 0 emit then
+    0 .r ;
+
+125 200 + .2dec        \ 3,25
+125 200 *2dec .2dec    \ 2,50
 ```
 
-### ✔ Charger le module
+Conversion capteur → volts :
+```forth
+: adc>volt ( raw -- centivolt ) 330 * 4095 / ;
+0xFEDC9000 sensor:read adc>volt .2dec ." V"
+```
 
-```
-exec DECIMAL.FTH
-```
+## Approche B — Flottants IEEE 754 (nouveau)
 
-### ✔ Utilisation
+> **Le texte d'origine disait « pas de flottants ». C'est faux depuis les primitives 900-944.**
 
-```
-125 200 +2dec .2dec
-```
+Epona dispose d'une pile flottante et d'opérations IEEE 754 : `f+ f- f* f/ f< f= f0< fsqrt fsin fcos …`. Utile pour le calcul scientifique, le graphique avancé, l'IA (Phase 7).
+
+**Recommandation** : pour les **drivers industriels et l'embarqué**, préférez l'approche A (entiers scalés) — déterministe et sans dépendance FPU. Réservez les flottants au calcul applicatif.
 
 ---
 
-# 🧩 5. Créer un type “float” simulé dans ton Forth
+# 🧩 Chapitre 17 — Migration depuis l'ancien Epona Forth (< août 2026)
 
-Tu peux créer un mot :
+Checklist pour porter du code antérieur à la refonte :
 
-```
-: float: ( int -- float ) scale ;
-```
+- [ ] **Flags** : remplacer les tests `= 1` par `0<>` ou tester `-1`. Tout code lisant `1` comme vrai est cassé.
+- [ ] **`2/` négatif** : arrondit maintenant vers −∞.
+- [ ] **`rshift`** : décalage logique (zéros). Extension de signe → utiliser `2/` répété.
+- [ ] **`-rot`, `tuck`** : maintenant corrects. Retirer les contournements éventuels.
+- [ ] **`c@`/`c!` sur adresse basse** : ne touche plus le MMIO. Utiliser `mmio@`/`mmio!` ou une adresse `≥ 65536`.
+- [ ] **`variable`** : retourne une adresse réelle (plus un index). Le code qui présumait des adresses `0,1,2…` est à revoir.
+- [ ] **`s"` en boucle** : plus de fuite `HERE` — comportement désormais correct.
+- [ ] **Chaînes** : pas de `(` ni `)` dans `."`/`s"`.
+- [ ] **`cells`/`chars`/`aligned`** : identité (1 AU = 1 cellule). Le code qui multipliait par 8 est faux.
 
-### Exemple
-
-```
-1 float:   \ devient 100
-25 float:  \ devient 2500
-```
-
-Tu peux même créer un mot pour parser des chaînes :
-
-```
-: parse-dec ( "1,25" -- 125 )
-    \ à écrire si tu veux un vrai parseur
-;
-```
-
----
-
-# 🧩 6. Utiliser des décimaux dans des apps graphiques
-
-### Exemple : afficher un pourcentage
-
-```
-: draw-percent ( x y val -- )
-    ." Valeur : " .2dec
-    fb:text ;
-```
-
-### Exemple : barre de progression avec décimaux
-
-```
-: progress ( x y w h percent -- )
-    >r
-    x y w h 0x404040 fb:rect
-    r> w * 100 / x y swap h 0x00FF00 fb:rect
-;
-```
-
----
-
-# 🧩 7. Utiliser des décimaux dans des drivers
-
-### Exemple : convertir un capteur en volts
-
-Supposons que ton capteur renvoie une valeur brute :
-
-```
-mmio@   → 0..4095
-```
-
-Tu veux afficher :
-
-```
-2,75 V
-```
-
-### Module
-
-```
-: adc>volt ( raw -- volt )
-    330 * 4095 /   \ 3,30 V → 330 centi-volts
-;
-```
-
-### Affichage
-
-```
-mmio@ adc>volt .2dec ." V"
-```
-
----
-
-# 🧩 8. Utiliser des décimaux dans des animations Forth
-
-### Exemple : mouvement fluide
-
-```
-variable pos
-
-: step
-    pos @ 5 +2dec pos !
-;
-
-: draw ( x y w h -- )
-    pos @ .2dec
-    \ dessiner un sprite à pos
-;
-```
-
----
-
-# 🧩 9. Utiliser des décimaux dans des drivers graphiques
-
-### Exemple : rotation d’un sprite
-
-```
-: deg>rad ( deg -- rad )
-    314 * 180 /    \ pi ≈ 3,14 → 314 centi-pi
-;
-```
+Profil cible à déclarer dans vos modules : `EPONA-FORTH2012-CORE-1`.
 
 ---
 
 # 🎯 Conclusion
 
-Ton Forth ne gère que des entiers, mais tu peux :
+Epona Forth est un **langage système intégré**, désormais **conforme Forth ISO 2012 Core** :
 
-- représenter des décimaux  
-- afficher des décimaux  
-- faire des calculs décimaux  
-- créer un module complet  
-- utiliser des décimaux dans des apps graphiques  
-- utiliser des décimaux dans des drivers  
-- utiliser des décimaux dans des animations  
-- utiliser des décimaux dans des conversions matérielles  
+- compilateur + interpréteur direct (avec fallback garanti sans JIT),
+- dictionnaire, contrôle de flux complet (`if/do/case/begin/catch`),
+- accès matériel encadré par le modèle « fenêtre » (sécurité bare-metal),
+- graphisme, canvas, scheduler coopératif, apps et boot Forth,
+- entiers scalés **et** flottants IEEE 754,
+- extensible en Rust (opcodes) comme en Forth (modules).
 
-Tu peux donc programmer :
-
-- des jeux  
-- des animations  
-- des drivers  
-- des interfaces graphiques  
-- des outils système  
-- des scripts de boot  
-- des modules mathématiques  
+Comparable à Oberon dans l'esprit, mais en Forth, sur le métal, **et portable** : le code écrit pour Epona est du Forth standard, lisible et auditable par n'importe quel développeur ou agent.
 
 ---
+
+*Version 1.98-beta2 · profil `EPONA-FORTH2012-CORE-1` · WeBOo Concept*
+*Langage : MIT · Noyau Rust : propriétaire*
