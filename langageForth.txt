@@ -13,7 +13,7 @@
 
 # 📘 EPONA FORTH — Le Langage Système d'Epona OS
 
-> **Version** : 2.0-beta2 · **Conformité** : profil `EPONA-FORTH2012-CORE-1`
+> **Version** : 1.98-beta2 · **Conformité** : profil `EPONA-FORTH2012-CORE-1`
 > **Dernière mise à jour** : 9 août 2026
 > **Licence du langage** : MIT (le langage, les mots, les modules `.fth`) · Noyau Rust : propriétaire
 
