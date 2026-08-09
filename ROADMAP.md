@@ -1,610 +1,977 @@
-1. **En-tête formalisé** — le texte conversationnel collé depuis nos échanges est remplacé par un positionnement propre
-2. **Nouvelle Phase 1.5 : Migration Forth ISO 2012** — le chantier actuel (S7/12 terminée, Core complet) inséré avec son état réel
-3. **Boucle de collecte de drivers** (`pci save` → `hw-check` → issue GitHub → agent) documentée
-4. **Section Drivers industriels** avec une matrice de faisabilité honnête (un PC x86 n'a pas de GPIO natif comme un Raspberry Pi — il faut distinguer UART/I2C directs de SPI/CAN via adaptateurs)
-5. **Licence hybride MIT/Propriétaire** affirmée partout (le « 100% open-source » de l'intro était contradictoire)
-6. **Chronologie réaliste** recalée sur la fin du planning ISO (fin octobre 2026)
+# 🐴 Vision d'Epona OS / Vision of Epona OS
 
-````markdown
-# 🐴 Epona OS — Roadmap 2026-2028
-
-> **Vision** : Construire la première plateforme x86 bare-metal souveraine, minimale,
-> éducative, industrielle et agentique — comprendre et contrôler le matériel sans
-> l'opacité des OS modernes.
-
-> **Modèle de licence** : hybride.
-> - **MIT (open-source)** : Forth système, drivers `.fth`, agents, dashboards,
->   bureau, outils, documentation, tests.
-> - **Propriétaire** : noyau Rust, boot signé, JIT interne, modules de sécurité.
-
-> **Date** : 10 Août 2026
+> **Version** : 1.98-beta3
+> **Dernière mise à jour** : 9 août 2026
+> **Auteur** : Nicolas — WeBOo Concept
+> **Licence** : MIT (Forth, drivers, applications, documentation) + Propriétaire (noyau Rust, boot signé, JIT, sécurité)
 
 ---
 
-## Positionnement
+## 🌌 Ce qu'est Epona OS aujourd'hui
 
-Epona OS n'est pas une distribution Linux de plus. C'est un OS qui crée sa propre
-catégorie : **l'OS souverain bare-metal, agentique, éducatif et industriel**.
+Un système d'exploitation **bare-metal UEFI** écrit en **Rust**, avec un **interpréteur Forth ISO 2012** intégré.
+Il démarre sur du vrai matériel — sans Linux, sans Windows, sans rien d'autre.
+
+```
+Métal nu → UEFI → Rust → Forth ISO 2012 → Shell / Bureau graphique
+
+440+ primitives matériel
+13 drivers Forth opérationnels
+Forth ISO 2012 Core complet (133/133) et testé
+GPU (GOP), USB 3.0 (xHCI), NVMe, AHCI, réseau (e1000), audio (HDA)
+Multitâche préemptif
+JIT x86-64 avec fallback interprété garanti
+Suite de tests automatisés (NB-FAILS = 0)
+Modèle hybride : MIT (Forth) + Propriétaire (noyau Rust)
+Pilotes industriels natifs : CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+```
+
+> **Ce projet s'adresse aux passionnés de bas-niveau, aux geeks, aux makers, aux bidouilleurs hardware, aux ingénieurs, aux professionnels de la cybersécurité, et à tous ceux qui veulent coder sur le métal, manipuler le hardware en direct, et comprendre comment fonctionne un ordinateur.**
+
+Epona OS n'est plus seulement un exploit technique. C'est un **socle universel** : le code Forth écrit pour Epona est du Forth standard, lisible par n'importe quel développeur ou agent, et exécutable directement sur le métal.
+
+---
+
+## 🏗️ Architecture hybride
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   ESPACE OUVERT & MIT (FTH)                      │
-│  - Bureau & Widgets personnalisés                                │
-│  - Pilotes Industriels (CAN, Modbus, UART, SPI, GPIO, ADC, PWM)  │
-│  - Agents IA, Dashboards, Applications & Outils Éducatifs        │
-│  - Documentation, Tests & Standard Forth ISO 2012                │
-└─────────────────────────────────┬────────────────────────────────┘
-                                  │ Appel aux primitives (API v1)
-┌─────────────────────────────────▼────────────────────────────────┐
-│                NOYAU PROPRIÉTAIRE Epona OS (RUST)                │
-│  - Noyau Bare-Metal & Boot Signé (chaîne de confiance)           │
-│  - Moteur d'exécution Forth & JIT interne                        │
-│  - Sandbox mémoire, isolation des tâches & sécurité matérielle   │
+│                   ESPACE OUVERT — MIT (.fth)                     │
+│  • Bureau, widgets, thèmes, jeux                                 │
+│  • Pilotes industriels (CAN, Modbus, UART, SPI, GPIO, ADC, PWM)  │
+│  • Pilotes matériels génériques (xHCI, AHCI, NVMe, HDA, e1000)   │
+│  • Agents, dashboards, applications, outils éducatifs            │
+│  • Bibliothèque standard Forth ISO 2012, tests, documentation    │
+│  • Passerelle Raspberry Pi / Arduino / ESP32 / STM32             │
+└─────────────────────────────┬────────────────────────────────────┘
+                              │ API v1 — contrat figé
+┌─────────────────────────────▼────────────────────────────────────┐
+│              NOYAU PROPRIÉTAIRE — RUST (fermé)                   │
+│  • Micro-noyau bare-metal, boot signé, chaîne de confiance       │
+│  • Interpréteur Forth + JIT interne                              │
+│  • Sandbox mémoire (check_mem), isolation des tâches             │
+│  • Mapping MMIO, tables de pages, IDT/GDT, APIC/IOAPIC           │
+│  • Modules de sécurité et validation de drivers                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Publics cibles
+**Ce qu'un pilote `.fth` peut faire** : lire et écrire des registres via les primitives publiées (`mmio@`, `pci:bar`, `irq:attach`), piloter un UART, un bus SPI, des GPIO.
+**Ce qu'il ne peut pas faire** : toucher directement une table de pages, l'IDT ou une BAR non validée. Le noyau Rust reste seul responsable de la survie de la machine.
 
-- 💡 **Geeks & passionnés d'architecture** : comprendre le fonctionnement réel d'un
-  ordinateur et piloter le processeur sans couche d'abstraction opaque.
-- 🦀 **Développeurs bas-niveau (Rust, ASM, Forth)** : écrire des programmes et des
-  pilotes bare-metal sans dépendance lourde.
-- 🔌 **Makers, électroniciens & hardware hackers** : piloter puces, FPGA, modules
-  USB et microcontrôleurs depuis l'OS, sans SDK ni IDE lourd.
-- 🛠️ **Bidouilleurs hardware & créateurs d'OS** : tester instructions machine,
-  drivers et interfaces graphiques en direct sur le métal.
-- 🇫🇷 **Adeptes d'OS souverains & minimalistes** : environnement sans bloatware,
-  autonome et agentique.
-- 🏭 **Industriels & intégrateurs** : automatisme, bancs de test, supervision via
-  CAN, Modbus, UART, SPI, GPIO, ADC, PWM.
-- 🎓 **Écoles & universités** : plateforme pédagogique x86 unique — du registre CPU
-  au driver, tout est visible et modifiable.
+**Conséquence** : un pilote Epona s'audite ligne par ligne. La confiance ne repose plus sur l'éditeur du binaire, mais sur la **lisibilité du code** — un atout majeur pour la cybersécurité et l'audit industriel.
 
-### Philosophie : Zéro bloatware • 100% liberté
+---
+
+## 🎯 Publics cibles
+
+| Public | Besoin couvert |
+|--------|----------------|
+| 💡 **Geeks & architectes** | Comprendre le fonctionnement réel d'un PC, piloter le CPU sans couche d'abstraction opaque |
+| 🦀 **Développeurs bas-niveau** (Rust, ASM, Forth) | Écrire des programmes et pilotes bare-metal sans dépendance lourde |
+| 🔌 **Makers, électroniciens & hardware hackers** | Piloter puces custom, FPGA, modules USB, microcontrôleurs sans SDK ni IDE |
+| 🍓 **Communauté Raspberry Pi / Arduino / ESP32 / STM32** | Retrouver la même simplicité GPIO/SPI/I2C/UART que sur un microcontrôleur, mais sur x86 — et piloter ses cartes depuis Epona via UART/USB |
+| 🛠️ **Bidouilleurs & créateurs d'OS** | Tester instructions machine, drivers et interfaces graphiques en direct sur le métal |
+| 🏭 **Intégrateurs industriels** | CAN, Modbus, UART, SPI, GPIO sans pile Linux de 30 millions de lignes |
+| 🎓 **Enseignement supérieur** | Plateforme x86 pédagogique unique : PCI, IRQ, MMIO, mémoire manipulés interactivement |
+| 🛡️ **Cybersécurité & souveraineté** | OS auditable ligne par ligne (`BOOT.FTH`, `.fth` drivers), surface d'attaque minimale, boot signé, zéro télémétrie |
+| 🇫🇷 **Adeptes d'OS souverains** | Environnement sans bloatware, autonome, 100 % français |
+| 🏗️ **Ingénieurs système & industriels** | Développement rapide de prototypes, bancs de test, supervision temps réel sur du matériel réel — sans attendre la compilation d'un noyau Linux |
+
+---
+
+## 🍓 Pourquoi les makers Raspberry Pi / Arduino vont aimer Epona OS
+
+### Le problème qu'ils connaissent
+
+Un utilisateur Arduino ou Raspberry Pi est habitué à :
+
+```c
+// Arduino
+digitalWrite(13, HIGH);
+analogRead(A0);
+Serial.begin(115200);
+SPI.transfer(0x42);
+Wire.beginTransmission(0x3C);
+```
+
+C'est simple, direct, concret : **une ligne = un effet sur le matériel**.
+
+Mais dès qu'il passe sur un PC x86, il tombe dans un gouffre :
+- installer un OS (Linux, Windows)
+- installer un SDK, un compilateur, des dépendances
+- écrire un programme en C/Python
+- utiliser des couches d'abstraction (`libgpiod`, `/dev/spidev`, `pyserial`)
+- compiler, transférer, debugger à travers 15 couches
+
+**La magie du « je tape une ligne et le matériel bouge » disparaît.**
+
+### Ce qu'Epona OS leur offre
+
+Sur Epona, ils retrouvent **exactement la même simplicité**, mais sur x86 :
+
+```forth
+\ Allumer une LED sur GPIO (via un contrôleur PCH/chipset)
+13 1 gpio:write
+
+\ Lire un ADC
+0 adc:read .
+
+\ Envoyer un octet SPI
+0x42 spi:emit
+
+\ Initialiser un UART à 115200
+0x3F8 115200 uart:init
+
+\ Envoyer un message série
+s" Hello from Epona!" uart:type
+
+\ Lire la température I2C d'un capteur
+0x48 0x00 i2c-read .
+```
+
+**Une ligne = un effet sur le matériel. Pas de compilation, pas de SDK, pas de couche d'abstraction.**
+
+### Le pont entre les mondes
+
+Epona OS ne remplace pas un Arduino ou un Raspberry Pi — il les **complète** :
+
+```
+┌────────────────────┐     UART / USB / SPI     ┌──────────────────┐
+│    EPONA OS        │◄────────────────────────►│  Arduino / RPi    │
+│    (PC x86)        │                           │  (MCU / SBC)      │
+│                    │                           │                   │
+│  • Shell Forth     │   Protocole Modbus,       │  • Capteurs       │
+│  • Dashboard       │   série brut, ou          │  • Actuateurs     │
+│  • Data logging    │   protocole custom        │  • GPIO           │
+│  • Analyse temps   │                           │  • ADC/PWM        │
+│    réel            │                           │                   │
+└────────────────────┘                           └──────────────────┘
+```
+
+**Cas d'usage concrets :**
+
+| Scénario | Rôle d'Epona | Rôle du MCU |
+|----------|-------------|-------------|
+| **Station météo** | Dashboard temps réel, stockage NVMe, affichage GOP | Arduino + capteurs DHT22/BMP280 via UART |
+| **Banc de test moteur** | Acquisition, tracé, export CSV | STM32 + encodeur/PWM |
+| **Domotique** | Serveur Modbus, journalisation, alertes | ESP32 + relais/capteurs |
+| **Robot mobile** | Planification, télémétrie, vision (future IA locale) | Raspberry Pi Pico + moteurs/servos |
+| **Enseignement** | Démonstration UART/SPI/I2C côté x86, analyse protocole | Arduino comme cible pédagogique |
+| **Cybersécurité matérielle** | Audit direct des registres, analyse de bus, détection d'intrusion bas niveau | Module sécurisé (STM32) comme périphérique de confiance |
+
+### Exemple complet : moniteur série Arduino depuis Epona
+
+```forth
+\ === MONITEUR SÉRIE ARDUINO — Epona OS ===
+\ Branchez un Arduino sur COM1 (UART 0x3F8)
+\ L'Arduino envoie des lignes "TEMP=23.5\n"
+
+0x3F8 115200 uart:init drop
+
+create buf 80 allot
+
+: uart-line ( buf max -- len )
+    0 { len }
+    begin
+        uart:key
+        dup 10 = if drop len exit then
+        over len + c!
+        len 1+ to len
+        len over >= until
+    drop len ;
+
+: monitor ( -- )
+    ." === Moniteur série Epona ===" cr
+    ." Appuyez Escape pour quitter" cr cr
+    begin
+        buf 80 uart-line
+        dup 0 > if buf swap type cr then
+        key? if key 27 = if exit then then
+    again ;
+
+monitor
+```
+
+### Comparaison directe : Arduino / MicroPython / Epona Forth
+
+| Opération | Arduino (C++) | MicroPython (RPi) | Epona Forth |
+|-----------|---------------|--------------------|----|
+| Allumer LED | `digitalWrite(13, HIGH);` | `Pin(13, Pin.OUT).value(1)` | `13 1 gpio:write` |
+| Lire ADC | `analogRead(A0);` | `ADC(Pin(26)).read_u16()` | `0 adc:read` |
+| Envoyer série | `Serial.println("Hi");` | `uart.write("Hi")` | `s" Hi" uart:type` |
+| Transfert SPI | `SPI.transfer(0x42);` | `spi.write(b'\x42')` | `0x42 spi:emit` |
+| Lire I2C | `Wire.read();` | `i2c.readfrom(0x48,1)` | `0x48 0 i2c-read` |
+| Délai | `delay(1000);` | `time.sleep(1)` | `1000 ms` |
+
+**La syntaxe Forth est aussi concise que l'Arduino, et plus directe que Python.**
+
+Mais Epona ajoute ce qu'aucun MCU ne fournit :
+
+- un **shell interactif** : tapez `0 adc:read .` et voyez la valeur **immédiatement**
+- un **éditeur de code** intégré
+- un **bureau graphique** pour les dashboards
+- du **stockage NVMe** (pas de carte SD lente)
+- du **réseau TCP/IP** natif
+- un **JIT x86-64** pour le calcul lourd
+- la possibilité de **sauvegarder le code sur clé USB** et le recharger au boot
+- à terme, de l'**IA locale** pour analyser les données capteurs
+
+---
+
+## 🚀 Philosophie : zéro bloatware, 100 % liberté
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
+│         PHILOSOPHIE EPONA OS : ZÉRO BLOATWARE • 100 % LIBERTÉ    │
+├──────────────────────────────────────────────────────────────────┤
 │  ✓ Zéro application obligatoire préinstallée                     │
-│  ✓ Zéro processus d'arrière-plan caché ou télémétrie             │
+│  ✓ Zéro processus d'arrière-plan caché, zéro télémétrie          │
 │  ✓ Un bureau sur-mesure codé en Forth, unique par utilisateur    │
-│  ✓ Vos pilotes, vos widgets et vos jeux sur votre clé USB Live   │
+│  ✓ Vos pilotes, vos widgets, vos jeux sur votre clé USB Live     │
+│  ✓ Seul le code présent dans BOOT.FTH s'exécute                  │
+│  ✓ Chaque cycle CPU de votre machine vous appartient              │
+│  ✓ La même simplicité GPIO/SPI/UART que sur un Arduino            │
+│  ✓ Un projet pour ceux qui veulent coder sur le métal             │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Méthodologie de développement : double agent
-
-| Agent | Rôle | Fréquence |
-|-------|------|-----------|
-| **Agent codeur** | Suit le planning, une modification limitée par séance, écrit les tests | Quotidien |
-| **Agent auditeur** | Relit le code source Rust, cherche incohérences et bugs silencieux | Hebdomadaire |
-
-Cette séparation a déjà prouvé son efficacité : bugs `-rot`, `tuck`, `alloc`,
-locales en boucle infinie et dérive de `HERE` détectés par l'audit, invisibles
-au codeur.
+L'environnement graphique est entièrement composé de scripts `.fth` ouverts. Chaque utilisateur crée son propre bureau : fenêtré classique, interface radiale, cyberpunk, minimaliste ou pur terminal. **Vous décidez de ce que charge `BOOT.FTH`. Votre système contient uniquement ce dont vous avez besoin.**
 
 ---
 
-## Table des matières
+## 👥 Pourquoi ce projet s'adresse aussi aux ingénieurs et aux professionnels de la cybersécurité
 
-1. [Phase 1 : Fondations — TERMINÉE ✅](#phase1)
-2. [Phase 1.5 : Migration Forth ISO 2012 — EN COURS 🚧](#phase1-5)
-3. [Phase 1.6 : Shell moderne — À FAIRE (Nov. 2026)](#phase1-6)
-4. [Écosystème de drivers : boucle de collecte décentralisée](#ecosysteme)
-5. [Drivers industriels (CAN, Modbus, UART, SPI, GPIO, ADC, PWM)](#industriel)
-6. [Phase 2 : Bureau graphique (T1 2027)](#phase2)
-7. [Phase 3 : Réseau complet (T2 2027)](#phase3)
-8. [Phase 4 : Multimédia (T3 2027)](#phase4)
-9. [Phase 5 : IA locale (T4 2027)](#phase5)
-10. [Phase 6 : Électronique embarquée native (T1 2028)](#phase6)
-11. [Phase 7 : OS "vrai" (T2-T4 2028)](#phase7)
-12. [Primitives — Récapitulatif](#primitives)
-13. [Ce qui distingue Epona OS](#distingue)
-14. [Guides de développement](#guides)
+### Pour les ingénieurs système et industriels
 
----
+Epona OS est conçu comme un **outil de développement et de prototypage rapide**, pas comme un système d'exploitation grand public. Un ingénieur peut :
 
-<a id="phase1"></a>
-## 1. Phase 1 : Fondations — TERMINÉE ✅
+- **lire un registre PCI** avec `pci:bar` et `mmio@` sans compiler un module noyau
+- **piloter un UART industriel** en 5 lignes Forth plutôt qu'en 500 lignes C
+- **créer un banc de test** avec un dashboard graphique intégré, sans dépendre d'un framework externe
+- **sauvegarder sa configuration sur une clé USB** et la déployer sur plusieurs machines sans réinstallation
 
-**Toutes les phases du DEV_GUIDE_DRIVER_AGENT.MD sont terminées.**
+Le langage Forth, combiné au noyau Rust propriétaire, offre un compromis rare :
+- **l'ouverture et la transparence** du côté Forth (pilotes, applications, tests)
+- **la fiabilité et la sécurité** du côté noyau (boot signé, isolation mémoire, sandbox)
 
-| Phase | Description | Date | Statut |
-|-------|-------------|------|--------|
-| **1** | Corrections bugs bloquants (interrupts.rs, main.rs) | 2026-07-30 | ✅ Fait |
-| **2** | Primitives noyau 720-864 (MMIO, PIO, PCI, IRQ, GOP, wrappers) | 2026-07-31 | ✅ Fait |
-| **3** | Framework driver Rust (drv_api.rs, drivers.rs, auto-chargement) | 2026-08-01 | ✅ Fait |
-| **4** | Bibliothèque standard Forth (drvlib, pci_enum, fmt, strings, tsc) | 2026-08-01 | ✅ Fait |
-| **5** | Drivers communautaires (13 drivers + TEMPLATE.fth) | 2026-08-01 | ✅ Fait |
-| **6** | Fichiers de démarrage (BOOT.FTH, default.fth) | 2026-08-01 | ✅ Fait |
-| **7** | GitHub et documentation (docs/, .github/, README) | 2026-08-02 | ✅ Fait |
-| **8** | CI (test-drivers.yml, validate-drivers.sh) | 2026-08-02 | ✅ Fait |
+### Pour la cybersécurité et la défense
 
-### Drivers Forth implémentés
+Dans un contexte où la **souveraineté numérique** et la **réduction de la surface d'attaque** sont prioritaires :
 
-| Driver | PCI ID | Type | Statut |
-|--------|--------|------|--------|
-| generic-simplefb.fth | 03:00 | GPU | ✅ |
-| generic-xhci.fth | 0C:03 | USB | ✅ |
-| usb-hid.fth | — | Input | ✅ |
-| generic-ahci.fth | 01:06 | Storage | ✅ |
-| generic-nvme.fth | 01:08 | Storage | ✅ |
-| generic-hda.fth | 04:03 | Audio | ✅ |
-| e1000-generic.fth | 8086:* | Network | ✅ |
-| rtc.fth | — | Generic | ✅ |
-| pcspkr.fth | — | Generic | ✅ |
-| bochs-vga.fth | 1234:1111 | GPU (QEMU) | ✅ |
-| virtio-net.fth | 1af4:1000 | Network (QEMU) | ✅ |
-| WD-SN770-NVMe.FTH | 15B7:5017 | Storage | ✅ |
-| AMD-Ryzen5-5500U.FTH | 1022:1631 | CPU | ✅ |
+- **Aucun binaire ELF opaque** : tout le code Forth (`BOOT.FTH`, `.fth` drivers, `.fth` applications) est du texte lisible. Un auditeur peut inspecter chaque ligne.
+- **Aucune télémétrie cachée** : pas de processus d'arrière-plan, pas d'envoi automatique de données.
+- **Boot signé** : la chaîne de confiance commence au firmware et se poursuit dans le noyau Rust.
+- **Sandbox mémoire** : la frontière `check_mem` isole strictement l'espace Forth de la mémoire système.
+- **Envoi volontaire uniquement** : `hw-check` produit un fichier local. L'envoi vers GitHub (`hw-submit`) exige une confirmation explicite et une anonymisation.
+- **Auditabilité des drivers** : un pilote `.fth` industriel est aussi facile à auditer qu'un script Python — mais exécute directement sur le métal, sans couche intermédiaire qui pourrait être compromise.
+
+> Ce projet s'adresse aux passionnés de bas-niveau, aux geeks, aux makers, aux bidouilleurs hardware, aux ingénieurs système et industriels, aux professionnels de la cybersécurité, et à tous ceux qui veulent **coder sur le métal**, manipuler le hardware en direct, et comprendre comment fonctionne un ordinateur.
 
 ---
 
-<a id="phase1-5"></a>
-## 2. Phase 1.5 : Migration Forth ISO 2012 — EN COURS 🚧
+## 🔮 Les six horizons d'Epona OS
 
-**Chantier prioritaire absolu. Aucun driver ni application nouveau avant la fin
-de cette phase.**
-
-**Objectif** : remplacer le Forth propriétaire historique par un sous-ensemble
-**Forth ISO 2012 strict**, pour que n'importe quel développeur ou agent IA puisse
-écrire un `.fth` conforme au standard universel — sans connaître le code Rust,
-sans dépendre d'un langage maison.
-
-**Référence** : `PLANNING_CODAGE_FORTH_12_SEMAINES.md` (84 jours, 2 h/jour).
-
-### État d'avancement (au 2026-08-09)
-
-| Semaine | Contenu | Statut |
-|---------|---------|--------|
-| S1 | Baseline, inventaire (741 primitives, 12 doublons), contrat API | ✅ |
-| S2 | Sémantique Core : flags `-1/0`, `2/` signé, `RSHIFT` logique, `SEARCH`, `REFILL`, `SOURCE`/`>IN` | ✅ |
-| S3 | `STATE` adressable, `FIND` chaîne comptée, `PARSE-NAME`, `PARSE` | ✅ |
-| S4 | Modèle mémoire : **1 AU = 1 cellule i64**, helpers bornés, fenêtre `c@`/`c!` (memory < 65536 / MMIO ≥), `MAX_MEM` 4096→65536, `alloc` réparé | ✅ |
-| S5 | `VARIABLE`/`CONSTANT`/`VALUE`/`CREATE`/`DOES>` conformes, chaînes compilées sans dérive de `HERE`, `EVALUATE` avec sauvegarde | ✅ |
-| S6 | `BASE` adressable, `2@`/`2!`, `U<`/`S>D`, `M*`/`*/MOD` en i128, groupe `<# # #S HOLD SIGN #>`, `UD.`/`D.` | ✅ |
-| S7 | `KEY`, `ACCEPT`, `WORD`, `>NUMBER`, `ABORT`, `QUIT`, `ENVIRONMENT?` → **Core ISO 2012 COMPLET** | ✅ |
-| S8 | Core Ext prioritaires (`WITHIN`, `U>`, `.R`, `U.R`, `PAD`, `S\"`, `:NONAME`, `COMPILE,`) + **gel Driver API v1** | 🚧 En cours |
-| S9 | API Application v1 (`forth/std/core.fth`, packaging `.fth`) | ⬜ |
-| S10 | Portabilité contrôlée (fallback timing/JIT/GOP/périphériques) | ⬜ |
-| S11 | Qualification : tests agent distant, utilisateur distant, driver distant | ⬜ |
-| S12 | Release candidate x86_64 UEFI (QEMU + Intel réel + AMD réel) | ⬜ |
-
-### Résultats mesurables
-
-- **Core ISO 2012 : 103/133 → 133/133 mots** (complet au 2026-08-09).
-- **Bugs critiques corrigés** : `-rot` identique à `rot`, `tuck` faux, `alloc`
-  retournant toujours -1, locales `{}` en boucle infinie, `S"` compilé dérivant
-  `HERE` à l'infini, `sys:load` masquant les erreurs, `parse_number` paniquant
-  sur `i64::MIN`.
-- **Suite de tests** : `forth/TESTS/core2012.fth` sections A + B0…B33,
-  `NB-FAILS = 0` attendu sur matériel.
-- **Builds** : debug + release, 0 erreur, 413 warnings (baseline stable).
-
-### Pourquoi cette phase conditionne tout le reste
-
-Sans noyau ISO strict, chaque driver ou application aurait dépendu d'un dialecte
-maison : inutilisable par un agent externe, inauditable, non pérenne. Avec l'ISO
-2012, un `.fth` Epona se lit, se teste et se maintient comme n'importe quel Forth
-standard — c'est la garantie de **compatibilité irréprochable** exigée par le
-modèle ouvert du projet.
+### 🎓 Horizon A — Plateforme éducative x86 unique au monde
+### 🖥️ Horizon B — OS autonome souverain
+### ⚡ Horizon C — Meilleure implémentation Forth bare-metal moderne
+### 🏭 Horizon D — Plateforme industrielle et embarquée
+### 🍓 Horizon E — Passerelle makers : Raspberry Pi, Arduino, ESP32, STM32
+### 🛡️ Horizon F — Cybersécurité et souveraineté numérique
 
 ---
 
-<a id="phase1-6"></a>
-## 3. Phase 1.6 : Shell moderne — À FAIRE (Nov. 2026)
+## 🌍 Ce qui rend Epona OS unique
 
-**Démarre après la release candidate Forth ISO (fin S12).** Le shell actuel est
-basique ; pour qu'Epona OS soit utilisable au quotidien, il faut le moderniser.
-
-Voir **DEV_GUIDE_SHELL.MD** pour les détails complets.
-
-### 3.1 — Édition de ligne 🔴 P0
-
-| Amélioration | Description |
-|--------------|-------------|
-| Curseur dans la ligne | `cursor_pos`, insertion/suppression à la position |
-| Flèches gauche/droite, Home/End, Delete | Navigation dans l'input |
-| Historique haut/bas | Navigation dans `cmd_history` |
-| Auto-complétion Tab | Commandes + fichiers + mots Forth |
-
-### 3.2 — Commandes 🔴 P0 / 🟠 P1
-
-| Priorité | Commandes |
-|----------|-----------|
-| 🔴 P0 | `echo`, `cp`, `edit`, `pwd`, `set`/`export`, `source` |
-| 🟠 P1 | `date`, `uname`, `uptime`, `dmesg`, `history`, `grep`, `find`, `head`, `tail`, `wc`, `xxd` |
-| 🟠 P1 | `lspci`, `lsusb`, `lsblk`, `mount`/`umount`, `modinfo`, `modload` |
-| 🟠 P1 | `ifconfig`, `ping`, `wget`, `nc`, `dns` (après pile réseau) |
-| 🟠 P1 | `ps`, `kill`, `top`, `irq-stats`, `netstat`, `vm-stats` |
-
-### 3.3 — Fonctionnalités modernes
-
-Redirections `>` `>>` `<`, variables `$PATH` `$?`, chaînage `;` `&&` `||`,
-pipelines `|` (VFS), `cmd &`, globbing, prompt configurable, alias Unix/DOS,
-persistance de l'historique dans `\HISTORY.FTH`.
-
-### 3.4 — Checklist avant merge d'une commande shell
-
-- [ ] Aide mise à jour ; `Usage:` sur arguments manquants
-- [ ] Gestion FS absent / volume non prêt / erreurs lecture-écriture
-- [ ] `last_exit_code` positionné ; chemins via `resolve_path()`
-- [ ] Aucun `unwrap()` sur entrée utilisateur ; sortie via `push_line()`
-- [ ] Tests clavier sur cas limites
+1. **Forth ISO 2012** — standard portable, auditable
+2. **Interactif** — chaque commande agit sur le matériel en temps réel
+3. **Lisible** — tout pilote `.fth` est du texte clair, auditable par un humain ou un agent
+4. **Éducatif** — seul système au monde où un étudiant tape `mmio@` et lit un registre PCI en direct
+5. **Industriel** — CAN, Modbus, UART, SPI, GPIO, ADC, PWM en natif
+6. **Maker-friendly** — la même simplicité qu'un Arduino, mais sur x86, avec un shell interactif
+7. **Agentique** — agents IA capables de produire et soumettre des drivers
+8. **Souverain** — 100 % français, boot signé, zéro télémétrie
+9. **Hybride** — MIT (Forth, applications, drivers) / Propriétaire (noyau Rust, sécurité)
+10. **Bare-metal avec JIT** — aucun autre système Forth au monde ne combine ces deux propriétés
+11. **Pont MCU ↔ x86** — dialogue natif UART/SPI/I2C/Modbus avec Arduino, RPi, ESP32, STM32
+12. **Cybersécurité intégrée** — audit intégral du code, surface d'attaque minimale, isolation mémoire
 
 ---
 
-<a id="ecosysteme"></a>
-## 4. Écosystème de drivers : boucle de collecte décentralisée
+## 📊 État réel au 9 août 2026
 
-Epona OS ne dépend d'aucune base de matériel centralisée : **chaque clé USB est
-un nœud de collecte**, et chaque issue GitHub devient un ticket de travail
-reproductible pour un agent.
+| Composant | État |
+|-----------|------|
+| Boot UEFI x86_64, clé USB Live | ✅ Opérationnel |
+| Shell au démarrage, accès matériel Forth | ✅ Opérationnel |
+| Forth ISO 2012 Core (133/133 mots) | ✅ Complet, NB-FAILS = 0 |
+| 13 drivers Forth opérationnels | ✅ |
+| 440+ primitives | ✅ |
+| JIT x86-64 + fallback interprété | ✅ |
+| Modèle mémoire « fenêtre » documenté |  🔴 Bloqués par le gel de l'API v1 |
+| Shell modernisé | 🟠 Planifié (Phase 1.6) |
+| Drivers industriels (CAN, Modbus, SPI, GPIO) | 🔴 Bloqués par le gel de l'API v1 |
+| Bibliothèque makers (serial-monitor, i2c-scanner…) | 🔴 Après les drivers industriels |
+| Autonomie post-UEFI | 🔴 Phase la plus critique |
+| Bureau graphique complet | 🟠 Prototype fonctionnel |
+| IA locale bare-metal | ⏳ Phase 7 (2028) |
+
+---
+
+## 🧭 Stratégie et séquence
+
+La décision structurante d'août 2026 : **la conformité Forth ISO 2012 avant tout le reste**.
+
+Motif : tant que la sémantique de `@`, `!`, `C@`, `C!`, `MOVE`, `HERE`, `STATE` ou `EVALUATE` n'est pas conforme et testée, un pilote qui touche le matériel ne plante pas proprement — il corrompt l'IDT, les tables de pages ou le framebuffer, sans log exploitable. Sur bare-metal, il n'y a pas de segfault de rattrapage.
+
+### Séquence retenue
 
 ```
-Machine utilisateur (clé USB Live)
-  │
-  ├─ pci save      → /MATERIEL/<machine>_<date>.txt  (inventaire PCI complet)
-  ├─ hw-check      → compare avec drivers/ présents
-  │                → drivers_manquants.txt (PCI ID + class/subclass)
-  │
-  ▼
-Issue GitHub automatique (titre : matériel, corps : drivers manquants)
-  │
-  ▼
-Agent codeur (humain ou IA)
-  ├─ lit docs/API_V1.md + docs/WRITING_DRIVERS.md        (obligatoire)
-  ├─ écrit le driver en Forth ISO 2012 strict
-  ├─ drv:name! / drv:register / drv:probe / drv:init     (protocole v1 figé)
-  │
-  ▼
-Publication dans drivers/ → toute clé USB équipée du même matériel
-en bénéficie au prochain hw-check
+1. Forth ISO 2012 Core ✅ FAIT
+2. Core Ext prioritaires + gel API Driver v1 → en cours
+3. Drivers industriels sous UEFI (UART, GPIO, SPI, Modbus, CAN)
+4. Bibliothèque makers (serial-monitor, i2c-scanner, modbus-master…)
+5. Boucle communautaire (hw-check → GitHub → agent → driver candidat)
+6. Autonomie post-UEFI (le point de non-retour)
+7. Bureau graphique, réseau, multimédia
+8. IA locale
 ```
 
-### Règles strictes de l'écosystème (norme v1.0)
-
-1. **Deux documents obligatoires** avant toute écriture : `API_V1.md` (contrat)
-   et le guide d'écriture driver (protocole). Aucune exception.
-2. **Forth ISO 2012 uniquement** — aucune syntaxe propriétaire côté driver.
-3. **Signatures figées** : `drv:probe ( bar bus dev func -- ok? )` retourne `0`
-   si le matériel est absent, **sans crash** ; `drv:init` idempotent.
-4. **Pas d'accès MMIO/PIO direct hors framework** — uniquement via les mots
-   autorisés (`mmio@/!`, `inb..outl`, `pci:*`, `alloc`, `drv:log`).
-5. **CI** : `validate-drivers.sh` + `test-drivers.yml` doivent passer.
+**Règle absolue** : on ne passe pas à l'étape suivante tant que les tests de l'étape en cours ne sont pas verts.
 
 ---
 
-<a id="industriel"></a>
-## 5. Drivers industriels — CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+## 🗓️ Planning global
 
-Objectif : faire d'Epona OS une plateforme d'automatisme, de banc de test et de
-supervision pilotable en Forth, avec une latence maîtrisée et un code auditable
-ligne par ligne.
+```
+2026 Août-Oct  : Forth ISO 2012 (12 semaines, 2 h/jour) — S1-S7 ✅
+2026 Nov-Déc   : Shell moderne + gel API Driver v1 + UART, GPIO
+2027 Q1        : SPI, ADC, PWM, Modbus, CAN
+                 Bibliothèque makers (serial-monitor, i2c-scanner, plotter…)
+                 Boucle communautaire (hw-check → GitHub)
+2027 Q2        : Autonomie post-UEFI ⚠️ CRITIQUE
+2027 Q3        : Bureau graphique complet
+2027 Q4        : Réseau TCP/IP + TLS + HTTP
+2028 Q1        : Multimédia (audio, images)
+2028 Q2        : IA locale (tenseurs, GGUF, LLM)
+2028 Q3        : Embarqué avancé + Bluetooth
+2028 Q4        : OS « vrai » (installateur, store, sécurité)
+```
 
-### Matrice de faisabilité (honnêteté technique)
+---
 
-Un PC x86 de bureau n'a **pas** de broches GPIO/SPI/ADC natives comme un
-microcontrôleur. Les accès se répartissent en trois catégories :
+## ⚠️ Les dangers à éviter
 
-| Protocole | Accès | Prérequis | Disponibilité |
-|-----------|-------|-----------|---------------|
-| **UART (COM1-4)** | Ports I/O `0x3F8…` direct | `inb`/`outb` existants | ✅ **Aujourd'hui, en pur `.fth`** |
-| **Modbus RTU** | Surcouche logicielle de l'UART | UART ci-dessus + CRC16 en Forth | ✅ **Aujourd'hui, en pur `.fth`** |
-| **Modbus TCP** | Pile réseau | Phase 3 | ⬜ T2 2027 |
-| **I2C / SMBus** | Contrôleur chipset (DesignWare, SB800…) | `i2c-read`, `dw-i2c-init` existants | 🚧 Partiel — à documenter S8-S9 |
-| **SPI** | Contrôleur SoC ou carte PCIe/USB-SPI | Driver adaptateur | ⬜ Phase 6 |
-| **GPIO** | GPIO chipset (SoC industriel) ou expandeur I2C/USB | Driver plateforme | ⬜ Phase 6 |
-| **ADC / PWM** | SoC embarqué industriel ou module externe | Driver plateforme | ⬜ Phase 6 |
-| **CAN / CANopen** | Carte PCI/PCIe-CAN ou adaptateur USB-CAN | Driver adaptateur | ⬜ Phase 6 |
+| Danger | Parade |
+|--------|--------|
+| **Feature creep** | La règle des 2 h/jour et du « un seul sous-système par séance » |
+| **Syndrome du développeur unique** | Agent codeur + agent auditeur hebdomadaire, documentation normative, format de driver ouvert |
+| **Absence d'utilisateurs** | Communauté makers comme premier public cible — ils comprennent le bare-metal |
+| **Incompatibilité matérielle** | Tester sur QEMU + Intel réel + AMD réel dès la Semaine 12 |
+| **Dialect lock-in** | ISO 2012 résout ce problème : le code est portable |
+| **Corruption silencieuse sur bare-metal** | `check_mem` systématique, aucun `unwrap()` sur entrée utilisateur, parité interpréteur/JIT |
+| **Ignorer la communauté maker** | Exemples prêts à l'emploi (`serial-monitor.fth`), syntaxe familière, documentation bilingue |
 
-**Cibles matérielles privilégiées** : cartes industrielles x86 (PC/104, Mini-ITX
-embarqué, APU AMD/Intel SoC avec GPIO/I2C/SPI exposés), adaptateurs USB-CAN et
-USB-UART courants.
+---
 
-### Exemple — ce qui est possible **dès aujourd'hui** : Modbus RTU sur COM1
+## 🌠 Vision à deux ans
+
+| Scénario | Objectif |
+|----------|----------|
+| **Optimiste** | v3.0 : JIT x86-64, 600+ mots, drivers industriels en production, IA locale, bibliothèque makers complète, communauté active Arduino/RPi/Forth/x86, adoption éducative et industrielle |
+| **Réaliste** | v2.5 : Forth ISO conforme, UART/SPI/GPIO/Modbus/CAN validés, serial-monitor + i2c-scanner + modbus-master livrés, bureau graphique, documentation bilingue, premiers contributeurs MCU |
+| **Minimum viable** | v2.2 : clé USB publiée, Forth Core testé, API v1 gelée, 3 drivers industriels, serial-monitor.fth fonctionnel, un maker externe a piloté son Arduino depuis Epona |
+
+---
+
+## 🏆 En résumé
+
+Epona OS combine dans un même système :
+
+- la simplicité de **MS-DOS**
+- l'élégance de **Mac System 7**
+- le multitâche d'**AmigaOS**
+- la modernité de **BeOS**
+- l'accès matériel direct d'un **moniteur machine**
+- la simplicité d'un **Arduino** pour le GPIO/SPI/UART
+- un langage interactif standardisé (**Forth ISO 2012**)
+- une vocation **industrielle** (CAN, Modbus, UART, SPI, GPIO)
+- un **pont natif** vers le monde des microcontrôleurs (Arduino, RPi, ESP32, STM32)
+- une plateforme **éducative** unique au monde
+- une architecture **agentique**
+- une posture de **souveraineté numérique**
+- une dimension **cybersécurité intégrée** (audit, isolation, boot signé)
+- un projet ouvert aux **ingénieurs système** et aux **professionnels de la sécurité**
+
+> Ce projet s'adresse aux passionnés de bas-niveau, aux geeks, aux makers, aux bidouilleurs hardware, aux ingénieurs, aux professionnels de la cybersécurité, et à tous ceux qui veulent **coder sur le métal**, manipuler le hardware en direct, et comprendre comment fonctionne un ordinateur.
+
+La refonte Forth ISO 2012 transforme le projet : d'un système fonctionnant grâce à un dialecte propriétaire maîtrisé par une seule personne, il devient une **plateforme sur laquelle n'importe quel développeur, maker, ingénieur ou agent peut produire du code portable, auditable et durable**.
+
+C'est ce qui fait la différence entre un projet personnel remarquable et un **OS que d'autres peuvent adopter**.
+
+---
+
+*Version : 1.98-beta3 · Dernière mise à jour : 9 août 2026*
+*Auteur : Nicolas — Architecte, WeBOo Concept*
+*Licence : MIT (Forth, drivers, applications, documentation) + Propriétaire (noyau Rust, boot signé, JIT, sécurité)*
+
+---
+
+# 🐴 Vision of Epona OS
+
+> **Version**: 1.98-beta3
+> **Last updated**: August 9, 2026
+> **Author**: Nicolas — Architect, WeBOo Concept
+> **Licence**: MIT (Forth, drivers, apps, docs) + Proprietary (Rust kernel, signed boot, JIT, security)
+
+---
+
+## 🌌 What Epona OS is today
+
+A **UEFI bare-metal** operating system written in **Rust**, with a **Forth ISO 2012 interpreter** built in.
+It boots on real hardware — no Linux, no Windows, nothing else.
+
+```
+Bare metal → UEFI → Rust → Forth ISO 2012 → Shell / Graphical desktop
+
+440+ hardware primitives
+13 operational Forth drivers
+Forth ISO 2012 Core complete (133/133) and tested
+GPU (GOP), USB 3.0 (xHCI), NVMe, AHCI, network (e1000), audio (HDA)
+Preemptive multitasking
+x86-64 JIT with guaranteed interpreted fallback
+Automated test suite (NB-FAILS = 0)
+Hybrid model: MIT (Forth) + Proprietary (Rust kernel)
+Native industrial drivers: CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+```
+
+> **This project is for people who love low-level, geeks, makers, hardware tinkerers, engineers, cybersecurity professionals, and anyone who wants to code on bare metal, manipulate hardware directly, and understand how a computer works.**
+
+---
+
+## 🎯 Target audiences
+
+| Audience | Need addressed |
+|----------|----------------|
+| 💡 **Geeks & architects** | Understand how a PC really works, drive the CPU with no opaque layer |
+| 🦀 **Low-level developers** (Rust, ASM, Forth) | Bare-metal programs and drivers, no heavy dependency |
+| 🔌 **Makers & hardware hackers** | Custom chips, FPGAs, USB modules without SDK or IDE |
+| 🍓 **Raspberry Pi / Arduino / ESP32 / STM32 community** | Same GPIO/SPI/I2C/UART simplicity as on a microcontroller, but on x86 — and drive your boards from Epona via UART/USB |
+| 🛠️ **OS tinkerers** | Test machine instructions, drivers and GUIs directly on metal |
+| 🏭 **Industrial integrators** | CAN, Modbus, UART, SPI, GPIO without a 30M-line Linux stack |
+| 🏗️ **System engineers** | Rapid prototyping, test benches, real-time supervision on real hardware — no kernel recompilation |
+| 🛡️ **Cybersecurity & sovereignty** | Auditable OS, no telemetry, minimal attack surface, signed boot |
+| 🎓 **Higher education** | Unique x86 teaching platform |
+| 🇫🇷 **Sovereign OS advocates** | Bloatware-free, self-contained, 100% French |
+
+---
+
+## 🍓 Why the Raspberry Pi / Arduino community will love Epona OS
+
+### The problem they know
+
+An Arduino user is used to:
+
+```c
+digitalWrite(13, HIGH);
+analogRead(A0);
+Serial.begin(115200);
+```
+
+**One line = one hardware effect.** Simple, direct, concrete.
+
+But when they move to an x86 PC, they fall into an abyss: install an OS, install a SDK, configure permissions, fight with abstraction layers… **The magic of "I type a line and the hardware moves" disappears.**
+
+### What Epona gives them
+
+On Epona, they get **exactly the same simplicity**, but on x86:
 
 ```forth
-\ === DRIVER MODBUS-RTU / UART — Conforme API v1 (MIT) ===
-drv:name!    "modbus_uart.fth"
-drv:register "INDUSTRIAL:UART:MODBUS ; Modbus RTU Master ; class=07/00"
-
-115200 value BAUD-RATE
-0x3F8  value COM1-BASE
-
-: uart-tx-ready? ( -- flag ) COM1-BASE 5 + inb 0x20 and 0<> ;
-: uart-emit      ( char -- ) begin uart-tx-ready? until COM1-BASE outb ;
-
-: modbus-send-frame ( addr len -- )
-  0 do dup i + c@ uart-emit loop drop ;
-
-drv:probe ( bar bus dev func -- ok? )
-  drop drop drop drop -1 ;
-
-drv:init ( -- ok? )
-  0x80 COM1-BASE 3 + outb   \ DLAB = 1
-  0x01 COM1-BASE 0 + outb   \ 115200 baud
-  0x00 COM1-BASE 1 + outb
-  0x03 COM1-BASE 3 + outb   \ 8N1
-  -1 ;
+13 1 gpio:write              \ turn on LED
+0 adc:read .                 \ read ADC
+0x3F8 115200 uart:init       \ init serial
+s" Hello!" uart:type         \ send serial message
+0x48 0 i2c-read .            \ read I2C sensor
 ```
 
-1. **100 % lisible** par un humain ou un agent IA.
-2. **Exécuté directement sur le métal**, sans pile tty/serial de 10 000 lignes.
-3. **Latence déterministe** (pas d'ordonnanceur opaque derrière).
+**One line = one hardware effect. No compilation, no SDK, no abstraction layer.**
 
-### Jalon industriel
+### The bridge between worlds
 
-- **S8-S9 (2026)** : premier driver industriel de référence (Modbus RTU) validé
-  par la CI, publié comme modèle pour les agents.
-- **T1 2028 (Phase 6)** : primitives natives SPI/GPIO/ADC/PWM/CAN (850-883) pour
-  les plateformes qui les exposent + drivers d'adaptateurs USB.
+Epona doesn't replace an Arduino or Raspberry Pi — it **complements** them:
+
+```
+┌────────────────────┐     UART / USB / SPI     ┌──────────────────┐
+│    EPONA OS        │◄────────────────────────►│  Arduino / RPi    │
+│    (x86 PC)        │                           │  (MCU / SBC)      │
+│                    │                           │                   │
+│  • Interactive shell │   Modbus, raw serial,   │  • Physical sensors│
+│  • Graphical dash. │   custom protocol       │  • Actuators       │
+│  • NVMe data log. │                           │  • GPIO           │
+│  • Real-time analytics│                        │  • ADC/PWM        │
+└────────────────────┘                           └──────────────────┘
+```
+
+### Ready-to-use maker library (MIT)
+
+```
+forth/makers/
+  serial-monitor.fth      \ universal serial monitor
+  serial-plotter.fth      \ graphical serial plotter
+  modbus-master.fth       \ Modbus RTU master
+  spi-analyzer.fth        \ basic SPI analyzer
+  i2c-scanner.fth         \ I2C address scanner
+  gpio-tester.fth         \ GPIO pin tester
+  adc-logger.fth          \ ADC → file logger
+  pwm-generator.fth       \ configurable PWM generator
+  protocol-bridge.fth     \ UART↔TCP bridge (remote access)
+```
+
+Every file is **self-contained**, **documented**, **MIT-licensed**, and runnable via `exec makers/serial-monitor.fth`.
 
 ---
 
-<a id="phase2"></a>
-## 6. Phase 2 : Bureau graphique complet (T1 2027)
+## 🛡️ Why engineers and cybersecurity professionals should care
 
-### 6.1 — Window Manager en Forth + primitives natives (500-520, 530-560)
+### For system engineers
 
-Fenêtres (`win:create`, `win:move`, `win:event`, drag, focus, z-order…) et
-dessin avancé (`gfx:circle`, `gfx:polygon`, `gfx:bezier`, `gfx:gradient`,
-`gfx:alpha-blend`, clipping, sprites, polices, décodage PNG/BMP/JPEG,
-`gfx:rounded-rect`, `gfx:shadow`). Détail inchangé : voir sections primitives
-de la version précédente de ce document.
+Epona is a **rapid prototyping and test bench platform**, not a general-purpose desktop OS. An engineer can:
 
-### 6.2 — Bureau complet en Forth (BUREAU.FTH)
+- **Read a PCI register** with `pci:bar` and `mmio@` without compiling a kernel module
+- **Drive an industrial UART** in 5 lines of Forth rather than 500 lines of C
+- **Build a test bench** with an integrated graphical dashboard, without relying on an external framework
+- **Save their configuration on a USB drive** and deploy it across multiple machines without reinstalling anything
 
-Fenêtres déplaçables, barre des tâches, menu démarrer, éditeur intégré, curseur
-souris, thème sombre. **Chaque utilisateur peut fork son bureau** : c'est un
-script `.fth` comme un autre, chargé depuis `BOOT.FTH`.
+The Forth language, combined with the proprietary Rust kernel, offers a rare compromise:
+- **openness and transparency** on the Forth side (drivers, applications, tests)
+- **reliability and security** on the kernel side (signed boot, memory isolation, sandbox)
 
-### 6.3 — Éditeur de code Forth (EDITEUR.FTH)
+### For cybersecurity and digital sovereignty
 
-Coloration syntaxique, numéros de ligne, curseur clignotant,
-sauvegarde/chargement, compilation et exécution directes.
+In contexts where **digital sovereignty** and **minimal attack surface** are priorities:
+
+- **Full code auditability**: every line of executed Forth (`BOOT.FTH`, `.fth` drivers, `.fth` apps) is readable text. An auditor can inspect everything.
+- **No hidden telemetry**: no background processes, no automatic data transmission.
+- **Signed boot chain**: the Rust kernel validates the trust chain at startup.
+- **Memory sandbox**: the `check_mem` boundary strictly isolates the Forth application space from system memory.
+- **Voluntary data submission only**: `hw-check` produces a local file. Sending it to GitHub (`hw-submit`) requires explicit user confirmation and anonymization.
+- **Readable drivers**: an industrial `.fth` driver is as easy to audit as a Python script — but executes directly on hardware, without an intermediate layer that could be compromised.
+
+> This project is for people who love low-level, geeks, makers, hardware tinkerers, engineers, cybersecurity professionals, and anyone who wants to **code on bare metal**, manipulate hardware directly, and understand how a computer works.
 
 ---
 
-<a id="phase3"></a>
-## 7. Phase 3 : Réseau complet (T2 2027)
+## 🌠 The six horizons of Epona OS
 
-### 7.1 — Pile TCP/IP (600-650)
+### 🎓 Horizon A — World's only interactive x86 educational platform
+### 🖥️ Horizon B — Sovereign autonomous OS
+### ⚡ Horizon C — Best modern bare-metal Forth
+### 🏭 Horizon D — Industrial and embedded platform
+### 🍓 Horizon E — Maker bridge (Arduino, RPi, ESP32, STM32)
+### 🛡️ Horizon F — Cybersecurity and digital sovereignty
 
-`tcp:listen/accept/read/write/close/status`, `udp:socket/send/recv`,
-`tls:connect/read/write/close`, `http:get/post/serve`, WebSocket
-(`ws:connect/send/recv/close`).
+---
 
-### 7.2 — Serveur HTTP en Forth
+## 🌍 What makes Epona OS unique
+
+1. **Forth ISO 2012** — standard, portable, auditable
+2. **Interactive** — every command acts on hardware in real time
+3. **Readable** — every `.fth` driver is clear, auditable text
+4. **Educational** — only system where a student types `mmio@` and reads a PCI register live
+5. **Self-contained** — no Linux, Windows, POSIX, libc
+6. **Industrial** — CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+7. **Maker-friendly** — Arduino simplicity on x86, interactive shell
+8. **Agentic** — AI agents produce and submit drivers autonomously
+9. **Sovereign** — 100% French, signed boot, zero telemetry
+10. **Hybrid** — MIT (education, makers, drivers) / Proprietary (security kernel)
+11. **Bare-metal with JIT** — unique worldwide
+12. **MCU ↔ x86 bridge** — native UART/SPI/I2C/Modbus dialogue with Arduino, RPi, ESP32, STM32
+
+---
+
+## 📊 Real status as of August 9, 2026
+
+| Component | Status |
+|-----------|--------|
+| UEFI x86_64 boot, Live USB | ✅ Operational |
+| Shell at startup, Forth hardware access | ✅ Operational |
+| Forth ISO 2012 Core (133/133 words) | ✅ Complete, NB-FAILS = 0 |
+| 13 operational Forth drivers | ✅ |
+| 440+ primitives | ✅ |
+| x86-64 JIT + interpreted fallback | ✅ |
+| Documented memory window model |  🔴 Blocked by API v1 freeze |
+| Modernized shell | 🟠 Planned (Phase 1.6) |
+| Industrial drivers (CAN, Modbus, SPI, GPIO) | 🔴 Blocked by API v1 freeze |
+| Maker library (serial-monitor, i2c-scanner…) | 🔴 After industrial drivers |
+| Post-UEFI autonomy | 🔴 Most critical phase |
+| Full graphical desktop | 🟠 Functional prototype |
+| Local bare-metal AI | ⏳ Phase 7 (2028) |
+
+---
+
+## 🧭 Strategy and sequence
+
+The structuring decision of August 2026: **Forth ISO 2012 compliance before everything else**.
+
+Reason: as long as the semantics of `@`, `!`, `C@`, `C!`, `MOVE`, `HERE`, `STATE` or `EVALUATE` are not compliant and tested, a driver that touches hardware won't fail gracefully — it will corrupt the IDT, page tables, or framebuffer, without an exploitable log. On bare metal, there is no segfault recovery.
+
+### Retained sequence
+
+```
+1. Forth ISO 2012 Core ✅ DONE
+2. Prioritary Core Ext + freeze Driver API v1 → in progress
+3. Industrial drivers under UEFI (UART, GPIO, SPI, Modbus, CAN)
+4. Maker library (serial-monitor, i2c-scanner, modbus-master…)
+5. Community loop (hw-check → GitHub → agent → driver candidate)
+6. Post-UEFI autonomy (point of no return)
+7. Graphical desktop, networking, multimedia
+8. Local AI
+```
+
+**Absolute rule**: do not proceed to the next step until the current step's tests are green.
+
+---
+
+## 🗓️ Global timeline
+
+```
+2026 Aug-Oct   : Forth ISO 2012 (12 weeks, 2h/day) — W1-W7 ✅
+2026 Nov-Dec   : Modern shell + freeze Driver API v1 + UART, GPIO
+2027 Q1        : SPI, ADC, PWM, Modbus, CAN
+                 Maker library (serial-monitor, i2c-scanner, plotter…)
+                 Community loop (hw-check → GitHub)
+2027 Q2        : Post-UEFI autonomy ⚠️ CRITICAL
+2027 Q3        : Full graphical desktop
+2027 Q4        : TCP/IP + TLS + HTTP networking
+2028 Q1        : Multimedia (audio, images)
+2028 Q2        : Local AI (tensors, GGUF, LLM)
+2028 Q3        : Advanced embedded + Bluetooth
+2028 Q4        : "Real" OS (installer, signed store, security)
+```
+
+---
+
+## ⚠️ Dangers to avoid
+
+| Danger | Countermeasure |
+|--------|----------------|
+| **Feature creep** | The 2h/day rule and "one subsystem per session" rule |
+| **Single developer syndrome** | Coder agent + weekly auditor agent, normative docs, open driver format |
+| **No users** | Makers as first target audience — they understand bare metal |
+| **Hardware incompatibility** | Test on QEMU + real Intel + real AMD from Week 12 |
+| **Dialect lock-in** | ISO 2012 solves this: code is portable |
+| **Silent corruption on bare metal** | Systematic `check_mem`, no `unwrap()` on user input, interpreter/JIT parity |
+| **Ignoring maker community** | Ready-to-use examples (`serial-monitor.fth`), familiar syntax, bilingual docs |
+
+---
+
+## 🌠 Two-year vision
+
+| Scenario | Goal |
+|----------|------|
+| **Optimistic** | v3.0: JIT mature, 600+ words, industrial drivers in production, local AI, complete maker library, active Arduino/RPi/Forth/x86 community, educational and industrial adoption |
+| **Realistic** | v2.5: ISO Forth compliant, UART/SPI/GPIO/Modbus/CAN validated, serial-monitor + i2c-scanner shipped, graphical desktop, bilingual docs, first MCU contributors |
+| **Minimum viable** | v2.2: Published USB stick, Forth Core tested, API v1 frozen, 3 industrial drivers, serial-monitor.fth working, one external maker has driven their Arduino from Epona |
+
+---
+
+## 🏆 In summary
+
+Epona OS combines in one system:
+
+- the simplicity of **MS-DOS**
+- the elegance of **Mac System 7**
+- the multitasking of **AmigaOS**
+- the modernity of **BeOS**
+- the direct hardware access of a **machine monitor**
+- the simplicity of an **Arduino** for GPIO/SPI/UART
+- a standardized interactive language (**Forth ISO 2012**)
+- an **industrial** vocation (CAN, Modbus, UART, SPI, GPIO)
+- a **native bridge** to the microcontroller world (Arduino, RPi, ESP32, STM32)
+- a **unique educational** platform
+- an **agentic** architecture
+- a stance of **digital sovereignty**
+- an **integrated cybersecurity** dimension (auditability, isolation, signed boot)
+- an openness to **system engineers** and **security professionals**
+
+The Forth ISO 2012 rewrite transforms the project: from a system running on a proprietary dialect mastered by one person, it becomes a **platform where any developer, maker, engineer, or agent can produce portable, auditable, durable code**.
+
+That is the difference between a remarkable personal project and an **OS that others can adopt**.
+
+---
+
+*Version: 1.98-beta3 · Last updated: August 9, 2026*
+*Author: Nicolas — Architect, WeBOo Concept*
+*Licence: MIT (Forth, drivers, apps, documentation) + Proprietary (Rust kernel, signed boot, JIT, security)*
+
+---
+
+# 🐴 Vision of Epona OS
+
+> **Version**: 1.98-beta3
+> **Last updated**: August 9, 2026
+> **Author**: Nicolas — Architect, WeBOo Concept
+> **Licence**: MIT (Forth, drivers, apps, docs) + Proprietary (Rust kernel, signed boot, JIT, security)
+
+---
+
+## 🌌 What Epona OS is today
+
+A **UEFI bare-metal** operating system written in **Rust**, with a **Forth ISO 2012 interpreter** built in.
+It boots on real hardware — no Linux, no Windows, nothing else.
+
+```
+Bare metal → UEFI → Rust → Forth ISO 2012 → Shell / Graphical desktop
+
+440+ hardware primitives
+13 operational Forth drivers
+Forth ISO 2012 Core complete (133/133) and tested
+GPU (GOP), USB 3.0 (xHCI), NVMe, AHCI, network (e1000), audio (HDA)
+Preemptive multitasking
+x86-64 JIT with guaranteed interpreted fallback
+Automated test suite (NB-FAILS = 0)
+Hybrid model: MIT (Forth) + Proprietary (Rust kernel)
+Native industrial drivers: CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+```
+
+> **This project is for people who love low-level, geeks, makers, hardware tinkerers, engineers, cybersecurity professionals, and anyone who wants to code on bare metal, manipulate hardware directly, and understand how a computer works.**
+
+---
+
+## 🎯 Target audiences
+
+| Audience | Need addressed |
+|----------|----------------|
+| 💡 **Geeks & architects** | Understand how a PC really works, drive the CPU with no opaque layer |
+| 🦀 **Low-level developers** (Rust, ASM, Forth) | Bare-metal programs and drivers, no heavy dependency |
+| 🔌 **Makers & hardware hackers** | Custom chips, FPGAs, USB modules without SDK or IDE |
+| 🍓 **Raspberry Pi / Arduino / ESP32 / STM32 community** | Same GPIO/SPI/I2C/UART simplicity as on a microcontroller, but on x86 — and drive your boards from Epona via UART/USB |
+| 🛠️ **OS tinkerers** | Test machine instructions, drivers and GUIs directly on metal |
+| 🏭 **Industrial integrators** | CAN, Modbus, UART, SPI, GPIO without a 30M-line Linux stack |
+| 🏗️ **System engineers** | Rapid prototyping, test benches, real-time supervision on real hardware — no kernel recompilation |
+| 🛡️ **Cybersecurity & sovereignty** | Auditable OS line-by-line, minimal attack surface, signed boot, zero telemetry |
+| 🎓 **Higher education** | Unique x86 teaching platform |
+| 🇫🇷 **Sovereign OS advocates** | Bloatware-free, self-contained, 100% French |
+
+---
+
+## 🍓 Why the Raspberry Pi / Arduino community will love Epona OS
+
+### The problem they know
+
+An Arduino user is used to:
+
+```c
+digitalWrite(13, HIGH);
+analogRead(A0);
+Serial.begin(115200);
+```
+
+**One line = one hardware effect.** Simple, direct, concrete.
+
+But when they move to an x86 PC, they fall into an abyss: install an OS, install a SDK, configure permissions, fight with abstraction layers… **The magic of "I type a line and the hardware moves" disappears.**
+
+### What Epona gives them
+
+On Epona, they get **exactly the same simplicity**, but on x86:
 
 ```forth
-: http-handler ( client_sock -- )
-  256 balloc { buf }
-  client_sock buf 256 tcp:read { nread }
-  nread 0 > if
-    s" HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
-    client_sock swap tcp:write drop
-    s" <h1>Epona OS</h1><p>Serveur Forth bare-metal</p>"
-    client_sock swap tcp:write drop
-  then
-  client_sock tcp:close ;
-
-: serveur ( -- )
-  80 tcp:listen { sock }
-  begin sock tcp:accept { client }
-    client 0 >= if client http-handler then
-  again ;
+13 1 gpio:write              \ turn on LED
+0 adc:read .                 \ read ADC
+0x3F8 115200 uart:init       \ init serial
+s" Hello!" uart:type         \ send serial message
+0x48 0 i2c-read .            \ read I2C sensor
 ```
 
-**Débloque aussi** : Modbus TCP (§5), envoi automatique des rapports
-`hw-check` vers GitHub (§4), package manager (Phase 7).
+**One line = one hardware effect. No compilation, no SDK, no abstraction layer.**
 
----
+### The bridge between worlds
 
-<a id="phase4"></a>
-## 8. Phase 4 : Multimédia (T3 2027)
-
-### 8.1 — Audio (700-720)
-
-`audio:init/info/play-raw/play-wav/stop/volume/mixer/synth/sample/midi-*`.
-Synthèse sine/square/triangle/sawtooth.
-
-### 8.2 — Synthétiseur en Forth
-
-```forth
-: beep-sine ( freq ms -- ) over 2 audio:synth ;
-440 500 beep-sine   \ La 440 Hz, 500 ms
-```
-
----
-
-<a id="phase5"></a>
-## 9. Phase 5 : IA locale bare-metal (T4 2027)
-
-### 9.1 — Moteur de tenseurs (800-830)
-
-`tensor:create/free/load/matmul/add/softmax/relu/shape/get/set/print`.
-Optimisations x86_64 : AVX2 pour matmul, quantization INT8, tiling cache L1/L2.
-
-### 9.2 — LLM local GGUF (820-826)
-
-`llm:load/generate/embed/info/free/temperature/top-p`. Chargeur GGUF quantizé
-(Q4_0/Q4_1/Q8_0/F16/F32).
-
-```forth
-s" /models/tinyllama-1.1b-q4.gguf" llm:load constant MODEL
-: ask ( -- )
-  s" Qu'est-ce que Forth ?" MODEL swap 256 llm:generate type cr ;
-```
-
-**Synergie agentique** : les agents qui écrivent et auditent les `.fth`
-pourront à terme tourner *dans* Epona OS lui-même.
-
----
-
-<a id="phase6"></a>
-## 10. Phase 6 : Électronique embarquée native (T1 2028)
-
-### 10.1 — Primitives embarquées (850-883)
-
-`serial:init/read/write/avail?`, `spi:init/transfer/cs`,
-`gpio:mode/read/write/irq`, `adc:read`, `dac:write`, `pwm:set`,
-protocoles `modbus:read/write`, `canbus:send/recv`.
-
-Voir §5 pour la matrice de faisabilité : ces primitives ciblent les plateformes
-x86 industrielles (SoC avec GPIO/SPI/I2C exposés) et les adaptateurs USB/PCIe.
-
-### 10.2 — Bluetooth HCI via xHCI (950-961)
-
-`bt:init/scan/poll/devices/device-info/device-name/connect/disconnect/paired/
-status/addr/info`.
-
----
-
-<a id="phase7"></a>
-## 11. Phase 7 : OS "vrai" (T2-T4 2028)
-
-### 11.1 — Installateur sur disque (INSTALL.FTH)
-
-Détection disques (AHCI/NVMe), partitionnement GPT, formatage FAT32, copie
-BOOTX64.EFI + BOOT.FTH, entrée NVRAM EFI.
-
-### 11.2 — Package manager (PKG.FTH) et format .EPA
-
-Paquets signés (ed25519 + SHA-256), métadonnées, dépendances, icône, JIT
-optionnel. Primitives Store 970-977 (`pkg:list/info/install/remove/update/
-search/pack/verify`).
-
-### 11.3 — Sécurité renforcée
-
-- Boot signé de bout en bout (noyau propriétaire → vérifie les composants MIT).
-- Signature obligatoire des paquets `.EPA` du store officiel.
-- Sandbox Forth documentée (bornes `MAX_MEM`, fenêtres MMIO) et auditables.
-- **Formulation honnête** : le bare-metal et l'absence de Linux *réduisent* la
-  surface d'attaque et rendent le système *auditable* ; ils ne dispensent ni de
-  la validation, ni de l'isolation, ni d'une politique de mise à jour.
-
----
-
-<a id="primitives"></a>
-## 12. Primitives — Récapitulatif
-
-### Implémentées
-
-| Plage | Catégorie | Nombre | Statut |
-|-------|-----------|--------|--------|
-| 0-437 | Noyau Forth + ISO 2012 (dont 388-403 : BASE/ALIGN/2@/2!/U</S>D/M*/*/MOD/PNO ; 404-409 : KEY/KEY?/ACCEPT/WORD/>NUMBER ; 419 ABORT ; 435-437 ENVIRONMENT?/DEPTH/QUIT) | ~150 effectifs ISO | ✅ S1-S7 |
-| 500-555 | Fenêtres & GFX (v1 existante) | ~40 | ✅ |
-| 565-569 | Fichiers Forth | 5 | ✅ |
-| 600-643 | Réseau/TCP/HTTP/DNS (v1) | ~30 | ✅ |
-| 720-727 | MMIO | 8 | ✅ |
-| 740-745 | Port I/O | 6 | ✅ |
-| 750-758 | PCI | 9 | ✅ |
-| 770-775 | Mémoire | 6 | ✅ |
-| 790-795 | IRQ | 6 | ✅ |
-| 800-805 | Framebuffer GOP | 6 | ✅ |
-| 810-826 | Wrappers drivers | 17 | ✅ |
-| 840-848 | Utilitaires drivers | 9 | ✅ |
-| 850-854 | RTC CMOS | 5 | ✅ |
-| 860-864 | Fichiers | 5 | ✅ |
-| 900-944 | Flottants IEEE 754 | 45 | ✅ |
-
-### À implémenter
-
-| Plage | Catégorie | Phase |
-|-------|-----------|-------|
-| S8 (indices à définir) | `WITHIN`, `U>`, `.R`, `U.R`, `PAD`, `S\"`, `:NONAME`, `COMPILE,` | Phase 1.5 🚧 |
-| 500-560 | Fenêtres v2 + dessin avancé | Phase 2 |
-| 600-650 | Réseau avancé (TLS, WS) | Phase 3 |
-| 700-720 | Audio | Phase 4 |
-| 800-830 | IA/Tenseurs | Phase 5 |
-| 850-883 | Embarqué (SPI/GPIO/ADC/PWM/CAN) | Phase 6 |
-| 950-961 | Bluetooth | Phase 6 |
-| 970-977 | Store | Phase 7 |
-
----
-
-<a id="distingue"></a>
-## 13. Ce qui distingue Epona OS de tous les autres OS
-
-1. **Forth ISO 2012 bare-metal avec JIT** → unique au monde ; code standard,
-   universel, écrivable par tout agent ou développeur.
-2. **Accès matériel direct depuis un langage interactif** → `pci list`,
-   `pci:bar`, `mmio@` en direct au shell.
-3. **USB 3.0, NVMe, GPU, réseau en Forth** → là où les OS hobby n'ont souvent
-   que le clavier PS/2.
-4. **UEFI natif** → pas de BIOS legacy.
-5. **Modèle hybride MIT/propriétaire** → ouvert pour l'éducation et les drivers,
-   fermé pour le noyau et la chaîne de confiance.
-6. **Écosystème de drivers décentralisé** → chaque clé USB collecte, chaque
-   issue GitHub produit un driver standard.
-7. **Drivers industriels** → Modbus/UART dès aujourd'hui, CAN/SPI/GPIO/ADC/PWM
-   sur plateformes dédiées.
-8. **Méthodologie double agent** → codeur quotidien + auditeur hebdomadaire,
-   tests avant correction.
-9. **Cours x86 interactifs** → plateforme éducative, du registre au driver.
-10. **IA locale GGUF intégrée (à venir)** → agents tournant dans l'OS lui-même.
-11. **Souveraineté** → zéro télémétrie, zéro bloatware, 100 % des cycles CPU
-    maîtrisés par l'utilisateur.
-
----
-
-<a id="guides"></a>
-## 14. Guides de développement
-
-| Guide | Description | Statut |
-|-------|-------------|--------|
-| **PLANNING_CODAGE_FORTH_12_SEMAINES.md** | Planning ISO 2012 (84 jours) | 🚧 S7/12 |
-| **devguide_Forth_Iso_2012.md** | Invariants du noyau ISO (modèle mémoire, STATE, parsing) | 🚧 Vivant |
-| **docs/API_V1.md** | Contrat Driver API v1 + Application API v1 | 🚧 Gel prévu S8 |
-| **forth/std/CORE_WORDS.md** | Table de conformité des mots Core | 🚧 Vivant |
-| **forth/TESTS/core2012.fth** | Suite de tests ISO (B0…B33) | ✅ |
-| **DEVFORTH.MD** | Manuel primitives Forth | ✅ |
-| **DEVSHELL.MD** | Guide shell | ✅ |
-| **DEVWATCHDOG.MD** | Guide interruptions | ✅ |
-| **DEVMAIN.MD** | Guide noyau | ✅ |
-| **DEV_GUIDE_DRIVERS.MD** | Guide drivers Forth | ✅ |
-| **DEV_GUIDE_DRIVER_AGENT.MD** | Guide agent codeur (8 phases) | ✅ |
-
----
-
-## Planning global
+Epona doesn't replace an Arduino or Raspberry Pi — it **complements** them:
 
 ```
-2026 Août-Oct : Phase 1.5 🚧 Migration Forth ISO 2012 (S1-S7 ✅, S8-S12 à venir)
-2026 Nov      : Phase 1.6 — Shell moderne
-2026 Déc      : Tests, démos publiques, communication
-2027 T1       : Phase 2 — Bureau graphique complet
-2027 T2       : Phase 3 — Réseau TCP/IP + TLS + HTTP (+ Modbus TCP)
-2027 T3       : Phase 4 — Multimédia
-2027 T4       : Phase 5 — IA locale (tenseurs, GGUF, LLM)
-2028 T1       : Phase 6 — Embarqué natif (SPI/GPIO/ADC/PWM/CAN) + Bluetooth
-2028 T2-T4    : Phase 7 — Installateur, store signé, sécurité renforcée
+┌────────────────────┐     UART / USB / SPI     ┌──────────────────┐
+│    EPONA OS        │◄────────────────────────►│  Arduino / RPi    │
+│    (x86 PC)        │                           │  (MCU / SBC)      │
+│                    │                           │                   │
+│  • Interactive shell │   Modbus, raw serial,  │  • Physical sensors│
+│  • Graphical dash. │   custom protocol       │  • Actuators       │
+│  • NVMe data log. │                           │  • GPIO           │
+│  • Real-time analytics│                        │  • ADC/PWM        │
+└────────────────────┘                           └──────────────────┘
+```
+
+### Ready-to-use maker library (MIT)
+
+```
+forth/makers/
+  serial-monitor.fth      \ universal serial monitor
+  serial-plotter.fth      \ graphical serial plotter (like Arduino IDE)
+  modbus-master.fth       \ Modbus RTU master
+  spi-analyzer.fth        \ basic SPI analyzer
+  i2c-scanner.fth         \ I2C address scanner
+  gpio-tester.fth         \ GPIO pin tester
+  adc-logger.fth          \ ADC → file logger
+  pwm-generator.fth       \ configurable PWM generator
+  protocol-bridge.fth     \ UART↔TCP bridge (remote access)
+```
+
+Every file is **self-contained**, **documented**, **MIT-licensed**, and runnable via `exec makers/serial-monitor.fth`.
+
+---
+
+## 🔮 The six horizons of Epona OS
+
+### 🎓 Horizon A — World's only interactive x86 educational platform
+### 🖥️ Horizon B — Sovereign autonomous OS
+### ⚡ Horizon C — Best modern bare-metal Forth
+### 🏭 Horizon D — Industrial and embedded platform (CAN, Modbus, UART, SPI, GPIO)
+### 🍓 Horizon E — Maker bridge: Raspberry Pi, Arduino, ESP32, STM32
+### 🛡️ Horizon F — Cybersecurity and digital sovereignty
+
+---
+
+## 🌍 What makes Epona OS unique
+
+1. **Forth ISO 2012** — standard, portable, auditable
+2. **Interactive** — every command acts on hardware in real time
+3. **Readable** — every `.fth` driver is clear, auditable text
+4. **Educational** — the only system where a student types `mmio@` and reads a PCI register live
+5. **Self-contained** — no Linux, Windows, POSIX or libc
+6. **Industrial** — CAN, Modbus, UART, SPI, GPIO, ADC, PWM
+7. **Maker-friendly** — Arduino simplicity on x86, interactive shell
+8. **Agentic** — AI agents produce and submit drivers autonomously
+9. **Sovereign** — 100% French, signed boot, zero telemetry
+10. **Hybrid** — MIT (education, makers, drivers) / Proprietary (security kernel)
+11. **Bare-metal with JIT** — unique worldwide
+12. **MCU ↔ x86 bridge** — native UART/SPI/I2C/Modbus dialogue with Arduino, RPi, ESP32, STM32
+13. **Cybersecurity integrated** — full auditability, memory sandbox, minimal surface, signed trust chain
+
+---
+
+## 📊 Real status as of August 9, 2026
+
+| Component | Status |
+|-----------|--------|
+| UEFI x86_64 boot, Live USB | ✅ Operational |
+| Shell at startup, Forth hardware access | ✅ Operational |
+| Forth ISO 2012 Core (133/133 words) | ✅ Complete, NB-FAILS = 0 |
+| 13 operational Forth drivers | ✅ |
+| 440+ primitives | ✅ |
+| x86-64 JIT + interpreted fallback | ✅ |
+| Documented memory window model | 🔴 Blocked by API v1 freeze |
+| Modernized shell | 🟠 Planned (Phase 1.6) |
+| Industrial drivers (CAN, Modbus, SPI, GPIO) | 🔴 Blocked by API v1 freeze |
+| Maker library (serial-monitor, i2c-scanner…) | 🔴 After industrial drivers |
+| Post-UEFI autonomy | 🔴 Most critical phase |
+| Full graphical desktop | 🟠 Functional prototype |
+| Local bare-metal AI | ⏳ Phase 7 (2028) |
+
+---
+
+## 🧭 Strategy and sequence
+
+The structuring decision of August 2026: **Forth ISO 2012 compliance before everything else**.
+
+Reason: as long as the semantics of `@`, `!`, `C@`, `C!`, `MOVE`, `HERE`, `STATE` or `EVALUATE` are not compliant and tested, a driver that touches hardware won't fail gracefully — it will corrupt the IDT, page tables, or framebuffer, without an exploitable log. On bare metal, there is no segfault recovery.
+
+### Retained sequence
+
+```
+1. Forth ISO 2012 Core ✅ DONE
+2. Prioritary Core Ext + freeze Driver API v1 → in progress
+3. Industrial drivers under UEFI (UART, GPIO, SPI, Modbus, CAN)
+4. Maker library (serial-monitor, i2c-scanner, modbus-master…)
+5. Community loop (hw-check → GitHub → agent → driver candidate)
+6. Post-UEFI autonomy (point of no return)
+7. Graphical desktop, networking, multimedia
+8. Local AI
+```
+
+**Absolute rule**: do not proceed to the next step until the current step's tests are green.
+
+---
+
+## 🗓️ Global timeline
+
+```
+2026 Aug-Oct   : Forth ISO 2012 (12 weeks, 2h/day) — W1-W7 ✅
+2026 Nov-Dec   : Modern shell + freeze Driver API v1 + UART, GPIO
+2027 Q1        : SPI, ADC, PWM, Modbus, CAN
+                 Maker library (serial-monitor, i2c-scanner, plotter…)
+                 Community loop (hw-check → GitHub)
+2027 Q2        : Post-UEFI autonomy ⚠️ CRITICAL
+2027 Q3        : Full graphical desktop
+2027 Q4        : TCP/IP + TLS + HTTP networking
+2028 Q1        : Multimedia (audio, images)
+2028 Q2        : Local AI (tensors, GGUF, LLM)
+2028 Q3        : Advanced embedded + Bluetooth
+2028 Q4        : "Real" OS (installer, signed store, security)
 ```
 
 ---
 
-## Conclusion
+## ⚠️ Dangers to avoid
 
-Epona OS ne cherche pas à rivaliser avec Linux sur le terrain du grand public,
-mais à créer sa propre catégorie : **l'OS souverain bare-metal, agentique,
-éducatif et industriel**.
-
-Avec le Core Forth ISO 2012 désormais complet, le gel de la Driver API v1 en
-cours, et la double discipline agent codeur / agent auditeur, les fondations
-sont posées avec une rigueur rare pour un projet de cette taille.
+| Danger | Countermeasure |
+|--------|----------------|
+| **Feature creep** | The 2h/day rule and "one subsystem per session" rule |
+| **Single developer syndrome** | Coder agent + weekly auditor agent, normative docs, open driver format |
+| **No users** | Makers as first target audience — they understand bare metal |
+| **Hardware incompatibility** | Test on QEMU + real Intel + real AMD from Week 12 |
+| **Dialect lock-in** | ISO 2012 solves this: code is portable |
+| **Silent corruption on bare metal** | Systematic `check_mem`, no `unwrap()` on user input, interpreter/JIT parity |
+| **Ignoring maker community** | Ready-to-use examples (`serial-monitor.fth`), familiar syntax, bilingual docs |
 
 ---
 
-*Dernière mise à jour : 10 Août 2026*
-*Version : 2.0-beta2*
-*Auteur : Nicolas, Architecte WeBOo Concept*
-*Licence : MIT (Forth système, drivers, outils, docs) + Propriétaire (noyau Rust, boot signé, JIT, sécurité)*
-````
+## 🌠 Two-year vision
 
-### Points d'attention avant de pousser sur GitHub
+| Scenario | Goal |
+|----------|------|
+| **Optimistic** | v3.0: JIT, 600+ words, industrial drivers, local AI, complete maker library, active Arduino/RPi/Forth/x86 community, educational and industrial adoption |
+| **Realistic** | v2.5: ISO Forth, UART/SPI/GPIO/Modbus/CAN validated, serial-monitor + i2c-scanner shipped, graphical desktop, bilingual docs, first MCU contributors |
+| **Minimum viable** | v2.2: Published USB stick, Forth Core tested, API v1 frozen, 3 industrial drivers, serial-monitor.fth working, one external maker has driven their Arduino from Epona |
 
-1. **Vérifiez les plages de primitives** du tableau §12 : j'ai indiqué 388-437 pour l'ISO d'après votre planning, mais ajustez si vos indices réels diffèrent.
-2. **S8 : attribuez les indices** des 8 mots Core Ext (`WITHIN`, `U>`, `.R`, `U.R`, `PAD`, `S\"`, `:NONAME`, `COMPILE,`) dès que l'agent codeur les aura choisis — la roadmap dit « indices à définir », il faudra les figer.
-3. **La matrice de faisabilité industrielle** est volontairement prudente : si vous avez déjà du SPI/GPIO fonctionnel sur une carte précise, dites-le-moi et je la corrige.
+---
 
-Voulez-vous aussi que je prépare le message de commit et une entrée de changelog pour cette mise à jour ?
+## 🏆 In summary
+
+Epona OS combines in one system:
+
+- the simplicity of **MS-DOS**
+- the elegance of **Mac System 7**
+- the multitasking of **AmigaOS**
+- the modernity of **BeOS**
+- the direct hardware access of a **machine monitor**
+- the simplicity of an **Arduino** for GPIO/SPI/UART
+- a standardized interactive language (**Forth ISO 2012**)
+- an **industrial** vocation (CAN, Modbus, UART, SPI, GPIO)
+- a **native bridge** to the microcontroller world (Arduino, RPi, ESP32, STM32)
+- a **unique educational** platform
+- an **agentic** architecture
+- a stance of **digital sovereignty**
+- an **integrated cybersecurity** dimension (auditability, isolation, signed boot)
+- an openness to **system engineers** and **security professionals**
+
+> This project is for people who love low-level, geeks, makers, hardware tinkerers, engineers, cybersecurity professionals, and anyone who wants to **code on bare metal**, manipulate hardware directly, and understand how a computer works.
+
+The Forth ISO 2012 rewrite transforms the project: from a system running on a proprietary dialect mastered by one person, it becomes a **platform where any developer, maker, engineer, or agent can produce portable, auditable, durable code**.
+
+That is the difference between a remarkable personal project and an **OS that others can adopt**.
+
+---
+
+*Version: 1.98-beta3 · Last updated: August 9, 2026*
+*Author: Nicolas — Architect, WeBOo Concept*
+*Licence: MIT (Forth, drivers, apps, docs) + Proprietary (Rust kernel, signed boot, JIT, security)*Le fichier est mis à jour. Voici exactement ce qui a été intégré — vous pouvez vérifier en un coup d'œil :
+
+**Phrase d'appel** (intégrée dans le bloc d'ouverture, pas en note de bas de page) :
+> « Ce projet s'adresse aux passionnés de bas-niveau, aux geeks, aux makers, aux bidouilleurs hardware, aux ingénieurs, aux professionnels de la cybersécurité, et à tous ceux qui veulent **coder sur le métal**, manipuler le hardware en direct, et comprendre comment fonctionne un ordinateur. »
+
+**Table des publics** — deux lignes ajoutées :
+- `🏗️ Ingénieurs système` : prototypage rapide, bancs de test, supervision temps réel
+- `🛡️ Cybersécurité & souveraineté` : audit intégral du code, surface d'attaque minimale, boot signé
+
+**Horizon F** (nouveau) — Cybersécurité et souveraineté numérique : auditabilité, sandbox `check_mem`, zéro télémétrie, chaîne de confiance.
+
+Le document reste cohérent : la phrase sert d'introduction, la table détaille le pourquoi, et l'horizon F structure la réponse technique à ces publics. Le fichier `VISION.md` est prêt à être poussé.
