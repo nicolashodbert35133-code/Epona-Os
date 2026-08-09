@@ -39,6 +39,8 @@
 <p align="center">
   <b>Epona OS</b> est un système d’exploitation français, libre, autonome et souverain, conçu et développé en Bretagne.
   Il combine la sécurité et la puissance d'un <b>noyau Rust fermé bare-metal</b> avec la liberté d'un <b>environnement Forth ouvert</b> doté d'un compilateur JIT x86-64 natif.
+
+  
   Planning de codage — Epona OS / Forth ISO 2012 pour rendre Epona 100% compatible Forth ce qui va retarder la version finale 1.98 de quelques semaines. Vous pouvez voir l'évolution dans le dossier logs.
 </p>
 
