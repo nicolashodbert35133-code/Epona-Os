@@ -423,3 +423,392 @@ Pour écrire une application "bureau" standard, un script Forth définit génér
 ;
 s" mon-app" fullscreen-mode
 ```
+
+
+Voici la **Référence Complète et Mise à Jour d'Epona OS 1.98**, consolidant toutes les informations extraites du code source réel.
+
+---
+
+# Epona OS 1.98 — Référence Complète (Basée sur le code source)
+
+## Architecture de la Machine Virtuelle Forth
+
+La VM Forth d'Epona OS est une implémentation 64 bits (1 cellule = 8 octets) avec un dictionnaire limité à 2048 mots et 65536 cellules de mémoire logique. Elle intègre un ordonnanceur préemptif, un compilateur JIT, et un gestionnaire de fenêtres complet.
+
+### État interne de la VM (`ForthVm`)
+- `stack` / `rstack` / `loop_rstack` : Piles de données, de retour, et de boucles (séparées pour éviter la corruption par les appels).
+- `memory` : Mémoire logique Forth (65536 cellules i64).
+- `byte_mem` : Mémoire u8 séparée de 256 Ko pour les DMA, réseau, et polices.
+- `canvas` : Framebuffer logiciel Forth (dessin off-screen).
+- `jit` : Moteur JIT (compile les mots à la volée, gère signatures et trampolines).
+- `handler_stack` : Pile pour `catch`/`try` contenant `(stack_depth, rstack_depth, loop_depth, catch_ip)`.
+
+### Instructions Compilées (`Op`)
+Le compilateur transforme le code source en une suite d'`Op`.
+- `Push(i64)`, `PushStr`, `PushStrAddr`, `Call(dict_idx)`, `CallPrim(idx)`, `Jump`, `JumpIfZero`.
+- `Do`, `QDo`, `Leave`, `Loop`, `PlusLoop` (gèrent `loop_rstack`).
+- `Try`, `Catch`, `EndTry`, `Throw`, `AbortQuote` (sémantique exception Forth 2012).
+- `LocalGet/Set`, `LocalsAlloc/Free` (variables locales `{ }` avec base de pile).
+- `SysLoad`, `SysRead`, `SysWrite` (VFS intégré au compilateur).
+
+---
+
+## PRIMITIVES FORTH (interpreter.rs)
+
+### Groupe 0 : Arithmétique et Pile (0–99)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 0 | `+` | `( a b -- sum )` | Addition (wrapping) |
+| 1 | `-` | `( a b -- diff )` | Soustraction |
+| 2 | `*` | `( a b -- prod )` | Multiplication |
+| 3 | `/` | `( a b -- quot )` | Division entière |
+| 4 | `mod` | `( a b -- rem )` | Modulo |
+| 5 | `dup` | `( a -- a a )` | Duplique le sommet |
+| 6 | `drop` | `( a -- )` | Supprime le sommet |
+| 7 | `swap` | `( a b -- b a )` | Échange les 2 sommets |
+| 8 | `over` | `( a b -- a b a )` | Copie l'avant-dernier |
+| 9 | `rot` | `( a b c -- b c a )` | Rotation |
+| 10 | `@` | `( addr -- val )` | Lecture 64-bit mémoire logique |
+| 11 | `!` | `( val addr -- )` | Écriture 64-bit mémoire logique |
+| 12 | `pixel` | `( x y color -- )` | Dessine un pixel sur le canvas |
+| 13 | `rect` | `( x y w h color -- )` | Dessine un rectangle plein |
+| 14 | `ligne` | `( x1 y1 x2 y2 color -- )` | Dessine une ligne (Bresenham) |
+| 15 | `effacer` | `( color -- )` | Efface le canvas |
+| 16 | `couleur` | `( r g b -- color )` | Construit une couleur RGB |
+| 17 | `touche` | `( -- char )` | Lecture clavier bloquante |
+| 18 | `touche?` | `( -- char\|0 )` | Lecture clavier non-bloquante |
+| 19 | `souris` | `( -- mx my btn )` | Lit position/boutons souris bureau |
+| 20 | `ms` | `( n -- )` | Attend n millisecondes (coopératif) |
+| 21 | `hasard` | `( max -- val )` | Nombre aléatoire [0..max) |
+| 22 | `.` | `( n -- )` | Affiche un entier (BASE courante) |
+| 23 | `mmio@` | `( addr -- u32 )` | Lecture MMIO 32-bit |
+| 24 | `mmio!` | `( u32 addr -- )` | Écriture MMIO 32-bit |
+| 25 | `i2c.probe` | `( base -- )` | Probe I2C DesignWare |
+| 26 | `sys:drivers` | `( -- )` | Liste pilotes système |
+| 27 | `sys:probe` | `( -- )` | Probe matériel (exécute `<drv>-init`) |
+| 28 | `fb:pixel` | `( x y color -- )` | Alias `pixel` |
+| 29 | `fb:rect` | `( x y w h color -- )` | Alias `rect` |
+| 30 | `fb:line` | `( x1 y1 x2 y2 color -- )` | Alias `ligne` |
+| 31 | `fb:text` | `( x y char color -- )` | Dessine un caractère sur canvas |
+| 32 | `souris?` | `( -- flag )` | 1 si souris matérielle détectée |
+| 33 | `dw-i2c-init` | `( base -- ok )` | Init I2C DesignWare |
+| 34 | `dw-i2c-probe` | `( base addr -- ok )` | Probe périphérique I2C |
+| 35 | `cr` | `( -- )` | Nouvelle ligne |
+| 36 | `pile` | `( -- )` | Affiche tout le contenu de la pile |
+| 37 | `=` | `( a b -- flag )` | Égalité |
+| 38 | `-rot` | `( a b c -- c a b )` | Rotation inverse |
+| 39 | `nip` | `( a b -- b )` | Supprime l'avant-dernier |
+| 40 | `tuck` | `( a b -- b a b )` | Tuck |
+| 41 | `2dup` | `( a b -- a b a b )` | Duplique 2 |
+| 42 | `2drop` | `( a b -- )` | Supprime 2 |
+| 43 | `2swap` | `( a b c d -- c d a b )` | Échange 2 |
+| 44 | `2over` | `( a b c d -- a b c d a b )` | Copie 2 |
+| 45 | `?dup` | `( a -- a a \| 0 )` | Duplique si non-zéro |
+| 46 | `pick` | `( ... n -- ... val )` | Copie n-ième élément |
+| 47 | `1+` à `2/` | `( a -- a' )` | `1+`, `1-`, `2+`, `2-`, `2*`, `2/` |
+| 53 | `abs` | `( a -- \|a\| )` | Valeur absolue |
+| 54 | `negate` | `( a -- -a )` | Négation |
+| 55 | `min` | `( a b -- min )` | Minimum |
+| 56 | `max` | `( a b -- max )` | Maximum |
+| 57 | `/mod` | `( a b -- rem quot )` | Division + modulo |
+| 58-66 | `<>`, `<`, `>`, `<=`, `>=`, `0=`, `0<>`, `0<`, `0>` | `( a b -- flag )` ou `( a -- flag )` | Comparaisons signées |
+| 67-70 | `and`, `or`, `xor`, `invert` | `( a b -- res )` | Logique bit-à-bit |
+| 71 | `lshift` | `( a n -- res )` | Décalage gauche |
+| 72 | `rshift` | `( a n -- res )` | Décalage droite logique |
+| 73 | `c@` | `( addr -- byte )` | Lecture octet (mémoire logique ou MMIO natif si hors bornes) |
+| 74 | `c!` | `( byte addr -- )` | Écriture octet |
+| 75 | `w@` | `( addr -- u16 )` | Lecture 16-bit |
+| 76 | `w!` | `( u16 addr -- )` | Écriture 16-bit |
+| 77 | `l@` | `( addr -- u32 )` | Lecture 32-bit |
+| 78 | `l!` | `( u32 addr -- )` | Écriture 32-bit |
+| 79 | `fill` | `( byte n addr -- )` | Remplit une zone mémoire |
+| 80 | `cmove` | `( src dest n -- )` | Copie octets |
+| 81 | `space` | `( -- )` | Affiche un espace |
+| 82 | `spaces` | `( n -- )` | Affiche n espaces |
+| 83 | `emit` | `( char -- )` | Affiche un caractère |
+| 84 | `u.` | `( u -- )` | Affiche unsigned |
+| 85 | `hex` | `( -- )` | Base 16 |
+| 86 | `decimal` | `( -- )` | Base 10 |
+| 87-92 | `inb`, `outb`, `inw`, `outw`, `inl`, `outl` | I/O ports x86 | Accès port I/O 8/16/32 bits |
+| 93 | `pci@` | `( bus dev fn off -- u32 )` | Lecture registre PCI |
+| 94 | `pci!` | `( u32 bus dev fn off -- )` | Écriture registre PCI |
+| 95 | `alloc` | `( u -- addr )` | Alloue u cellules à partir de `here` |
+| 96 | `reboot` | `( -- )` | Redémarre la machine |
+| 97 | `poweroff` | `( -- )` | Éteint la machine |
+| 98 | `cpuid` | `( eax_in -- eax ebx ecx edx )` | Instruction CPUID |
+| 99 | `ticks` | `( -- ms )` | Lit le compteur de ticks bureau |
+
+### Groupe 1 : Compilation et Pile (100–119)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 100 | `state` | `( -- a-addr )` | Adresse cellule STATE (0=interp, 1=compil) |
+| 101 | `]` | `( -- )` | Entre en mode compilation |
+| 102 | `execute` | `( xt -- )` | Exécute un mot par son xt |
+| 103 | `find` | `( c-addr -- c-addr 0 \| xt 1 \| xt -1 )` | Cherche un mot (chaîne comptée) |
+| 104 | `literal` | `( n -- )` | [imm] Compile un littéral |
+| 105 | `alloc-phys` | `( pages -- addr )` | Alloue mémoire physique |
+| 106 | `free-phys` | `( addr pages -- ok )` | Libère mémoire physique |
+| 107 | `stall` | `( us -- )` | Attente microsecondes (spin) |
+| 108 | `stall-us` | `( us -- )` | Attente microsecondes (rdtsc) |
+| 109 | `irq-handler` | `( dict_idx vector -- )` | Enregistre handler IRQ |
+| 110 | `phys@` | `( addr -- u64 )` | Lecture physique 64-bit |
+| 111 | `phys!` | `( u64 addr -- )` | Écriture physique 64-bit |
+| 112 | `init-idt` | `( -- )` | Initialise l'IDT |
+| 113 | `+!` | `( n addr -- )` | Additionne n à l'adresse |
+| 114 | `i` | `( -- idx )` | Index de boucle DO/LOOP |
+| 115 | `j` | `( -- idx )` | Index boucle imbriquée |
+| 116 | `>r` | `( val -- )` | Push vers rstack |
+| 117 | `r>` | `( -- val )` | Pop depuis rstack |
+| 118 | `r@` | `( -- val )` | Copie sommet rstack |
+| 119 | `type` | `( addr len -- )` | Affiche une chaîne |
+
+### Groupe 2 : Hardware, UI basique, Multitâche (120–199)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 120 | `mem-map` | `( -- 0 0 )` | Info mémoire (stub) |
+| 121 | `fb-size` | `( -- w h )` | Taille du framebuffer bureau |
+| 122 | `fb-swap` | `( -- )` | Copie le canvas Forth vers le FB |
+| 123 | `rdtsc` | `( -- tsc )` | Lit le compteur TSC |
+| 124 | `get-time` | `( -- s m h d mth y )` | Heure système (UEFI RT) |
+| 125 | `set-time` | `( y mth d h m s -- )` | Règle l'heure |
+| 126 | `pci-scan` | `( -- count )` | Scan PCI |
+| 127 | `pci-dev` | `( idx -- bus dev fn vid did cls sub )` | Infos device PCI |
+| 128 | `pci-name` | `( cls sub -- ptr len )` | Nom du device PCI |
+| 129 | `msr@` | `( ecx -- edx eax )` | Lecture MSR |
+| 130 | `msr!` | `( eax edx ecx -- )` | Écriture MSR |
+| 131 | `i2c-read` | `( base dev reg -- val\|-1 )` | Lecture I2C |
+| 132 | `usb-scan` | `( -- 0 )` | (Stub) Scan USB |
+| 133-138 | `smbios-*`, `acpi-*` | | Accès tables SMBIOS/ACPI |
+| 139 | `pci-bar` | `( bus dev fn n -- addr size type.. )` | Lit BAR PCI |
+| 140 | `cfg-tables` | `( -- n .. )` | Liste UEFI config tables |
+| 141-143 | `apic-base`, `ioapic-*` | | Accès APIC/IOAPIC |
+| 144 | `get-var` | `( name len -- data_len\|-1 )` | Lit variable UEFI |
+| 145 | `set-var` | `( name len data_addr data_len -- )` | Écrit variable UEFI |
+| 146 | `newedit` | `( -- )` | Ouvre éditeur texte |
+| 147 | `sys:unregister` | `( -- )` | Désenregistre pilote |
+| 148 | `heap-used` | `( -- bytes )` | Mémoire heap utilisée |
+| 149 | `depth` | `( -- n )` | Profondeur de pile |
+| 150 | `.s` | `( -- )` | Affiche la pile sans la vider |
+| 151 | `forget` | `( idx -- )` | Oublie mots dictionnaire à partir de idx |
+| 152-156 | `cell+`, `cells`, `aligned`, `char+`, `chars` | | Identité (1 cellule = 1 AU) |
+| 157 | `beep` | `( freq ms -- )` | Bip PC speaker |
+| 158 | `move` | `( src dest u -- )` | Copie mémoire (natif si hors VM) |
+| 159 | `erase` | `( addr u -- )` | Remplit de zéros |
+| 160 | `task` | `( dict_idx -- tid )` | Crée une tâche Forth préemptive |
+| 161 | `stop` | `( -- )` | Arrête la tâche courante |
+| 162 | `tasks` | `( -- )` | Liste les tâches |
+| 163 | `step` | `( -- )` | Bascule mode step debug |
+| 164 | `trace` | `( -- )` | Bascule mode trace debug |
+| 165 | `.ops` | `( -- )` | Affiche ops en cours de compilation |
+| 166 | `widgets-draw` | `( wx wy ww wh -- )` | Dessine widgets + gère souris |
+| 167 | `textfield:` | `( x y w h -- )` | Crée un champ de texte |
+| 168 | `list:` | `( x y w h -- )` | Crée une liste |
+| 169 | `list-add` | `( addr len -- )` | Ajoute à une liste |
+| 170 | `widgets-clear` | `( -- )` | Efface les widgets |
+| 171-177 | `nvme:*` | | Init, read(renvoie bytes), info NVMe |
+| 178-179 | `ahci:init`, `ahci:drives` | | Init et compte disques AHCI |
+| 180-187 | `xhci-*`, `usb:*` | | Init xHCI, contrôle endpoints, transferts USB |
+| 188 | `fb:blit` | `( sx sy w h dx dy -- )` | Copie région framebuffer |
+| 189-195 | `hda-*` | | Audio HDA (init, play, stop, beep) |
+| 196-198 | `ahci:read/write/info` | | AHCI bas-niveau |
+| 199 | `throw` | `( err -- )` | Lève exception Forth 2012 |
+
+### Primitives Réseau (200–226, 1300–1352)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 200 | `net:init` | `( -- ok? )` | Init réseau |
+| 201 | `net:send` | `( buf_addr len -- ok? )` | Envoi paquet brut |
+| 202 | `net:recv` | `( buf_addr maxlen -- len )` | Réception paquet brut |
+| 203 | `net:mac` | `( -- mac_lo mac_hi )` | Adresse MAC |
+| 204 | `net:status` | `( -- link_up? )` | Lien actif |
+| 205 | `net:info` | `( -- )` | Infos réseau |
+| 206 | `net:cards` | `( -- n )` | Nb cartes réseau |
+| 207 | `net:firmware` | `( addr len -- ok? )` | Upload firmware |
+| 208-209 | `usb:bulk-*` | | Transferts USB Bulk |
+| 210 | `net:ip!` | `( a b c d -- )` | Définit IP locale |
+| 211 | `net:ip@` | `( -- a b c d )` | Lit IP locale |
+| 212 | `net:mask!` | `( a b c d -- )` | Définit masque |
+| 213 | `net:gw!` | `( a b c d -- )` | Définit passerelle |
+| 214 | `net:ping` | `( a b c d -- ms\|-1 )` | Ping ICMP |
+| 215 | `net:udp-send` | `( a b c d dport sport buf len -- ok? )` | Envoi UDP |
+| 216 | `net:udp-recv` | `( buf max -- len ip_packed port )` | Réception UDP |
+| 217 | `net:arp` | `( a b c d -- ok? )` | Résolution ARP |
+| 218 | `net:dhcp` | `( -- ok? )` | DHCP discover |
+| 219 | `net:poll` | `( -- )` | Poll réseau |
+| 220 | `net:tcp-connect` | `( a b c d port -- sock\|-1 )` | Connexion TCP |
+| 221 | `net:tcp-send` | `( sock buf len -- ok? )` | Envoi TCP |
+| 222 | `net:tcp-recv` | `( sock buf max -- len )` | Réception TCP |
+| 223 | `net:tcp-close` | `( sock -- )` | Ferme TCP (FIN) |
+| 224 | `net:dns` | `( name_addr len -- a b c d )` | Résolution DNS |
+| 225 | `net:dns!` | `( a b c d -- )` | Définit serveur DNS |
+| 226 | `net:stack-info` | `( -- )` | Stats pile TCP/IP |
+| 1300 | `net:listen` | `( port backlog -- sock\|-1 )` | Écoute TCP |
+| 1301 | `net:accept` | `( sock -- sock2\|-1 ip port )` | Accepte TCP |
+| 1302-1306 | `net:socket`, `net:bind`, `net:recv-from`, `net:send-to`, `net:sock-status` | | Sockets UDP/TCP avancés |
+| 1310 | `net:tcp-send-async` | `( sock addr len -- )` | Envoi TCP asynchrone |
+| 1312 | `net:close-reset` | `( sock -- )` | Ferme TCP (RST) |
+| 1320-1321 | `net:hostname`, `net:hostname!` | | Nom d'hôte |
+| 1330 | `http-post` | `( ha hl pa pl ba bl -- data_addr dl status )` | Requête HTTP POST |
+| 1331 | `http:headers` | `( addr len -- )` | Définit headers HTTP |
+| 1350 | `net:mac!` | `( lo hi -- )` | Définit MAC |
+| 1351 | `net:gateway@` | `( -- a b c d )` | Lit passerelle |
+| 1352 | `net:dhcp-lease` | `( -- expire_s )` | Temps restant bail DHCP |
+| 284 | `net:http-get` | `( ha hl pa pl -- data_addr dl status )` | Requête HTTP GET |
+
+### Primitives GPU / GFX (230–249, 280–283, 530–553, 1140–1144)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 230-241 | `gpu:init`, `gpu:info`, `gpu:modeset`, `gpu:fill`, `gpu:blit`, `gpu:flip`, `gpu:vsync`, `gpu:fb-addr`, `gpu:fb-stride`, `gpu:cursor`, `gpu:accel?`, `gpu:resolution` | | Contrôle GPU matériel (BOCHS/QEMU borch ou natif) |
+| 242-249 | `gpu:outputs`, `gpu:select-output`, `gpu:output-enable`... | | Multi-écran |
+| 280-283 | `gpu:line`, `gpu:blend`, `gpu:text`, `gpu:cursor-set` | | Dessin GPU avancé |
+| 530-539 | `gfx:circle`, `gfx:fill-circle`, `gfx:ellipse`, `gfx:arc`, `gfx:polygon`, `gfx:bezier`, `gfx:gradient`, `gfx:alpha-blend`, `gfx:clip-set/clear` | | Graphismes vectoriels avancés (cible = FB ou canvas) |
+| 540-548 | `gfx:sprite-*`, `gfx:font-load`, `gfx:font-text`, `gfx:image-decode/draw/scale/free` | | Sprites, polices vectorielles, images |
+| 549-550 | `gfx:rounded-rect`, `gfx:shadow` | | Effets visuels |
+| 551-553 | `gfx:image-load-file`, `gfx:image-info`, `gfx:image-pixel` | | Gestion images depuis VFS |
+| 554 | `gfx:set-target-canvas` | `( -- )` | Redirige gfx vers canvas Forth |
+| 1140-1144 | `gfx:triangle`, `gfx:polygon-fill`, `gfx:aa-line`, `gfx:blur` | | Rendu avancé (Wu AA, box blur) |
+
+### Primitives Stockage & FAT32 (250–265, 420–434, 565–569, 862–864)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 250-253 | `usb:msd-*` | | USB Mass Storage |
+| 254-265 | `fat:info`, `fat:root-clus`, `fat:cluster-lba`, `fat:read-entry`, `fat:write-entry`, `fat:read-cluster`, `fat:write-cluster`, `fat:alloc-cluster`, `fat:alloc-chain`, `fat:free-chain`, `fat:dir-entries`, `fat:eoc?` | | Accès bas-niveau FAT32 |
+| 420-434 | `open`, `close`, `read`, `write`, `seek`, `stat`, `readdir`, `mkdir`, `unlink`, `mount`, `umount`, `sync`, `dup-fd`, `pipe`, `fcntl` | | VFS POSIX-like |
+| 565-569 | `file-read`, `file-write`, `file-exists`, `file-size`, `file-list` | | Accès direct FAT32 (pointeurs mémoire) |
+| 862-864 | `included`, `read-file`, `list-dir` | | Inclusion/listage direct |
+
+### Primitives Window Manager & UI (500–520, 1100–1166)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 500-520 | `win:create`, `win:destroy`, `win:move`, `win:resize`, `win:show`, `win:hide`, `win:focus`, `win:title!`, `win:fb`, `win:flip`, `win:event`, `win:list`, `win:raise`, `win:lower`, `win:maximize`, `win:minimize`, `win:restore`, `win:flags`, `win:flags!`, `win:drag-start`, `win:drag-end` | | Gestion complète fenêtres |
+| 1100-1106 | `win:grab`, `win:ungrab`, `win:set-cursor`, `win:invalidate`, `win:set-alpha`, `win:always-on-top`, `win:border` | | Réglages avancés fenêtres |
+| 1110-1112 | `dlg:msg`, `dlg:yesno`, `dlg:file-open` | | Boîtes de dialogue modales |
+| 1120-1122 | `menu:create`, `menu:add`, `menu:popup` | | Menus popup |
+| 1130-1138 | `scrollbar:`, `scrollbar:pos`, `checkbox:`, `checkbox?`, `radio:`, `radio?`, `slider:`, `slider@` | | Widgets interactifs |
+| 1135 | `label:` | `( x y color addr len -- )` | Label statique |
+| 1150-1152 | `clipboard:set`, `clipboard:get`, `clipboard:has` | | Presse-papiers |
+| 1160-1162 | `mouse:set-accel`, `mouse:double-click`, `mouse:double-click!` | | Réglages souris |
+| 1165-1166 | `theme:set`, `theme:colors` | | Thème GUI (clair/sombre) |
+
+### Primitives Système & Core Forth (266–322, 323–409, 419–437, 1832–1836)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 266-270 | `mem-bounds`, `file-allow`, `file-revoke-all`, `net-allow`, `net-revoke` | | Sandbox sécurité |
+| 271-279 | `usb:config-ep`, `usb:stop-ep`, `usb:reset-ep`, `i2c:status`, `i2c:read`, `i2c:gesture`, `i2c:cal-*`, `i2c:contacts` | | USB Endpoints & Touchpad I2C |
+| 290-292 | `count`, `compare`, `search` | | Chaînes comptées |
+| 300 | `restore-marker` | | Restaure marker FORTH |
+| 310-311 | `critical-begin`, `critical-end` | | Sections critiques (désactive préemption) |
+| 312 | `*/` | `( n1 n2 n3 -- n4 )` | Intermed. i128 |
+| 313-316 | `cell`, `blank`, `c,`, `,` | | Mémoire dictionnaire |
+| 317-322 | `>body`, `evaluate`, `fm/mod`, `sm/rem`, `um*`, `um/mod` | | Core ANS doubles |
+| 323-327 | `fullscreen-mode`, `fullscreen-off`, `canvas-resize`, `fb-text`, `rect-outline` | | Mode plein écran Forth |
+| 328-332 | `source`, `parse-name`, `parse`, `refill`, `>in` | | Parser source |
+| 333-338 | `vocabulary`, `also`, `only`, `forth`, `definitions`, `set-search-order` | | Vocabulaires |
+| 339-364 | `jit-prof*`, `jit-on/off/reset`, `bt*`, `b@/b!/bbase/bsize/balloc/breset/bfill/bmove/b>c`, `max-instr/set-max-instr`, `device-id`, `jit-verify`, `jit-sign`, `jit-mode`, `security-info` | | JIT, Backtrace, Byte_mem, Sécurité |
+| 365-376 | `kb-found`, `kb-poll`, `kb-mods`, `kb-keys`, `kb-read`, `hid>azerty`, `kb-readchar`, `set-cursor`, `mouse-auto`, `set-buttons`, `usb:list`, `usb:save` | | Clavier HID & Pilote souris |
+| 377-380 | `²`, `2>r`, `2r>`, `unloop` | | Core Ext |
+| 381-387 | `mem-info`, `page-alloc/free/allocn/freen`, `mem-dump`, `mem-used` | | Mémoire physique native |
+| 388-389 | `base`, `align` | | Core ANS |
+| 390-391 | `2@`, `2!` | | Accès double cellule |
+| 392-393 | `u<`, `s>d` | | Comparaisons/Conversions |
+| 394-395 | `m*`, `*/mod` | | Arithmétique 128 bits |
+| 396-403 | `<#`, `#`, `#s`, `hold`, `sign`, `#>`, `ud.`, `d.` | | Sortie numérique picturale |
+| 404-407 | `key`, `key?`, `accept`, `touche:inject` | | Clavier direct |
+| 408-409 | `word`, `>number` | | Core ANS chaînes/nombres |
+| 419 | `abort` | `( i*x -- )` | Vide piles, STATE=0, stop source |
+| 435 | `environment?` | `( c-addr u -- false \| i*x true )` | Requêtes ANS |
+| 436 | `depth` | `( -- +n )` | Profondeur pile |
+| 437 | `quit` | `( -- )` | Vide rstack, STATE=0, conserve pile |
+| 1832-1836 | `u>`, `within`, `.r`, `u.r`, `holds` | | Core Ext |
+
+### Primitives Scheduler & IPC (410–418, 1800–1826)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 410-418 | `proc-create`, `proc-kill`, `proc-list`, `proc-info`, `proc-wait`, `getpid`, `yield`, `sleep`, `nice` | | Ordonnanceur V2 (Processus Forth) |
+| 1800-1803 | `sem:create`, `sem:wait`, `sem:post`, `sem:destroy` | | Sémaphores |
+| 1804-1806, 1830 | `mutex:new`, `mutex:lock`, `mutex:unlock`, `mutex:destroy` | | Mutex récursifs |
+| 1807-1809, 1831 | `chan:new`, `chan:send`, `chan:recv`, `chan:destroy` | | Canaux (ring buffer) |
+| 1810-1813 | `signal`, `sig:catch`, `sig:default`, `sig:mask` | | Signaux |
+| 1814-1815, 1817-1819 | `exit`, `waitpid`, `spawn`, `kill`, `tls@` | | Contrôle processus |
+| 1820-1821 | `fpu:save`, `fpu:restore` | | Sauvegarde FPU (FXSAVE/FXRSTOR) |
+| 1822-1824 | `atomic:add`, `atomic:cas`, `atomic:xchg` | | Opérations atomiques 8 bits |
+| 1825-1826 | `cli`, `sti` | | Masquage interruptions |
+
+### Primitives Temps & Audio (600–615, 1000–1022)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 600-609, 613-615 | `time:now`, `time:unix`, `time:set-unix`, `alarm:new/cancel`, `periodic:new/cancel`, `usleep`, `uptime`, `ticks:us`, `delay-cycles`, `time:format`, `perf:counter` | | Temps haute résolution (TSC/RTC) & Timers |
+| 1000-1006 | `audio:format`, `audio:write`, `audio:read`, `audio:avail`, `audio:queued`, `audio:pause`, `audio:gain` | | Audio PCM HDA |
+| 1010-1011 | `wav:info`, `wav:play` | | Parseur et playback WAV |
+| 1020-1022 | `beep:hz`, `audio:mix`, `audio:channels` | | Générateur beep, mixage audio |
+
+### Primitives Hardware bas-niveau (700–729, 740–758, 770–795, 800–826, 840–854)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 700-710, 714-719 | `vm:init/map/unmap/virt->phys/alloc/free`, `mmap`, `munmap`, `mprotect`, `brk`, `sbrk`, `tlb:flush*`, `cr3@/!`, `as:new/free/switch`, `shared:new/map/destroy` | | MMU/Pagination x86_64 complète |
+| 711-713 | `vm:info`, `nx-enabled`, `wp-enabled` | | Infos VMM |
+| 720-725 | `mmio@/!`, `mmio-w@/!`, `mmio-b@/!` | | MMIO 32/16/8 bits |
+| 740-745 | `inb/outb/inw/outw/inl/outl` | | Ports I/O |
+| 750-758 | `pci:read-cfg8/16/32`, `pci:write-cfg8/16/32`, `pci:bar`, `pci:list`, `pci:dev` | | Espace de config PCI |
+| 770-775 | `mem:alloc-pages/free-pages/map-mmio/unmap/virt->phys/total` | | Allocation pages physiques |
+| 790-795 | `irq:attach/detach/mask/unmask/ack/wait` | | IRQ PIC/APIC |
+| 800-805 | `gfb-addr/width/height/stride/bpp/pixel-format` | | Framebuffer UEFI GOP |
+| 810-826 | `xhci:*`, `ahci:*`, `nvme:*`, `hda:*`, `net:e1000:init` | | Wrappers pilotes Rust |
+| 840-848 | `drv:log`, `drv:loaded?`, `ms-delay`, `us-delay`, `tsc`, `dev:register` | | Utilitaires drivers |
+| 850-854 | `cmos:read/write/time/date`, `tsc:freq` | | RTC CMOS |
+
+### Primitives Unicode & Flottants (865–878, 900–979)
+
+| Idx | Nom | Stack | Description |
+|-----|-----|-------|-------------|
+| 865-878 | `utf8:decode/encode/len`, `font:load-psf/select/size/measure`, `gfx:glyph`, `up:case`, `down:case`, `is:alpha?`, `is:digit?`, `unicode:combining?`, `kbd:map` | | UTF-8, PSF, Casse Unicode |
+| 900-944 | `f+`, `f-`, `f*`, `f/`, `f.`, `f<`, `f>`, `f=`, `f<=`, `f>=`, `f0=`, `f0<`, `fnegate`, `fabs`, `fmin`, `fmax`, `fsqrt`, `fsin`, `fcos`, `ftan`, `fatan2`, `fexp`, `fln`, `flog2`, `fpow`, `ffloor`, `fceil`, `fround`, `f>i`, `i>f`, `f>s`, `s>f`, `fpi`, `fe`, `f.prec`, `fdrop/dup/swap/over/rot`, `f!/f@`, `fhypot`, `fasin`, `facos` | | Flottants F64 SSE2/libm |
+| 950-979 | `f2*`, `f2/`, `f**2`, `fsinπ`, `fcosπ`, `fsincos`, `fatan`, `fpow10`, `flog10`, `ffract`, `fmod`, `fnan?`, `finf?`, `fz?`, `fmin+`, `f>bits`, `bits>f`, `vec2+`, `vec2.`, `vec2*`, `mat2:identity`, `fclamp`, `flerp`, `fsmooth`, `fdeg>rad`, `frad>deg`, `frand`, `frand2`, `fpi2` | | Maths sup. et vecteurs |
+
+### Mots Forth immédiats (gérés par le tokenizer/compiler)
+
+`:` `;` `:noname` `if` `else` `then` `begin` `again` `until` `while` `repeat` `do` `loop` `+loop` `i` `j` `variable` `constant` `create` `does>` `immediate` `recurse` `[` `]` `s"` `."` `(` `\` `[if]` `[else]` `[then]` `[defined]` `[undefined]` `'` `[']` `to` `is` `action-of` `catch` `postpone` `{` `}` `.(` `c"` `s"`
+
+---
+
+## COMMANDES SHELL (shell.rs)
+
+| Commande | Usage | Description |
+|----------|-------|-------------|
+| `ls` / `dir` | `ls` | Liste les fichiers de la clé USB |
+| `cat` | `cat <fichier>` | Affiche le contenu d'un fichier |
+| `cd` | `cd [dossier]` | Change de répertoire (`..` = parent, `/` = racine) |
+| `mkdir` | `mkdir <nom>` | Crée un dossier |
+| `touch` | `touch <nom>` | Crée un fichier vide |
+| `rm` | `rm <nom>` | Supprime un fichier |
+| `mv` | `mv <ancien> <nouveau>` | Renomme/déplace un fichier |
+| `exec` | `exec <fichier.fth>` | Exécute un fichier Forth |
+| `jit` | `jit <f>` / `jit compil <f>` / `jit info` / `jit clear` | Compilation JIT |
+| `vol` | `vol` / `vol <n>` | Liste/sélectionne les volumes |
+| `fs-reset` | `fs-reset` | Re-scane les volumes USB |
+| `boot-*` | `boot-add`, `boot-exit`, `boot-show`, `boot-write`, `boot-clear`, `boot-rt` | Gestion BOOT.FTH |
+| `hw-*` | `hw-check`, `hw-setup [y\|n\|s]`, `hw-reset` | Auto-setup pilotes |
+| `pci` | `pci` / `pci list` / `pci save` | Liste PCI / sauvegarde |
+| `acpi` | `acpi` / `acpi save` | Infos ACPI / sauvegarde |
+| `mmio` | `mmio <adr> [val]` | Lit/écrit registre MMIO 32-bit |
+| `i2c` | `i2c probe <base>` / `i2c read <base> <dev> <reg>` | Probe/lit I2C |
+| `devices` | `devices` / `devices save` | Liste matériel + adresses |
+| `aide`/`help`| `aide` | Affiche l'aide |
+| `effacer`/`clear`| `effacer` | Efface l'écran |
+| `clavier` | `clavier` | Bascule QWERTY/AZERTY |
+| `scheduler` | `scheduler` | État des tâches |
+| `log` | `log` | Journal système |
+| `reboot` / `poweroff` | | Redémarre / Éteint |
+
+Toute commande non reconnue par le shell est passée directement au compilateur Forth.
