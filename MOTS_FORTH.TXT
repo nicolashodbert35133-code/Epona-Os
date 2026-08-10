@@ -1,10 +1,6 @@
-Voici le document de référence `reference-primitive.md`, structuré spécifiquement pour qu'un agent IA ou un développeur puisse écrire des programmes `.fth` pour Epona OS 2.0 de manière précise et autonome.
+# Référence des Primitives Forth — Epona OS 1.98
 
----
-
-# Référence des Primitives Forth — Epona OS 2.0
-
-Ce document est la référence API pour écrire des scripts et programmes Forth (`.fth`) sur Epona OS 2.0. L'OS utilise une VM Forth 64 bits (1 cellule = 8 octets) avec un dictionnaire dynamique, un compilateur JIT, et un accès bas-niveau direct au matériel.
+Ce document est la référence API pour écrire des scripts et programmes Forth (`.fth`) sur Epona OS 1.98. L'OS utilise une VM Forth 64 bits (1 cellule = 8 octets) avec un dictionnaire dynamique, un compilateur JIT, et un accès bas-niveau direct au matériel.
 
 ## Conventions de la VM
 
