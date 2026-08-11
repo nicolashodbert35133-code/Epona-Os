@@ -1,7 +1,7 @@
 # 🎓 Tutoriel Débutant : La Puissance du SDK C-Épona
 
 Bienvenue dans le guide d'apprentissage de **C-Épona**, le langage Orienté Objet à syntaxe C compilé en JIT natif bare-metal sur le noyau Forth d'Épona OS 1.98.
-
+ATTENTION NE PAS EXECUTER CE COMPILATEUR C JUSTE POUR INFO JUSTE UNE VISION DU FUTUR TANT QUE LA RELEASE 1.98 N'EST PAS TERMINER !!!!!
 ---
 
 ## 🎯 Objectif de ce Tutoriel
