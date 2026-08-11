@@ -1,0 +1,55 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 47 (ABORT)
+Date : 2026-08-09
+Statut : FAIT (abort 419, contrat d'etat, tests B31)
+============================================================================
+
+1) ETAT AVANT J47
+   - abort ABSENT du dictionnaire. Seul ABORT" existait (Op::AbortQuote),
+     qui IM PRIME un message et remonte Err("abort") -> erreur visible.
+   - Le mot Core ABORT doit etre SILENCIEUX et remettre l'interpreteur
+     dans un etat propre (piles videes, STATE=interpretation).
+
+2) CONTRAT D'ETAT APRES ABORT (documente dans la primitive 419)
+   - Pile de donnees   : videe (stack.clear)
+   - Pile de retour    : videe (rstack.clear)
+   - Pile de boucle    : videe (loop_rstack.clear)
+   - Pile catch        : videe (handler_stack.clear)
+   - STATE             : 0 (interpretation)
+   - Etat compilateur  : efface (compiling_ops/name/stack, recurse_fixups,
+                         does_offset, compiling_locals) -> aucune trace
+                         d'une definition interrompue par abort.
+   - Source            : le RESTE de la source courante n'est pas execute.
+                         En contexte evaluate/include, la source exterieure
+                         reprend normalement.
+   - >IN / BASE / HERE / variables : inchangees.
+   - Sortie            : AUCUN message, aucune erreur (compile retourne
+                         Ok) -- difference avec ABORT".
+
+3) MECANIQUE (src/interpreter.rs)
+   - Champ ForthVm.abort_pending : bool (init false).
+   - Primitive 419 = abort : vide tout, STATE=0, pose abort_pending.
+   - execute_ops_limited : break si abort_pending (mots compiles + JIT),
+     sans impression du "[EXEC] BREAK" (abort silencieux).
+   - Boucle compile : check en haut (chemins continue) et en bas (token
+     courant / dernier token) : efface abort_pending et break.
+   - compile() reinitialise abort_pending en entree (pas de fuite).
+
+4) EXTENSION
+   - depth = 436 : ( -- +n ) nombre de cellules sur la pile de donnees,
+     ajoute pour permettre d'asserter "pile videe" depuis Forth.
+
+5) TESTS (forth/TESTS/core2012.fth, section B31)
+   - (a) s" abort 1 abort-flag !" evaluate -> abort-flag reste 0 (le code
+         apres abort est ignore).
+   - (b) s" 1 2 3 abort" evaluate -> depth = 0 (pile videe).
+   - (c) s" 1 2 3 abort 7 8 +" evaluate -> seul residu 15 (source imbriquee
+         terminee normalement, silencieux).
+   - (d) s" abort" evaluate -> state @ = 0 (interpretation).
+   - (e) depth : 1 2 3 depth -> 3, puis drop drop drop.
+   - Environnement (J49) : 12 requetes ANS 3.2.6 verifiees.
+
+6) RESULTAT
+   - Build dev : 0 erreur / 413 warnings.
+   - qemu_img/forth/TESTS/core2012.fth resynchronise.
+============================================================================

@@ -1,0 +1,51 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 43 (KEY)
+Date : 2026-08-09
+Statut : FAIT (key + key? + factorisation blocking_key, tests B27)
+============================================================================
+
+1) ETAT AVANT J43
+   - key_queue: VecDeque<char> (bornee a 64) alimentee par le polling
+     clavier PS/2 + xHCI + bureau (src/main.rs : 278, 298, 328, 348,
+     384, 928, 992, 996, 1000, 1197). touche (17, bloquant) et touche?
+     (18, non-bloquant) existaient ; KEY (Core ANS) ABSENT.
+   - La boucle bloquante de touche (17) etait inline (loop + pop_front +
+     step_callback + PREEMPT_REQUESTED + emergency_break).
+
+2) CORRECTIF (src/interpreter.rs)
+   - Helper privee blocking_key() -> i64 : factorise la boucle de 17 :
+     attend un char de key_queue, pompe step_callback, retourne 0 si
+     preemption PIT ou emergency_break, boucle. Primitives 17 (touche)
+     et 404 (key) l'appellent.
+   - Nouvelle primitive key = 404 : ( -- char ) Core ANS, bloquant.
+   - Nouvelle primitive key? = 405 : ( -- flag ) Extension, -1 si une
+     touche est disponible, 0 sinon ; NON BLOQUANT et NE CONSOMME PAS
+     (a la difference de touche? 18 qui pop et rend le char).
+   - Note borrow-checker : "self.stack.push(self.blocking_key())" -> E0499
+     (2 borrows mut) ; separe en let + push.
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B27 (forth/TESTS/core2012.fth)
+   - key? file vide -> 0.
+   - key? ne consomme pas : deux appels identiques (0).
+   - La lecture reelle (key bloquant) se valide MANUELLEMENT sous QEMU
+     (aucune primitive d'injection de touche en Forth) ; touche/key
+     partagent blocking_key (deja exerce par l'ancien touche).
+   - En-tete SECTIONS mis a jour (B27).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 43 + Core absents (KEY retire) ; PRIMITIVES_REFERENCE :
+     404-405 ; planning : J43 FAIT ; log week01-day43.txt ; rapport : J43 ;
+     devguide : J43.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B27 verts, NB-FAILS = 0.
+   - key : taper une touche -> le char est pousse ; key? -> -1 tant que la
+     touche n'est pas lue (et l'utilise).
+   - prochaine etape : J44 - ACCEPT (lire une ligne limitee, backspace,
+     longueur max, fin de ligne), basee sur key/key?.
+============================================================================

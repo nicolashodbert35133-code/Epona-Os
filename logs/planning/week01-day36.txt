@@ -1,0 +1,53 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 36 (BASE/ALIGN)
+Date : 2026-08-08
+Statut : FAIT (BASE cellule adressable, ALIGN no-op, tests B21)
+============================================================================
+
+1) ETAT AVANT J36
+   - base etait un champ Rust (self.base: u8, l.286) modifie par hex (85 ->
+     16) / decimal (86 -> 10), lu par l'affichage (. l.1775, u. l.2211) et
+     le parsing (l.11914 compile, l.12983 interprete). NON adressable : pas
+     de cellule memory, pas de mot BASE standard (BASE ( -- a-addr )).
+   - ALIGN absent.
+
+2) CORRECTIF
+   - Nouvelle cellule systeme base_addr = MAX_MEM - 3 = 65533 (struct
+     l.335, init memory[base_addr] = 10 au new). Source de verite unique.
+   - Helper cur_base() (l.493) : lit memory[base_addr] as u8.
+   - Affichage : prim 22 (.) et 84 (u.) lisent cur_base() (etait self.base).
+   - hex (85) / decimal (86) ecrivent memory[base_addr] = 16 / 10.
+   - Parsing : parse_number_with_base(token, self.cur_base()) aux 2 sites
+     (compile l.11914, interprete l.12983).
+   - Champ self.base (u8) RETIRE (struct l.286 + init) : desormais memory.
+   - Nouvelles primitives : base = 388 (pousse base_addr), align = 389
+     (no-op : 1 AU = 1 cellule -> toujours aligne).
+   - Limite structurelle preexistante (documentee) : base_addr/state_addr/
+     to_in_addr (65533/65534/65535) sont au sommet de l'espace de donnees ;
+     si HERE depassait 65533, elles seraient ecrasees (meme limite pour
+     state/to_in, deja documentee ; la source ~26000 est loin).
+
+3) TESTS - section B21 (forth/TESTS/core2012.fth)
+   - base @ 10 = verif (defaut decimal).
+   - hex base @ decimal 16 = verif (hex -> BASE = 16 ; repasse decimal
+     avant le litteral de comparaison).
+   - decimal base @ 10 = verif.
+   - hex ff decimal 255 = verif (ff parse en base 16 = 255).
+   - 16 base ! base @ decimal 16 = verif (BASE modifiable).
+   - 2 base ! 101 decimal 5 = verif (101 parse en base 2 = 5).
+   - here align here = verif (align no-op) ; here constant HAL 3 allot
+     align here HAL - 3 = verif (align ne change pas here).
+   - En-tete SECTIONS mis a jour (B21).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 36 ; PRIMITIVES_REFERENCE : base/align + table 313-328 ;
+     planning : J36 FAIT ; log week01-day36.txt ; rapport : J36.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B21 verts, NB-FAILS = 0.
+   - prochaine etape : J37 - 2@ et 2! (ordre des cellules).
+============================================================================

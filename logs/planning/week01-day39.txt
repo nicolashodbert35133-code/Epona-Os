@@ -1,0 +1,57 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 39 (M*/*/MOD)
+Date : 2026-08-08
+Statut : FAIT (i128/u128 pour toute la famille, tests B24)
+============================================================================
+
+1) ETAT AVANT J39
+   - m* / */mod : absents (Core absents, audit + rapport Claude P1).
+   - */ (312) : calculait (n1*n2)/n3 en i64 -> OVERFLOW du produit
+     intermediaire (et panic en debug). Le standard exige un intermediaire
+     double cellule.
+   - um* (321) : (a as u64)*(b as u64) + hi=0 CODE DUR ("pas de overflow
+     pour des valeurs 32-bit") -> faux pour u64 x u64.
+   - um/mod (322) : reconstruisait ud = (hi<<32)|(lo as u32) -> traitait
+     les cellules comme 32 bits -> faux en 64 bits (bugs "arithmetique
+     double 32 bits" de l'audit / P2 du rapport Claude).
+   - Aucun usage de */ / um* / um/mod dans les apps (grep forth/) : libre
+     de corriger.
+
+2) CORRECTIFS (src/interpreter.rs) - famille complete en i128/u128
+   - m* = 394 (nouveau) : ( n1 n2 -- d ), p = (a as i128)*(b as i128),
+     pousse lo = p as u64 as i64 puis hi = (p>>64) as i64.
+   - */mod = 395 (nouveau) : ( n1 n2 n3 -- n4 n5 ), d = i128, n4 = d%n3,
+     n5 = d/n3 (division symetrique, comme /) ; diviseur nul -> message +
+     ( 0 0 ) ; quotient hors i64 -> message + ( 0 0 ).
+   - */ (312, corrige) : intermediaire i128 ; diviseur nul / quotient hors
+     limites -> message + 0.
+   - um* (321, corrige) : u128, hi = (p>>64) reel (plus code dur).
+   - um/mod (322, corrige) : ud reconstruit en u128 64 bits
+     ((hi<<64)|lo) ; diviseur nul -> message + ( 0 0 ) ; quotient >
+     u64::MAX -> message + ( 0 0 ).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B24 (forth/TESTS/core2012.fth)
+   - m* : 2 3 -> (6 0) ; -2 3 -> (-6 -1) ; 2^32 x 2^32 -> (0 1).
+   - */mod : 10 20 4 -> (0 50) ; 7 3 4 -> (1 5) ; -10 3 3 -> (0 -10) ;
+     -7 5 2 -> (-1 -17) (symetrique) ; diviseur nul -> (0 0) ;
+     2^62 x 2 /1 -> quotient hors limites -> (0 0).
+   - */ : 2^62 x 4 /4 = 2^62 (ancien i64 overflowait) ; 10 4 2 -> 20.
+   - um* : 3 4 -> (12 0) ; 2^32 x 2^32 -> (0 1) (ancien hi=0).
+   - um/mod : 100/7 -> (2 14) ; (0 1)/4 = 2^64/4 = 2^62 (ancien 32 bits
+     donnait 2^30).
+   - En-tete SECTIONS mis a jour (B24).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 39 + Core absents (m*/ */mod retires) + fm/mod/sm/rem
+     32 bits encore notes ; PRIMITIVES_REFERENCE : 394/395 + notes 312/321/
+     322 ; planning : J39 FAIT ; log week01-day39.txt ; rapport : J39.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B24 verts, NB-FAILS = 0.
+   - prochaine etape : J40 - SIGN et sortie numerique (<# # #S HOLD #>).
+============================================================================

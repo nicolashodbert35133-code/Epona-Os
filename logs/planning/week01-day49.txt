@@ -1,0 +1,51 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 49 (ENVIRONMENT?)
+Date : 2026-08-09
+Statut : FAIT (environment? 435, clôture Semaine 7)
+============================================================================
+
+1) ETAT AVANT J49
+   - environment? ABSENT du dictionnaire. C'etait le DERNIER mot Core 2012
+     manquant. /COUNTED-STRING, /HOLD, /PAD, MAX-* etc. n'etaient donc pas
+     interrogeables depuis Forth.
+   - Le mot Core ENVIRONMENT? ( c-addr u -- false | i*x true ) doit repondre
+     aux 12 requetes obligatoires ANS 3.2.6 avec les valeurs reelles du
+     systeme, et renvoyer false pour toute autre chaine.
+
+2) CONTRAT ANS 3.2.6 (documente dans la primitive 435)
+   - Requete inconnue        -> false (0).
+   - /COUNTED-STRING=39      (capacite du tampon WORD).
+   - /HOLD=68                (zone PNO, 1 char/cellule).
+   - /PAD=1024               (nominal, retourne depuis J49 ; le mot PAD
+                              lui-meme arrive au Jour 50).
+   - ADDRESS-UNIT-BITS=64    (1 adresse = 1 cellule i64).
+   - FLOORED=false           (/, MOD symetriques, pas floores).
+   - MAX-CHAR=255, MAX-N=i64::MAX, MAX-U=u64::MAX.
+   - MAX-D et MAX-UD         (doubles : ( lo hi ), hi au sommet).
+   - RETURN-STACK-CELLS=1024 (MAX_RSTACK).
+   - STACK-CELLS=4096        (MAX_STACK).
+
+3) MECANIQUE (src/interpreter.rs)
+   - Primitive 435 = environment? : lit la chaine dans memory (1 octet/
+     cellule, addr+len pousses par s"), compare en ignorant la casse, puis
+     repond par ( valeur true ) ou false.
+   - Enregistrement : add_primitive("environment?", 435, false).
+   - depth = 436 ajoute pour permettre d'asserter "pile videe" / profondeur
+     depuis Forth (utilise en B31).
+
+4) TESTS (forth/TESTS/core2012.fth, section B31, suite J47)
+   - 13 tests environment? : requete inconnue -> false, puis chaque requete
+     obligatoire (valeur exacte verifiee, doubles avec swap pour lo/hi).
+   - depth : 1 2 3 depth -> 3.
+   - abort (J47) rappele en contexte imbrique via evaluate : (a) code apres
+     abort ignore, (b) pile videe (depth 0), (c) silencieux (7 8 + tourne
+     sur pile vide), (d) STATE = interpretation.
+
+5) RESULTAT
+   - Core 2012 COMPLET : tous les mots du noyau Core ISO presents et testes
+     (NB-FAILS = 0 sur core2012.fth sections A + B0..B31).
+   - Build dev : 0 erreur / 413 warnings.
+   - qemu_img/forth/TESTS/core2012.fth resynchronise.
+   - Inventaire S7 publie dans le planning (deja presents / Core Ext
+     manquants prioritaires pour la Semaine 8).
+============================================================================

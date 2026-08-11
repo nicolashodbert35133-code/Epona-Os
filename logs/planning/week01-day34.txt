@@ -1,0 +1,54 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 34 (EVALUATE)
+Date : 2026-08-08
+Statut : FAIT (sauvegarde/restauration de l'etat d'entree, tests B19)
+============================================================================
+
+1) ETAT AVANT J34 (analyse de l'audit, l.61)
+   - evaluate (prim 318) : reconstruisait la chaine puis appelait
+     self.compile(&s) directement -> set_source ECRASAIT source_buffer,
+     source_addr, >IN et avancait HERE, sans sauvegarde ni restauration.
+   - Consequence : l'evaluation d'une source pendante (imbrication) perdait
+     l'etat d'entree de la source exterieure (source_addr/source_buffer/>IN
+     ecrases) -> parsing externe poursuivi avec le mauvais etat.
+   - included (prim 862) : meme probleme (self.compile(text) direct).
+   - Aucun usage d'evaluate dans les apps (verifie) ; les tests utilisaient
+     le mot `n` (source controlee) comme alternative.
+
+2) CORRECTIF (Option standard)
+   - Helper eval_source(&mut self, text) (apres set_source, l.594) :
+     sauvegarde (source_buffer, source_addr, memory[to_in_addr],
+     memory[state_addr]), appelle self.compile(text), PUIS restaure les 4
+     champs, y compris en cas d'erreur de compilation.
+   - evaluate (prim 318) : self.eval_source(&s) au lieu de self.compile(&s).
+   - included (prim 862) : self.eval_source(text) au lieu de self.compile.
+   - HERE avance a chaque evaluation (set_source copie la source) :
+     comportement conserve (limite connue, source non recyclee, refonte
+     ulterieure) - coherent avec J33 (set_source croit a chaque chargement).
+     Les allocations de donnees faites par le code evalue sont preservees.
+
+3) TESTS - section B19 (forth/TESTS/core2012.fth)
+   - source drop constant SAB ; s" 5" evaluate 5 = verif ; source drop SAB =
+     verif -> source_addr restauree apres evaluate.
+   - Imbrication : : evA s" 40 2" evaluate ; evA + 42 = verif ; : evB
+     s" 5 6" evaluate s" 7" evaluate ; evB + + 18 = verif.
+   - Definition via evaluate + STATE : state @ 0= verif ; s" : defT19 99 ;"
+     evaluate ; state @ 0= verif ; defT19 99 = verif.
+   - Erreur : source drop constant SAC ; s" unknownword19" evaluate (eerr)
+     ; source drop SAC = verif -> source restauree meme apres erreur.
+   - En-tete SECTIONS mis a jour (B19).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 34 (etat avant, correctif, B19) ; PRIMITIVES_REFERENCE :
+     evaluate annote ; planning : J34 FAIT ; log week01-day34.txt ;
+     rapport : J34.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B9-B19 verts, NB-FAILS = 2 (B2c seul).
+   - prochaine etape : J35 - Revue semaine 5 (tests memoire/variables/
+     chaines/boot, drivers Forth).
+============================================================================

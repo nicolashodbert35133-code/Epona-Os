@@ -1,0 +1,49 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 8, JOUR 51 (.R / U.R / HOLDS)
+Date : 2026-08-10
+Statut : FAIT (.r 1834, u.r 1835, holds 1836, tests B35)
+============================================================================
+
+1) ETAT AVANT J51
+   - .r, u.r, holds ABSENTS. . (22) et u. (84) affichaient sans alignement.
+   - hold/sign (1 caractere) et la zone PNO existaient deja ; holds
+     (multi-caracteres) manquait pour construire des chaines picturales
+     prefixees.
+
+2) CONTRAT
+   - .r ( n +n -- ) : affiche n aligne a droite sur +n colonnes (BASE
+     courante, prefixe 0x en hex comme .) ; PAS d'espace final (difference
+     avec .) ; champ etendu au necessaire si largeur insuffisante (pas de
+     troncature).
+   - u.r ( u +n -- ) : idem, valeur non signee (u64).
+   - holds ( c-addr u -- ) : ajoute la chaine au debut de la chaine
+     picturale (<# ... #>), construite vers l'arriere. Longueur nulle
+     ignoree.
+
+3) MECANIQUE (src/interpreter.rs)
+   - Primitive 1834 = .r : pop width, val ; format selon BASE courante
+     (hex -> "0x{:X}", sinon "{}") ; padding d'espaces a gauche si
+     len < width.max(0) ; affichage sans espace final.
+   - Primitive 1835 = u.r : identique avec (val as u64).
+   - Primitive 1836 = holds : pop u, caddr ; si u > 0, lit HOLDP_ADDR
+     (65532) ; garde : hp >= PNO_BASE (65464) && hp <= PNO_END (65532) &&
+     hp - PNO_BASE >= u ; copie des u octets en ordre inverse (chaque
+     cellule <- octet & 0xFF) ; sinon message "holds: zone PNO pleine".
+   - Enregistrements : add_primitive(".r", 1834), add_primitive("u.r", 1835),
+     add_primitive("holds", 1836).
+
+4) TESTS (forth/TESTS/core2012.fth, section B35)
+   - Affichages documentes .r/u.r : "   42" (42 5 .r), "42" (42 2 .r,
+     largeur insuffisante), "  -7", "  0", "   7", -1 sur 5 u.r etendu,
+     deux .r sur une ligne.
+   - 4 tests holds auto-verifies via compare (291) :
+     (a) holds-test  -> "!!-42"    (s" !!-" 42 0 <# #s 2swap holds #>)
+     (b) holds-only  -> "AB"       (holds sans chiffres)
+     (c) holds-mix   -> "12-34"    (s" 12" 34 0 <# #s 45 hold 2swap holds #>)
+     (d) holds-empty -> "7"        (longueur nulle ignoree)
+
+5) RESULTAT
+   - Build dev : 0 erreur / 413 warnings.
+   - qemu_img/forth/TESTS/core2012.fth resynchronise.
+   - Sommaire des sections a jour (B35). Planning J51 marque FAIT.
+============================================================================

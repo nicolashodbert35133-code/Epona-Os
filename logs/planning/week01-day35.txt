@@ -1,0 +1,53 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 5, JOUR 35 (REVUE S5)
+Date : 2026-08-08
+Statut : FAIT (correction des P0/CRITIQUE du rapport Claude + revue S5)
+============================================================================
+
+0) CONTEXTE
+   Rapport independant de Claude Sonnet (Forth_2012_Rapport_Claude.md) lu
+   avant J35. Il recoupe l'audit et signale des bugs P0/CRITIQUE non encore
+   corriges. Correction de ces bugs integree a la revue S5 (J35).
+
+1) CORRECTIFS P0 / CRITIQUE (src/interpreter.rs)
+   a) -rot (idx 38) : faisait comme rot (a b c -> b c a) au lieu du
+      standard (a b c -- c a b). Correction : pop le sommet, insert en bas.
+      (a b c) -> (c a b).
+   b) tuck (idx 40) : copiait le bas de pile (a b -> a a b) au lieu de
+      dupliquer le sommet sous lui (a b -- b a b). Correction : swap + push
+      du sommet. (a b) -> (b a b).
+   c) Locaux { } : Op::LocalGet / Op::LocalSet / Op::LocalsAlloc /
+      Op::LocalsFree ne faisaient PAS ip += 1 -> rebouclage infini dans
+      toute definition compilee utilisant des locaux. Correction : ip += 1
+      ajoute aux 4 branches.
+
+2) TESTS (forth/TESTS/core2012.fth)
+   - B2c : remplace par des tests verif VERTS (tuck/-rot corriges) :
+     1 2 3 -rot 2 = verif ; 1 2 3 -rot -rot -rot 3 = verif ;
+     1 2 tuck 2 = verif ; 1 2 tuck drop 1 = verif.
+   - B20 (nouveau) : locaux { } : : add20 { x y } x y + ; 3 4 add20 7 =
+     verif ; : swap20 { a b } b a ; 10 20 swap20 10 = verif 20 = verif ;
+     : dup20 { v } v v ; 7 dup20 + 14 = verif.
+   - En-tete SECTIONS mis a jour (B2c VERT, B20, bugs decouverts corriges).
+
+3) REVUE S5 (etat)
+   - Variables (J29), donnees (J30/J31), chaines (J33), evaluate (J34) :
+     tous corriges et testes (B15-B19).
+   - Boot : aucun des mots corriges en S4/S5 n'est utilise par BOOT.FTH ni
+     les scripts de demarrage (verifie en J18-J21, recoupe par le rapport
+     Claude) -> aucune regression de boot.
+   - Drivers Forth (forth/std/drvlib.fth, pci_enum.fth, drvmap.fth) :
+     inchanges, pas d'impact des corrections S5.
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : section bugs residuels mise a jour (tuck/-rot ✅, locaux ✅) ;
+     PRIMITIVES_REFERENCE : tuck/-rot annotes ; planning : J35 FAIT ;
+     log week01-day35.txt ; rapport : J35.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B20 verts, NB-FAILS = 0 (B2c corrige).
+============================================================================

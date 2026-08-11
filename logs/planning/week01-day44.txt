@@ -1,0 +1,52 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 44 (ACCEPT)
+Date : 2026-08-09
+Statut : FAIT (accept 406 + touche:inject 407, tests B28)
+============================================================================
+
+1) ETAT AVANT J44
+   - refill (331) lisait une ligne depuis le clavier mais ECRIVAIT dans la
+     source interne (set_source) : role boucle d'interpretation, PAS un
+     ACCEPT standard. ACCEPT ( c-addr +n1 -- +n2 ) ABSENT.
+   - key_queue alimentee par polling PS/2 + xHCI + bureau (bornee 64) ;
+     aucune primitive d'injection pour tester la saisie automatiquement.
+
+2) CORRECTIF (src/interpreter.rs)
+   - Nouvelle primitive accept = 406 : ( c-addr +n1 -- +n2 ). Lit <= +n1
+     caracteres du clavier dans memory[c-addr..], retourne +n2 (sans le
+     CR). Gere : backspace (8/127) retire le dernier (echo "\x08 \x08"),
+     Escape (27) annule (0 saisi), caracteres >= ' ' jusqu'a la longueur
+     max (au-dela : ignores, la saisie continue jusqu'au CR), CR/LF
+     terminent, entree vide -> 0. Bornage : caddr + n2 < memory.len()
+     (hors bornes -> echo sans ecriture, style sandbox). Boucle identique
+     a refill/key : step_callback + preemption PIT + emergency_break
+     (retourne 0 si interrompu).
+   - Nouvelle primitive touche:inject = 407 : ( char -- ) pousse un char
+     dans key_queue (bornee a 64) — outil de test/simulation (aucun
+     equivalent existant).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B28 (forth/TESTS/core2012.fth)
+   - Buffer de test : create tbuf 16 allot.
+   - 'A' + CR -> n2=1, tbuf[0]=65.
+   - Entree vide (CR immediat) -> n2=0.
+   - Backspace : 'A' puis 8 -> n2=0.
+   - Longueur max n1=2 : 'A','B' stockes, 'C' ignore, n2=2 (tbuf[0..1]).
+   - key + injection : key lit 'A' ; key? retourne -1 sans consommer.
+   - En-tete SECTIONS mis a jour (B28).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 44 + Core absents (ACCEPT retire) ; PRIMITIVES_REFERENCE :
+     406-407 ; planning : J44 FAIT ; log week01-day44.txt ; rapport : J44 ;
+     devguide : J44.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B28 verts, NB-FAILS = 0.
+   - manuel : saisie reelle avec backspace, longueur max, entree vide.
+   - prochaine etape : J45 - WORD (buffer + duree de vie, separateurs,
+     entree vide).
+============================================================================

@@ -1,0 +1,49 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 37 (2@/2!)
+Date : 2026-08-08
+Statut : FAIT (2@/2! conformes Forth 2012, bornes, tests B22)
+============================================================================
+
+1) ETAT AVANT J37
+   - 2@/2! : absents (ni primitive ni mot Forth, verifie grep src/ + forth/).
+   - Listes dans "21 mots Core absents" (audit) et le rapport Claude (P1).
+
+2) ORDRE DES CELLULES (Forth 2012)
+   - 2! ( x1 x2 a-addr -- ) : x2 stocke a addr, x1 a addr+1 (cellule basse a
+     addr, haute a addr+1).
+   - 2@ ( a-addr -- x1 x2 ) : x2 = memory[addr], x1 = memory[addr+1] ;
+     empile x1 puis x2 (x2 au sommet).
+
+3) CORRECTIF (src/interpreter.rs)
+   - Nouvelles primitives : 2@ = 390, 2! = 391 (idx libres entre mem-used
+     387 et proc-create 410).
+   - Implementation via read_cell/write_cell (J24, bornes MAX_MEM) :
+     2@ pop addr, lit (a, a+1) ; hors bornes -> message "2@: sandbox bloque
+     adresse {}" et RIEN pousse (style prim 10). 2! pop (x1, x2, addr),
+     ecrit x2 a addr puis x1 a addr+1 ; hors bornes -> message "2!: sandbox
+     bloque adresse {}" (court-circuit : le 2e write_cell non appele si le
+     1er echoue).
+   - JIT : aucun changement (fallback interpreteur pour les primitives
+     inconnues, _ => emit_prim_fallback).
+
+4) TESTS - section B22 (forth/TESTS/core2012.fth)
+   - create DBL37 2 allot ; 1 2 DBL37 2! ; DBL37 2@ 2 = verif 1 = verif.
+   - Ordre : 5 7 DBL37 2! ; DBL37 @ 7 = verif (x2 a addr) ; DBL37 1 + @ 5 =
+     verif (x1 a addr+1).
+   - Negatifs/zero : -3 0 DBL37 2! ; DBL37 2@ 0 = verif -3 = verif.
+   - Bornes : 1 2 70000 2! sans effet (cellule temoin intacte) ;
+     55 70000 2@ 55 = verif (2@ hors bornes ne pousse rien).
+   - En-tete SECTIONS mis a jour (B22).
+
+5) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+6) DOCS
+   - audit : Jour 37 + table Core absents (2@/2!) ; PRIMITIVES_REFERENCE :
+     390/391 ; planning : J37 FAIT ; log week01-day37.txt ; rapport : J37.
+
+7) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B22 verts, NB-FAILS = 0.
+   - prochaine etape : J38 - U< et S>D (limites signees/non signees, flags).
+============================================================================

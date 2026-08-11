@@ -1,0 +1,48 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 48 (QUIT)
+Date : 2026-08-09
+Statut : FAIT (quit 437, tests B32)
+============================================================================
+
+1) ETAT AVANT J48
+   - quit ABSENT du dictionnaire. La boucle REPL (shell.rs) lit une ligne
+     et appelle forth_vm.compile(ligne) par ligne ; il n'existe pas de mot
+     source-id (le clavier est la source par construction).
+   - Contrat ANS (core 2012 6.1.2050) : QUIT vide la pile de retour,
+     remet l'entree utilisateur comme source, entre en etat
+     d'interpretation, n'affiche rien, puis re-accepte/interpret des
+     lignes. Il NE vide PAS la pile de donnees (difference avec ABORT).
+
+2) EFFET SUR L'INTERPRETEUR ET LE COMPILATEUR (documente prim 437)
+   - Pile de retour    : videe (rstack.clear)
+   - Pile de boucle    : videe (loop_rstack.clear)
+   - Pile catch        : videe (handler_stack.clear)
+   - Pile de DONNEES   : CONSERVEE (difference avec ABORT)
+   - STATE             : 0 (interpretation)
+   - Etat compilateur  : efface (compiling_ops/name/stack, recurse_fixups,
+                         does_offset, compiling_locals) -> aucun resume
+                         d'une definition en cours.
+   - Source            : le RESTE de la source courante n'est pas execute.
+                         En contexte evaluate/include, la source exterieure
+                         reprend. Au prompt, la ligne est terminee.
+   - Sortie            : AUCUN message, aucune erreur (compile -> Ok).
+
+3) MECANIQUE (src/interpreter.rs)
+   - Primitive 437 = quit : restaure l'etat complet puis pose
+     abort_pending = true (flag PARTAGE avec abort pour stopper la source).
+   - Pas de simple return : les checks de la boucle compile (haut/bas) et
+     de execute_ops_limited consomment abort_pending, effacent et sortent.
+   - Enregistrement : add_primitive("quit", 437, false).
+
+4) TESTS (forth/TESTS/core2012.fth, section B32)
+   - (a) s" quit 1 quit-flag !" evaluate -> quit-flag reste 0 (code apres
+         quit ignore).
+   - (b) 1 2 3 s" quit" evaluate -> depth = 3 (pile de donnees conservee).
+   - (c) s" quit" evaluate -> state @ = 0 (interpretation).
+
+5) RESULTAT
+   - Build dev : 0 erreur / 413 warnings.
+   - qemu_img/forth/TESTS/core2012.fth resynchronise.
+   - Noyau Core Forth 2012 : tous les mots presents (KEY ACCEPT WORD
+     >NUMBER ABORT QUIT ENVIRONMENT? ...).
+============================================================================

@@ -1,0 +1,56 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 45 (WORD)
+Date : 2026-08-09
+Statut : FAIT (word 408, tests B29)
+============================================================================
+
+1) ETAT AVANT J45
+   - word ABSENT du dictionnaire (seuls parse-name 329 et parse 330
+     existaient, Jour 19-20, lisant la source courante via >IN).
+   - La boucle d'interpretation ne modifie PAS >IN seule : seuls
+     parse-name/parse le font (write sites : 5079/5086). Dans evaluate,
+     >IN = 0 au debut de l'execution d'un token -> un mot de test lit son
+     PROPRE NOM dans la source (pattern B7/B8, source controlee).
+
+2) CORRECTIF (src/interpreter.rs)
+   - Nouvelles constantes : WORD_BASE = 65424, WORD_END = 65464 (= PNO_BASE),
+     WORD_CAP = 39 (40 cellules, juste sous la zone PNO [65464..65532)).
+   - Nouvelle primitive word = 408 : ( char -- c-addr ) Core. Pop le
+     delimiteur, lit source_buffer depuis >IN : skip des delimiteurs
+     initiaux, parse jusqu'au delimiteur final (non inclus), copie en
+     chaine comptee (octet 0 = longueur, puis les caracteres) dans
+     memory[WORD_BASE..], avance >IN a la position du delimiteur final
+     (le prochain appel re-skip). Aucune allocation dans HERE (pas de
+     fuite) ; duree de vie : ecrasee au prochain appel (standard WORD).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B29 (forth/TESTS/core2012.fth)
+   Source controlee via evaluate (cf. B7/B8) ; le mot de test lit son
+   propre nom (WORD part de >IN = 0) :
+   - Longueur : source "t-w1" -> WORD lit "t-w1" (4), c@ = 4.
+   - Skip espaces initiaux : source "  t-w2" (2 espaces + nom) -> 4.
+   - Contenu : source "t-w3" -> 1+ c@ = 116 ('t').
+   - Deux mots successifs : source "t-w4 ab" -> (4, 2) ; >IN avance a
+     chaque appel (le token restant "ab" est saute par le mecanisme
+     token_offsets < >IN).
+   - Delimiteur personnalise ':' : source "t-w6 ab:cd" -> "t-w6 ab" (7,
+     jusqu'au ':') puis "cd" (2) -> (7, 2).
+   - Entree vide : source "t-w7 ::" -> apres skip des ':', longueur 0 ->
+     (5, 0).
+   - En-tete SECTIONS mis a jour (B29).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 45 + Core absents (WORD retire -> 4 restants) ;
+     PRIMITIVES_REFERENCE : 408 ; planning : J45 FAIT ; log
+     week01-day45.txt ; rapport : J45 ; devguide : J45.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B29 verts, NB-FAILS = 0.
+   - manuel : WORD interactif (delimiteur courant, chaine comptee count).
+   - prochaine etape : J46 - >NUMBER (base courante, signe, arret sur
+     caractere invalide et overflow).
+============================================================================

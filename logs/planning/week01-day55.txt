@@ -1,0 +1,145 @@
+JOURNEE 55 - REECRITURE core2012.fth DE ZERO (Forth 2012 pur, validation clavier)
+===============================================================================
+
+Date : 11/08/2026
+Fichiers touches :
+  - forth/TESTS/core2012.fth  (REECRIT DE ZERO : 1495 -> ~1345 lignes)
+  - PLANNING_CODAGE_FORTH_12_SEMAINES.md (entree journee)
+  - qemu_img/forth/TESTS/core2012.fth    (resynchronise)
+
+CONTEXTE
+--------
+Le fichier core2012.fth avait grossi par ajouts successifs (Jours 4..54) avec
+tout l'historique des corrections dans les commentaires. L'utilisateur a
+demande : "on part de zero core2012.fth, une journee de planning, valide par
+une touche du clavier".
+
+OBJECTIF
+--------
+1. Reecrire le fichier entier, structure propre (40 sections numerotees).
+2. Ne plus utiliser QUE des mots Forth 2012 (CORE / CORE EXT / DOUBLE-NUMBER
+   / EXCEPTION / LOCALS / STRING / FACILITY).
+3. Les mots Epona non standard restants sont CLAREMENT MARQUES "EXTENSION
+   EPONA" (aucun mot non standard silencieux).
+4. La validation clavier devient INTERACTIVE : une touche du clavier (QEMU)
+   valide le test ACCEPT/KEY.
+
+SUPPRESSIONS ISO (mots non standard retires des tests)
+------------------------------------------------------
+  -rot           -> remplace par "rot rot" (equivalent standard)
+  2+             -> "2 +"
+  2-             -> "2 -"
+  3+..11+        -> "n +"
+  /pad           -> remplace par un test standard de la zone PAD
+                     (pad 83 chars + 65 over c! c@ 65 = verif)
+  touche:inject  -> REMPLACE par le test clavier interactif (accept/key)
+  (Aucune de ces primitives n'a ete modifiee dans interpreter.rs : seule la
+   suite de tests a change.)
+
+EXTENSIONS EPONA CONSERVEES ET MARQUEES (non standard, testees quand meme)
+---------------------------------------------------------------------------
+  w@ / w! / l@ / l!   (section 17 - fenetre memoire 16/32 bits)
+  alloc               (section 19 - allocation simple depuis here)
+  key?                (section 32 - absent du Core Forth 2012)
+  holds               (section 37 - absent de Forth 2012 ; seul hold est std)
+
+STRUCTURE DU NOUVEAU FICHIER (40 sections)
+------------------------------------------
+  01 Pile                02 Arithmetique         03 Logique
+  04 Flags               05 Rshift logique       06 2/ signe + divisions
+  07 Search              08 Source/>IN           09 Tuck / rot rot
+  10 State               11 Find                 12 Parse-name
+  13 Parse               14 Contrat adressage    15 Memoire @ ! +! bornes
+  16 Here/allot/,/c,     17 Fenetre memoire      18 Move/erase
+  19 Alloc (ext.)        20 Variable             21 Constant/value/to
+  22 Create/does>        23 S" compile           24 Evaluate
+  25 Locaux {}           26 Base/align           27 2@/2!
+  28 U</s>d              29 M*/*/mod            30 Sortie numerique
+  31 ud./d.              32 Key/key?/accept      33 Word
+  34 >number             35 Abort/env?/quit      36 Within/u>/pad
+  37 .r/u.r/holds        38 S"/S\"/compile,      39 :noname
+  40 Catch/throw/postpone
+  + helper NB-FAILS/verif + resume test-core (auto-execute en fin).
+
+VALIDATION CLAVIER INTERACTIVE (section 32)
+--------------------------------------------
+Le test affiche :
+    ========================================
+    VALIDATION CLAVIER
+    Appuie sur la touche 'A' puis Entree
+    pour valider le test du fichier :
+Puis accept lit la frappe et le test verifie :
+    +n2 = 1  (accept -> +n2 = 1)
+    tbuf[0] = 65  ('A')
+La lecture reelle de la touche (bloquante) valide le test de bout en bout.
+Toute autre touche que 'A' -> NB-FAILS > 0 (echec attendu : la consigne
+s'affiche a l'ecran).
+
+POINTS TECHNIQUES CONSERVES (aucune regression voulue)
+------------------------------------------------------
+  - conventions \ -1 / \ 0, helper verif, NB-FAILS, test-core en fin ;
+  - toutes les valeurs attendues des tests existants ont ete conservees ;
+  - les chaines s\" restent litterales dans le fichier (echappements \n \t
+    \r \\ \" interpretes au runtime par la primitive s\").
+  - aucune modification de interpreter.rs (aucun rebuild necessaire).
+
+PROCEDURE DE VALIDATION UTILISATEUR (QEMU)
+-------------------------------------------
+  1. qemu  (ou lancement habituel de la machine)
+  2. shell -> exec TESTS/core2012.fth
+  3. laisser defiler les sections ; au bloc "VALIDATION CLAVIER",
+     appuyer sur 'A' puis Entree ;
+  4. verifier en fin : "TOUTES LES CIBLES ATTEINTES" et NB-FAILS = 0.
+
+ETAT
+----
+  - fichier reecrit : OK (aucune erreur statique detectee).
+  - build Rust : inchange (aucun code Rust modifie).
+  - resync qemu_img/forth/TESTS/core2012.fth : OK.
+  - validation MATERIELLE (QEMU) : A FAIRE par l'utilisateur (une touche).
+
+=== MISE A JOUR 11/08/2026 : DOSSIER core2012 (tests jour par jour) ===
+
+- Nouveau dossier forth/core2012/ cree : un fichier jourN.fth par journee de
+  test du planning (Jour 4 -> Jour 54). 42 fichiers au total :
+    jour4, jour8-13, jour16, jour18-20, jour23-41, jour43-54.
+- Chaque fichier porte en tete : "Base : PLANNING_CODAGE_FORTH_12_SEMAINES.md
+  - Jour N" + la description du jour tiree du planning.
+- Conventions Epona conservees : variable NB-FAILS, helper verif, valeurs
+  reelles imprimees via '.', resume auto-execute en fin de fichier.
+- Lancement independant : exec forth/core2012/jourN.fth (dans qemu_img).
+- Les jours de revue pure (14, 21, 22, 42) et d'analyse (15, 17) n'ont pas de
+  fichier dedie (aucun nouveau test a executer).
+- Jour 12 (REFILL), Jour 43 (KEY), Jour 44 (ACCEPT) sont INTERACTIFS (clavier
+  QEMU requis).
+- Jour 53 (jour53.fth) : ajoute le test irq:attach/irq:detach (IRQ 31 non
+  utilisee, non destructif) exige par le planning.
+- Jour 54 (jour54.fth) : ajoute les tests de restauration des piles CATCH
+  (data : code + depth 1 ; retour : >r 42 throw capture propre).
+- qemu_img/forth/core2012/ resynchronise (42 fichiers).
+- Planning : Jour 86 "Dossier de tests forth/core2012/" FAIT.
+
+=== MISE A JOUR 11/08/2026 : DEBUT API DRIVER v1 (Jour 55 du planning) ===
+
+- Contrat API driver commence : verification de conformite de docs/API_V1.md
+  contre la realite des drivers (ecrits avant l'ISO 2012, reference
+  DEV_GUIDE_DRIVER_AGENT.md).
+- Ecarts trouves et corriges :
+  * alloc-page etait liste dans API_V1.md §2.6 mais ABSENT du dictionnaire
+    (l'indice 270 est net-revoke). -> IMPLEMENTE dans forth/std/drvlib.fth :
+    ": alloc-page ( -- addr ) 1 alloc-phys ;".
+  * drv:stop et drv:status (nommes au Jour 55 du planning) n'existaient pas ;
+    la convention reelle d'arret est drv:fini. -> IMPLEMENTES dans drvlib.fth :
+      - drv:status ( -- id type etat )  etat = 0 non enregistre, 1 enregistre.
+      - drv:stop  ( -- )                 appelle drv:fini puis flag arrete.
+- Tous les autres mots du contrat verifies PRESENTS (MMIO, phys, port I/O,
+  PCI pci:list/dev/bar, alloc*/mem:alloc-pages, ticks/attendre/us-delay/
+  ms-delay, drv:log/warn/err/ok, drv:loaded?, dev:register).
+- docs/API_V1.md : statut passe a "v1 — GELEE (Jour 55, 2026-08-11)" -
+  aucune modification sans increment de version. §2.4 (+drv:stop/drv:status)
+  et §2.6 (alloc-page confirme) mis a jour.
+- qemu_img/forth/std/drvlib.fth resynchronise.
+- Aucun code Rust modifie (aucun rebuild).
+- Planning : Jour 55 "Contrat Driver API v1" FAIT.
+- Reste : validation materielle QEMU (chargement drivers sans erreur) et
+  suite Semaine 8 (Jour 56 Probe non destructif + revue).

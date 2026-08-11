@@ -1,0 +1,51 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 40 (<#...#>)
+Date : 2026-08-08
+Statut : FAIT (groupe sortie numerique complet + SIGN, tests B25)
+============================================================================
+
+1) ETAT AVANT J40
+   - <# # #S HOLD SIGN #> : absents (Core absents, audit + rapport Claude).
+   - BASE adressable (J36) : la conversion doit lire BASE au runtime.
+   - Fenêtre c@/c! : memory si addr < MAX_MEM (verifie l.2090 : check_mem).
+
+2) CORRECTIF (src/interpreter.rs)
+   - Zone "pictured numeric output" : memory[PNO_BASE=65464 .. PNO_END=
+     65532) (68 cellules >= 64 chiffres base 2 + signe + marge), juste sous
+     les cellules systeme (base 65533, state 65534, >in 65535). Pointeur
+     HOLD (adresse absolue) dans memory[HOLDP_ADDR=65532], initialise a
+     PNO_END au boot.
+   - Nouvelles primitives :
+     <#  = 396 : HOLDP = PNO_END (initialise la conversion).
+     #   = 397 : ( ud1 -- ud2 ) un chiffre : ud u128, rem = ud % BASE,
+               char '0'-'9'/'A'-Z (majuscules), prepend, quot = ud / BASE.
+     #s  = 398 : ( ud -- 0 0 ) boucle # jusqu'a ud = 0 (au moins 1 chiffre).
+     hold= 399 : ( char -- ) ajoute char au debut de la chaine.
+     sign= 400 : ( n -- ) '-' au debut si n < 0.
+     #>  = 401 : ( xd -- addr len ) drop xd, pousse (HOLDP, PNO_END-HOLDP).
+   - Garde bornes : si HOLDP <= PNO_BASE -> message "zone PNO pleine",
+     aucune ecriture (pas de corruption des cellules voisines).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B25 (forth/TESTS/core2012.fth)
+   - 0 -> "0" (len 1, char 48) ; 42 -> "42" (len 2, '4','2').
+   - signe : -42 abs 0 <# #s -1 sign #> -> "-42" (len 3, '-').
+   - base 16 : 255 -> "FF" (len 2, 'F'=70).
+   - hold : 0 0 <# #s 33 hold #> -> "!0" (len 2, '!').
+   - # seul : 123 -> "3" (1 chiffre, reste abandonne par #>).
+   - usage : : u.40 0 <# #s #> type space ; 255 u.40 (visuel "255 ").
+   - En-tete SECTIONS mis a jour (B25).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 40 + Core absents (6 mots retires) ; PRIMITIVES_REFERENCE :
+     396-401 ; planning : J40 FAIT ; log week01-day40.txt ; rapport : J40.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B25 verts, NB-FAILS = 0.
+   - prochaine etape : J41 - finaliser le groupe (validations
+     complementaires : grandes valeurs, toutes bases, u./d. standard).
+============================================================================

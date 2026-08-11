@@ -1,0 +1,68 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 8, JOUR 52 (S\" / COMPILE,)
+Date : 2026-08-10
+Statut : FAIT (S\" string, COMPILE, compile-only, .\" bonus, tests B36)
+============================================================================
+
+1) ETAT AVANT J52
+   - s" appliquait unescape_string (compile ET interprete) : ecart 2012 —
+     le standard Core dit que S" est LITERAL (les \ ne sont pas des
+     echappements) ; c'est S\" (string word set) qui les interprete.
+   - s\" et compile, ABSENTS.
+   - BUG latent : le scan des commentaires \ (debut de compile) ignorait
+     les \ seulement dans les chaines ." ; dans s" / .\" un \ etait pris
+     pour un commentaire et TRONQUAIT la ligne (ex : s" C:\dir",
+     .\" messages des drivers). .\" n'a JAMAIS fonctionne.
+
+2) CONTRAT
+   - S" ( c-addr u -- ) : chaine lue LITTERALEMENT jusqu'au " suivant.
+   - S\" ( c-addr u -- ) : idem mais sequences \n \t \r \\ \" interpretees.
+   - .\" : variante echappee de ." (affichage direct) — ajoutee en bonus
+     pour reparer les drivers et DESKTOP.FTH.
+   - COMPILE, ( xt -- ) : compile-only — ajoute la definition de xt a la
+     definition en cours (compile-time).
+
+3) MECANIQUE (src/interpreter.rs)
+   - S" : unescape_string RETIRE en compile et en interprete (litteral).
+   - S\" : nouveau handler compile (meme structure que s" + unescape_string
+     -> Op::PushStrAddr, copie UNE FOIS dans memory[here]) et handler
+     interprete (copie dans HERE + push addr len).
+   - .\" : handler compile (unescape -> Op::PrintStr) et interprete
+     (unescape -> print_buffer).
+   - COMPILE, : ajoute dans la boucle compile avant le match principal
+     (if lower == "compile,") : pop l'xt de la pile RUNTIME ; si la cible
+     est une primitive -> Op::CallPrim(prim_idx), sinon -> Op::Call(dict_idx)
+     (meme pattern que POSTPONE). Usage : un mot immediat fournit l'xt
+     (ex : : get-dup ' dup ; immediate), puis compile, l'emette.
+   - SCAN DES COMMENTAIRES \ REECRIT : detecte toute ouverture de chaine
+     " precede d'un caractere de mot (s", .", abort", ,") ou \" precede
+     d'un caractere de mot (s\", .\") ; les \ a l'interieur d'une chaine
+     ne sont plus des commentaires ; le \ commentaire n'est reconnu que
+     hors chaine.
+   - JIT : S\" reutilise Op::PushStrAddr (bytecode 48, deja supporte) ;
+     compile, emet CallPrim/Call (deja supportes).
+
+4) TESTS (forth/TESTS/core2012.fth, section B36)
+   - S" interprete : s" a\nb" drop 4 = (a \, n, b bruts), c@ sur l'octet
+     backslash (92), s" x\tY" -> 4 octets.
+   - S\" interprete : a\nb -> 3 (LF=10 verifie via c@), x\tY -> 3 (TAB=9),
+     a\"b -> 3, a\\b -> 3, a\rb (CR=13).
+   - S\" COMPILE : : str-c s\" HELLO\nW" ; -> drop 7 =, compare egal avec
+     S\" interprete.
+   - S" COMPILE reste litteral : str-c2 s" a\nb" ; -> drop 4 =.
+   - .\" (visuel) : A<TAB>B<LF>C, : pt-t .\" X\nY" ;.
+   - COMPILE, : : double dup + ; / get-dup ( -- xt ) ' dup ; immediate /
+     get-double ( -- xt ) ' double ; immediate ; puis
+     : foo1 get-dup compile, ; (= dup), : foo2 get-double compile, ; (= double),
+     : foo4 get-double compile, get-dup compile, ; , : foo5 get-dup compile,
+     get-dup compile, ; (dup dup) — verifies par des = verif.
+   - Sommaire des sections a jour (B36).
+
+5) RESULTAT
+   - Builds dev + release : 0 erreur / 413 warnings.
+   - qemu_img resynchronise (EFI + core2012.fth).
+   - Scan commentaire valide sur tous les cas de test (simulation).
+   - Planning J52 marque FAIT.
+   - Reste : validation materielle — exec TESTS/core2012.fth -> B36 vert,
+     NB-FAILS = 0.
+============================================================================

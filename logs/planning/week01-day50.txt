@@ -1,0 +1,47 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 8, JOUR 50 (WITHIN / U> / PAD)
+Date : 2026-08-10
+Statut : FAIT (u> 1832, within 1833, opcode Pad, tests B34)
+============================================================================
+
+1) ETAT AVANT J50
+   - within, u>, pad ABSENTS du dictionnaire. environment? renvoyait
+     /PAD=1024 (nominal) depuis J49 mais AUCUN mot PAD n'existait.
+   - u< (Jour 38) existait ; sa symetrie u> manquait. within (n lo hi)
+     manquait pour les tests de plages.
+
+2) CONTRAT
+   - u> ( u1 u2 -- flag ) : comparaison NON SIGNEE (u64), flag -1/0.
+     Ex : 0 -1 u> -> 0 (0 < 2^64-1) ; -1 0 u> -> -1 (2^64-1 > 0) ;
+     contraste avec > signe : -1 0 > -> -1, -1 0 u> -> -1.
+   - within ( n lo hi -- flag ) : -1 si lo <= n < hi, sinon 0
+     (comparaisons signees, borne HAUTE exclue, borne basse incluse).
+   - pad ( -- addr ) : adresse d'une zone transitoire d'au moins /PAD
+     cellules, sous la zone WORD.
+
+3) MECANIQUE (src/interpreter.rs)
+   - Primitive 1832 = u> : pop b puis a, push (a as u64) > (b as u64) ? -1 : 0.
+   - Primitive 1833 = within : pop hi, lo, n = last ; flag = (n >= lo && n < hi).
+   - PAD n'est PAS une primitive : nouvel opcode Op::Pad (ajoute a l'enum
+     apres Allot). PAD_BASE = WORD_BASE - 1024 = 64400 ; zone dediee
+     [PAD_BASE..WORD_BASE) = [64400..65424), 1024 cellules, collee au
+     /PAD=1024 deja retourne par environment?.
+     * Boucle compile   : "pad" -> compiling_ops.push(Op::Pad).
+     * Mode interprete  : "pad" -> stack.push(PAD_BASE).
+     * Execution        : Op::Pad -> stack.push(PAD_BASE).
+     * JIT (src/jit.rs) : serialize_op/deserialize_op -> bytecode 49
+       (auparavant compilation error E0004).
+   - Enregistrements : add_primitive("u>", 1832), add_primitive("within", 1833).
+
+4) TESTS (forth/TESTS/core2012.fth, section B34)
+   - 7 within : 0 dans [0..10), 10 dans [10..20), 20 exclu, negatif dans
+     [-10..0), 5 < lo -> 0, lo == hi -> plage vide, borne inferieure incluse.
+   - 9 u> : 5>3, 3<5, egal, cas non signes (0 vs -1, -2 vs -1, 1>0) et le
+     contraste avec > (signe).
+   - 3 pad : pad non nul, /pad = 1024, pad 1024 + = 65424 (collage sous WORD).
+
+5) RESULTAT
+   - Build dev : 0 erreur / 413 warnings.
+   - qemu_img/forth/TESTS/core2012.fth resynchronise.
+   - Sommaire des sections a jour (B34). Planning J50 marque FAIT.
+============================================================================

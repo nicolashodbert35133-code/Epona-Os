@@ -1,0 +1,74 @@
+JOURNEE 56 - PROBE NON DESTRUCTIF ET REVUE SEMAINE 8
+======================================================
+
+Date : 11/08/2026
+Fichiers touches :
+  - docs/API_V1.md (rappel contrat v1 gelee, pas de modif aujourd'hui)
+  - docs/FICHE_ECRITURE_DRIVER.md (CREE : fiche pour utilisateur distant)
+  - forth_audit_2012.md (Revue Semaine 8 ajoutee)
+  - PLANNING_CODAGE_FORTH_12_SEMAINES.md (Jour 56 FAIT)
+  - target/.../rust_os.efi -> qemu_img/EFI/BOOT/BOOTX64.efi (resync)
+
+OBJECTIF
+--------
+1. Tester materiel present, absent et inattendu (probe non destructif).
+2. Garantir qu'un probe absent retourne 0 sans crash.
+3. Refaire les builds debug et release.
+4. Rejouer core2012.fth — NB-FAILS = 0 (validation utilisateur QEMU).
+5. Mettre a jour forth_audit_2012.md avec l'etat final S8.
+6. Publier une fiche d'ecriture driver pour utilisateur distant.
+
+1) PROBE NON DESTRUCTIF (relecture src/drv_api.rs)
+--------------------------------------------------
+- drv_enumerate_and_load (l.586) :
+  * aucun peripherique PCI -> message + Ok (l.596-599).
+  * vendor_id 0xFFFF (vide) ou 0x0000 -> continue (l.606-608).
+  * drvmap:find -> chemin vide -> continue, aucun driver tente (l.616-618).
+  * deja charge -> continue (l.620-622).
+- vm_call_word_4 (l.446) : si le mot (ex drv:probe) n'existe PAS -> 0 (l.458).
+  => probe absent -> init_ok = 0 -> DriverState inactif, PAS de crash.
+- drv_load_from_path (l.543) : fichier introuvable -> Err -> n_failed (l.648).
+- Verdict : "probe absent retourne 0 sans crash" GARANTI par relecture.
+  Validation materielle (QEMU) : a faire par l'utilisateur.
+
+2) BUILDS
+---------
+- cargo build (debug) : OK, 413 warnings (baseline), 0 erreur.
+- cargo build --release : OK, 413 warnings (baseline), 0 erreur.
+- target/x86_64-unknown-uefi/release/rust_os.efi (1710080 o) ->
+  qemu_img/EFI/BOOT/BOOTX64.efi resynchronise.
+
+3) REVUE SEMAINE 8 (forth_audit_2012.md)
+-----------------------------------------
+Nouvelle section "Revue Semaine 8 (Jour 56, 2026-08-11)" inseree avant le
+Bilan final :
+- Core Ext corriges : :NONAME (J53), CATCH/THROW/ABORT"/POSTPONE/COMPILE, (J54).
+- Probe non destructif : 4 cas verifies par relecture.
+- Builds debug+release OK, core2012.fth reecrit (J85) + dossier forth/core2012/
+  (42 fichiers jourN.fth).
+- Driver API v1 gelee (J55) : alloc-page + drv:stop/drv:status.
+- Restants : ABORT, ENVIRONMENT?, QUIT ; S\" HERE ; double 32 bits ; String
+  (/STRING, -TRAILING, CMOVE>, SLITERAL) ; SAVE-INPUT/RESTORE-INPUT ;
+  [COMPILE]/ROLL/U.R/U>/UNUSED/WITHIN/PAD/DEFER!/DEFER@/HOLDS.
+
+4) FICHE ECRITURE DRIVER (docs/FICHE_ECRITURE_DRIVER.md)
+----------------------------------------------------------
+Creee : structure minimale d'un driver .fth, regles d'or (drv:register en
+dernier, -1/0, create-only, pas de TRUE/FALSE, pas d'exit dans les locals),
+liste des mots bas niveau du contrat §2.6, renvoi vers TEMPLATE.fth et
+DEV_GUIDE_DRIVERS.md. Objectif : un tiers ecrit un driver sans connaitre Rust.
+
+5) VALIDATION UTILISATEUR (QEMU) — A FAIRE
+------------------------------------------
+- exec TESTS/core2012.fth -> NB-FAILS = 0 (une touche 'A' + Entree).
+- exec forth/core2012/jourN.fth pour chaque fichier (42 fichiers, tests 1
+  par 1) -> NB-FAILS = 0 attendu. Jour 12/43/44 interactifs (clavier).
+
+ETAT
+----
+- Probe non destructif : GARANTI (relecture), validation materielle restante.
+- Builds debug + release : OK.
+- forth_audit_2012.md : etat final S8 documente.
+- Fiche driver publiee : docs/FICHE_ECRITURE_DRIVER.md.
+- Planning Jour 56 : FAIT. Livrable S8 atteint (Core Ext prioritaires faits,
+  Driver API v1 gelee, fiche tiers dispo).

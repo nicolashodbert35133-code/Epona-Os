@@ -1,0 +1,91 @@
+JOURNEE 57 - BIBLIOTHEQUE CORE (API Application v1, debut)
+============================================================
+
+Date : 11/08/2026
+Fichiers touches :
+  - forth/std/core.fth (CREE)
+  - qemu_img/forth/std/core.fth (sync)
+  - forth/TESTS/core.fth (CREE) + qemu_img/forth/TESTS/core.fth (sync)
+  - src/drv_api.rs (FORTH_CORE_SRC + chargement dans drv_ensure_stdlib)
+  - docs/DEV_GUIDE_DRIVER_AGENT.md (§6.6 ajoute)
+  - PLANNING_CODAGE_FORTH_12_SEMAINES.md (Jour 57 FAIT)
+
+OBJECTIF
+--------
+1. Creer ou organiser forth/std/core.fth.
+2. Documenter les mots utilisables sans materiel.
+Objectif global Semaine 9 : une application Forth distante peut etre
+ecrite, testee et empaquetee.
+
+1) FORTH/STD/CORE.FTH (CREE)
+-----------------------------
+Bibliotheque PURE : aucun acces materiel (ni MMIO 23/24, ni PCI, ni IRQ,
+ni framebuffer, ni fichiers). Une app distante peut s'appuyer dessus sans
+connaitre le moindre detail x86_64.
+
+Math (8) :
+  clamp    ( n lo hi -- n' )
+  between? ( n lo hi -- flag )   -1 si lo <= n <= hi
+  even?    ( n -- flag )
+  odd?     ( n -- flag )
+  sgn      ( n -- -1|0|1 )
+  gcd      ( a b -- g )          Euclide
+  lcm      ( a b -- l )
+  pow      ( base exp -- r )     exp >= 0
+
+Chaines (7) : paires ( addr len ), un octet par cellule
+  starts-with / ends-with ( a1 l1 a2 l2 -- flag )
+  str-find  ( a1 l1 a2 l2 -- idx|-1 )
+  count-char ( addr len ch -- n )
+  upper / lower ( addr len -- ) en place
+  trim      ( addr len -- addr' len' )
+
+Nombres (2) :
+  str>num   ( addr len -- n ok )  decimal signe, ok=-1/0
+  num>str   ( n -- addr len )     buffer statique NUM-BUF (32 cells)
+
+Conventions respectees : memoire UNIQUEMENT create (espace here), jamais
+variable ; pas de exit dans un mot a locals ; locaux assignes depuis le
+bas de la pile (ordres verifies dans LocalsAlloc, interpreter.rs l.11161).
+
+2) CABLE DANS LE NOYAU (src/drv_api.rs)
+----------------------------------------
+- pub const FORTH_CORE_SRC = include_str!("../forth/std/core.fth").
+- drv_ensure_stdlib : charge core.fth apres tsc.fth, avant pci_enum.
+  -> disponible automatiquement au boot, sans action de l'utilisateur.
+
+3) DOCUMENTATION (docs/DEV_GUIDE_DRIVER_AGENT.md §6.6)
+-------------------------------------------------------
+Table des 17 mots (pile + description), regles (create-only, pas d'exit,
+paires addr len), chargement auto au boot, test de reference.
+
+4) TEST (forth/TESTS/core.fth)
+-------------------------------
+Test auto-execute (exec TESTS/core.fth), aucune valeur attendue par
+NB-FAILS : impression des valeurs reelles, attendues en commentaire.
+  - test-math : clamp/between?/even?/odd?/sgn/gcd/lcm/pow (31 cas)
+  - test-strings : starts-with/ends-with/str-find/count-char/upper/lower/trim
+  - test-numbers : str>num (6 cas) / num>str (5 cas)
+Buffer S1 cree en top-level (create est un mot state 0).
+
+5) VERIFICATIONS
+-----------------
+- cargo build (debug) : OK, 413 warnings (baseline), 0 erreur.
+- Aucune collision de noms : clamp/pow/upper/lower/reverse/trim sont des
+  methodes Rust (pas des mots Forth) ; fclamp/fpow sont des primitives
+  separees (pas de shadowing).
+- qemu_img resynchronise (core.fth + test).
+
+6) VALIDATION UTILISATEUR (QEMU) — A FAIRE
+------------------------------------------
+- exec TESTS/core.fth
+  Attendu (colonnes gauche = valeur reelle, droite = attendue) :
+  MATHS: 5 0 10 -1 -1 0 0 -1 -1 0 1 0 1 -1 0 1 -1 4 1 7 25 12 15 0 1 8 81 5
+  CHAINES: -1 0 -1 0 -1 0 -1 0 3 1 -1 0 2 1 0 + HELLO + hello + [bonjour] []
+  NOMBRES: 123 -1 -45 -1 0 -1 12 0 0 0 0 0 + 123 -45 0 987654321 -1
+
+ETAT
+----
+- Jour 57 FAIT : core.fth cree + documente (§6.6) + câble au boot + test.
+- Semaine 9 ouverte : API Application v1.
+- Prochain : Jour 58 (Fichiers et chemins).

@@ -1,0 +1,54 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 7, JOUR 46 (>NUMBER)
+Date : 2026-08-09
+Statut : FAIT (>number 409, tests B30)
+============================================================================
+
+1) ETAT AVANT J46
+   - >number ABSENT du dictionnaire. La conversion de chaine existante
+     `s>n` (forth/std/fmt.fth) est une extension Forth, pas le mot Core.
+   - Convention double Epona verifiee sur le code : ( lo hi ), HI au
+     sommet (s>d 393, m* 394, ud. 402, d. 403 depilent hi puis lo).
+
+2) CORRECTIF (src/interpreter.rs)
+   - Nouvelle primitive >number = 409 : ( ud1 c-addr1 u1 -- ud2 c-addr2 u2 )
+     Core. Pop u1, c-addr1, hi, lo (hi au sommet). Base = cur_base().
+     Boucle sur les caracteres : '0'-'9' -> 0-9, 'A'-'Z'/'a'-'z' -> 10-35,
+     tout autre char (dont '+'/'-') -> valeur invalide -> ARRET. Accumule
+     en u128 : val = val*base + digit (wrapping_mul/add : au-dela de 2^128
+     -> wrapping, condition ambigue du standard). Resultat : lo = val &
+     u64::MAX, hi = val >> 64 (re-pousses lo puis hi, hi au sommet),
+     c-addr2 = caddr1 + k, u2 = u1 - k. Aucun buffer (lecture directe de
+     memory), bornage a < memory.len() (hors bornes -> arret).
+   - Enregistrement : add_primitive(">number", 409, false).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B30 (forth/TESTS/core2012.fth)
+   Les chaines viennent de s" (copiee dans memory) -> pas besoin du
+   pattern evaluate de B7. Verifient ud (lo/hi), u2 et le contenu du reste :
+   - Base 10 complet : "123" -> lo=123, hi=0, u2=0.
+   - Arret au caractere invalide : "123x" -> lo=123, u2=1.
+   - Reste multi-caracteres : "12ab" (base 10) -> lo=12, u2=2, c-addr2 c@
+     = 'a' (97).
+   - Base 16 : hex, "ff" -> lo=255.
+   - Signe non convertible : "-12" -> ud2 = ud1 = (0,0), u2=3 (rien).
+   - Accumulation double non nul : ud1 = 2^64 (0 1) + "0" (base 10) ->
+     lo=0, hi=10 (10 x 2^64).
+   - Base 2 : 2 base !, "101" -> lo=5.
+   - En-tete SECTIONS mis a jour (B30).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 46 + Core absents (>NUMBER retire -> 3 restants) ;
+     PRIMITIVES_REFERENCE : 409 ; planning : J46 FAIT ; log
+     week01-day46.txt ; rapport : J46 ; devguide : J46.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B30 verts, NB-FAILS = 0.
+   - manuel : >NUMBER interactif (base 16, chaine partielle, double).
+   - prochaine etape : J47 - ABORT (etat des piles, source et sortie
+     apres abort ; test d'un abort controle).
+============================================================================

@@ -1,0 +1,58 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 42 (REVUE S6)
+Date : 2026-08-09
+Statut : FAIT (revue : builds OK, inventaire compare, mots complexes -> S7)
+============================================================================
+
+1) BUILDS (point 1 du planning J42)
+   - cargo build (dev) et cargo build --release : 0 erreur, 413 warnings
+     (baseline stable depuis J39). Les deux profils compilent sans regression.
+   - qemu_img/EFI/BOOT/BOOTX64.efi et qemu_img/forth (miroir) a jour
+     (B26 present dans core2012.fth).
+
+2) INVENTAIRE AVANT / APRES S6 (point 2)
+   | Element                 | Avant S6 (fin J35) | Apres S6 (fin J41)  |
+   |-------------------------|--------------------|---------------------|
+   | Dernier prim index      | 387 (mem-used)     | 403 (d.)            |
+   | Nouvelles primitives    | -                  | 16 (388-403)        |
+   | Sections de tests       | B0-B20 (21)        | B0-B26 (27)         |
+   | BASE                    | champ Rust non     | cellule 65533       |
+   |                         | adressable         | adressable          |
+   | Cellules systeme        | state 65534,       | + base 65533,       |
+   |                         | >in 65535          | + HOLDP 65532       |
+   | Zone PNO                | -                  | [65464..65532) 68   |
+   | Famille */ um* um/mod   | i64/i64 (overflow) | i128/u128            |
+   |                         | hi=0 code dur      |                     |
+   |                         | 32 bits            |                     |
+
+   Mots ajoutes en S6 : base(388), align(389), 2@(390), 2!(391), u<(392),
+   s>d(393), m*(394), */mod(395), <#(396), #(397), #s(398), hold(399),
+   sign(400), #>(401), ud.(402), d.(403).
+   Corrections structurelles : BASE adressable (source de verite pour
+   parsing + affichage), zone PNO dediee sous les cellules systeme,
+   helper u128 pno_convert (J41), garde bornes partout (zone pleine ->
+   message sans ecriture).
+
+3) LIVRABLE S6 : "noyau numerique et memoire double utilisables"
+   - Noyau numerique : arithmetique entiere complete (i128/u128), division
+     symetrique, bases 2/10/16, conversion <# # #S HOLD SIGN #>,
+     affichage ., u., d., ud. -> OPERATIONNEL.
+   - Memoire double : 2@/2!, s>d, m*, um*, um/mod, */mod, d., ud. ->
+     OPERATIONNEL (convention ( lo hi ), hi au sommet, coherente partout).
+
+4) DECISION "MOTS PLUS COMPLEXES DANS LE CYCLE SUIVANT" (point 3)
+   - OUI. Les 7 Core restants (KEY ACCEPT WORD >NUMBER ABORT QUIT
+     ENVIRONMENT?) entrent en S7 "Entree et controle d'execution",
+     deja planifiee : J43 KEY, J44 ACCEPT, J45 WORD, J46 >NUMBER,
+     J47 ABORT, J48 QUIT.
+   - ENVIRONMENT? : non prevu dans le planning J43-48 -> a ajouter en
+     J49 (revue S7) ou apres QUIT.
+   - Justification : le noyau numerique est stable (0 erreur, B0-B26),
+     BASE adressable et conversion operationnelles ; ACCEPT/KEY/WORD sont
+     independants du numerique ; l'infrastructure d'entree (>IN, SOURCE,
+     PARSE, EVALUATE) existe deja (J13, J19-21, J34) -> fondations saines.
+
+5) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B26 verts, NB-FAILS = 0 (verifie sur
+     QEMU a la prochaine seance ; builds OK).
+============================================================================

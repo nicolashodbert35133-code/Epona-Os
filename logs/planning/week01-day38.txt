@@ -1,0 +1,41 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 38 (U</S>D)
+Date : 2026-08-08
+Statut : FAIT (u< non signe, s>d extension de signe, tests B23)
+============================================================================
+
+1) ETAT AVANT J38
+   - u< / s>d : absents (verifie grep). Listes dans "Core absents" (audit)
+     et le rapport Claude (P1). um* (321) et um/mod (322) existaient deja.
+
+2) CORRECTIF (src/interpreter.rs)
+   - Nouvelles primitives : u< = 392, s>d = 393 (apres 2@/2! 390/391).
+   - u< ( u1 u2 -- flag ) : comparaison NON SIGNEE via (a as u64) <
+     (b as u64) -> pousse -1/0 (convention flags J8).
+   - s>d ( n -- d ) : extension de signe ; peek le sommet (n) et pousse hi =
+     0 si n >= 0, -1 sinon. d = ( lo hi ), hi au sommet (coherent avec
+     2@/2! J37 : cellule basse a addr, haute a addr+1).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B23 (forth/TESTS/core2012.fth)
+   - u< : 0 0 / 0 1 / 1 0 ; limites : 0 -1 (vrai, -1 non signe = max),
+     -1 0 (faux), -1 -1 (faux) ; contraste signe/non signe : -1 0 < (vrai)
+     vs -1 0 u< (faux).
+   - s>d : 0 -> (0 0) ; 42 -> (42 0) ; -1 -> (-1 -1) ; -5 -> (-5 -1).
+   - aller-retour avec 2!/2! : 42 s>d DBL37 2! DBL37 2@ -> (42 0) ;
+     -7 s>d ... -> (-7 -1).
+   - En-tete SECTIONS mis a jour (B23).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 38 + Core absents (u</s>d retires) ; PRIMITIVES_REFERENCE :
+     392/393 ; planning : J38 FAIT ; log week01-day38.txt ; rapport : J38.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B23 verts, NB-FAILS = 0.
+   - prochaine etape : J39 - M* et */MOD (i128/u128, overflow, signe,
+     diviseur nul).
+============================================================================

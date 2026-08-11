@@ -1,0 +1,51 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 6, JOUR 41 (ud./d.)
+Date : 2026-08-09
+Statut : FAIT (finalisation sortie numerique : ud. + d. + pno_convert, B26)
+============================================================================
+
+1) ETAT AVANT J41
+   - Groupe <# # #S HOLD SIGN #> (J40) operationnel ; zone PNO
+     [65464..65532), pointeur HOLD a 65532, BASE lu au runtime.
+   - u. (84) et . (22) existaient mais ecrivaient directement via write!
+     (pas de conversion double). ud. et d. ABSENTS.
+   - Convention double du projet : ( lo hi ), hi au sommet (s>d, um*,
+     m*, 2@/2! coherents).
+
+2) CORRECTIF (src/interpreter.rs)
+   - Helper privée pno_convert( u128 ) -> ( addr, len ) : convertit un
+     u128 dans la zone PNO selon BASE courante, chiffres majuscules
+     0-9/A-Z, construit vers l'arriere (do-while : au moins 1 chiffre,
+     y compris 0). Zone pleine -> message, sans ecriture. Reinitialise
+     HOLDP_ADDR si hors bornes (robustesse <# manquant).
+   - Nouvelle primitive ud. = 402 : ( ud -- ) pno_convert + type + space.
+   - Nouvelle primitive d. = 403 : ( d -- ) hi<0 -> '-' puis magnitude
+     (wrapping_neg u128) + type + space.
+   - u. (84) / . (22) : inchanges (fonctionnels, tres utilises).
+   - JIT : aucun changement (fallback interpreteur).
+
+3) TESTS - section B26 (forth/TESTS/core2012.fth)
+   - u64 max decimal : "18446744073709551615" (len 20, 1er '1').
+   - u64 max hex : "FFFFFFFFFFFFFFFF" (len 16, 'F') via hex (valeur
+     poussee AVANT hex pour eviter le re-parse).
+   - base 2 : 255 -> "11111111" (len 8) via "2 base !".
+   - ud. : u64 max affiche, double consomme (sentinelle 999 intacte).
+   - d. : 123 / -123 / negatif profond -2^64 = (lo=0 hi=-1) ->
+     "-18446744073709551616" / positif 2^64 = (lo=0 hi=1) ->
+     "18446744073709551616".
+   - ud. hex : FFFFFFFFFFFFFFFF (visuel).
+   - En-tete SECTIONS mis a jour (B26).
+
+4) BUILD / RESYNC
+   - cargo build (dev + release) : 0 erreur, 413 warnings (baseline).
+   - qemu_img/EFI/BOOT/BOOTX64.efi + qemu_img/forth (miroir) resynchronises.
+
+5) DOCS
+   - audit : Jour 41 ; PRIMITIVES_REFERENCE : 402-403 ; planning : J41
+     FAIT ; log week01-day41.txt ; rapport : J41 ; devguide : J41.
+
+6) VALIDATION MATERIELLE ATTENDUE
+   - exec TESTS/core2012.fth -> B0-B26 verts, NB-FAILS = 0.
+   - prochaine etape : J42 - revue semaine 6 (builds, inventaire avant/
+     apres, decision mots complexes).
+============================================================================

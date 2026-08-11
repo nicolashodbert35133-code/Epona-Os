@@ -1,0 +1,186 @@
+WEEK 1 - DAY 54 : CATCH / THROW / POSTPONE (Forth 2012, chapitre 9)
+===================================================================
+Cible            : Forth 2012 (Core + Core Ext), gestion d'exceptions + postpone
+Valide (meta)    : build dev+release OK (0 erreur, 413 warnings = baseline)
+VALIDE (matériel): PENDING — exec TESTS/core2012.fth dans qemu (sections B34-B38)
+- Ancien comportement : panic au fil de l'eau (message tronqué dans le
+  toolchain, probablement alloc/index OOM). Cause présumée : résidus de pile
+  de within (Bug 1) qui polluaient les tests suivants + tests B34/B36/B38
+  laissant des cellules résiduelles.
+- Corrections Jour 54 (within, abort", B34/B36/B38) : à revalider.
+
+OBJECTIF
+--------
+CATCH/THROW standard (6.1.0675 / 6.1.2270) en mode interprété (state 0),
+sans casser l'extension structurée try/catch/endtry (mode compilation),
++ POSTPONE (6.1.2030).
+
+RAPPEL DE L'ÉTAT D'AVANT (avant ce jour)
+----------------------------------------
+- throw (primitive 199) existait : push err, pop handler, ip=catch_ip.
+  MAIS : `THROW 0` n'était pas un no-op (dépilait 0 puis cherchait un handler),
+  et aucun CATCH standard n'existait (pas d'API 6.1.0675 prenant une xt).
+- try/catch/endtry structuré (extension) fonctionnait en mode compilation
+  (Op::Try(ip), Op::Catch, Op::EndTry).
+- postpone (12026) existait et compilait Op::CallPrim/Op::Call vers la
+  sémantique d'exécution du mot (suffisant pour les mots non immédiats).
+
+MODIFICATIONS (src/interpreter.rs)
+----------------------------------
+1. Champ `caught_code: Option<i64>` (sentinel) ajouté à la struct de l'interpréteur.
+   Reset à None dans abort/quit et dans le handler CATCH.
+2. throw (primitive 199) — correction :
+   - n == 0 (THROW 0) : no-op, le 0 est retiré, exécution continue.
+   - n != 0 : recherche du handler le plus récent ; piles (données + retour +
+     boucles) restaurées aux profondeurs sauvegardées ; code poussé.
+   - handler = sentinelle (catch_ip == 0) -> caught_code posé + break de la
+     définition en cours (CATCH interprété).
+   - aucun handler -> Err("Throw non rattrapé") (arrêt de la source).
+3. Op::Throw (compilé) — factorisé dans la nouvelle méthode `throw_impl`
+   (restauration piles + push code + sentinelle caught_code / repositionnement
+   ip). Retourne Ok(true) si le caller doit interrompre son exécution.
+4. Op::AbortQuote — CORRIGÉ : `return Err("abort")` (stoppait tout sans
+   exception) -> affiche le message puis `throw_impl(-2)` = THROW -2
+   (Forth 2012 6.1.0685), capturable par CATCH.
+5. within (prim 1833) — CORRIGÉ :
+   - Bug 1 : lisait `stack.last()` sans dépiler n -> n restait sur la pile
+     (résidus qui polluaient tous les tests suivants). Utilise `pop()`.
+   - Bug 2 : comparaison signée lo<=n<hi -> formule standard 6.2.2440
+     `(n-lo) U< (hi-lo)` en u64 wrapping (gère les plages circulaires lo>hi).
+6. Handler `catch` en mode interprété (state 0), ajouté après `action-of` :
+   - pop xt -> stack_d/rstack_d/loop_d, push (…, 0) sentinelle, execute_ops(xt).
+   - pop du handler ; si caught_code None (exécution normale) -> push 0,
+     sinon le code a DÉJÀ été poussé par throw (ne pas re-pousser).
+7. Check `caught_code` en début de boucle execute_ops_limited : si Some,
+   on retourne Ok immédiatement (la définition appelante stoppe proprement).
+
+HOLDS (1836) — vérifié FAUX POSITIF : la boucle (0..u).rev() avec hp2--
+place caddr[0] à l'adresse la plus basse -> ordre préservé. NON modifié.
+
+MOTS IMMÉDIATS (table doc)
+--------------------------
+- catch (state 0) : CATCH standard 6.1.0675.
+  (en state 1, catch reste le mot structuré try/catch/endtry.)
+- postpone (state 1) : compile la sémantique de compilation de name.
+- abort" (compilé) : 6.1.0685 -> THROW -2.
+
+CORRECTIONS DE TESTS (forth/TESTS/core2012.fth)
+-----------------------------------------------
+- B34 : `0 10 20 within` -> `10 10 20 within` (typo : le commentaire attendait
+  10 dans [10..20)) ; `pad 0= verif` -> `pad 0<> verif` (0= donne 0 quand PAD
+  non nul, le test était rouillé) ; `/pad` seul -> `1024 /pad = verif`
+  (avant : /pad laissait 1024 sur la pile).
+- B36 : tests `over c@ ... = verif` / `swap 1 + c@ ... = verif` : ajout de
+  `2drop` (avant : laissaient (addr len) sur la pile) ; test foo5 : `drop 2 =`
+  -> `2 = verif 2 = verif 2 = verif` (avant : résidu d'une cellule).
+- B38 : `' boom2 catch depth 1 = verif` -> + `drop` (résidu du code 42) ;
+  test 6 réécrit : boom4 (drop 42 throw) ne testait PAS réellement la
+  restauration (le 7 était définitivement perdu) -> boom5 (42 throw) :
+  `7 ' boom5 catch 42 = verif drop` (7 conservé + code) et
+  `' boom5 catch depth 1 = verif drop` (sans i*x, seul le code).
+
+TESTS (forth/TESTS/core2012.fth, section B38)
+--------------------------------------------
+  ' dup catch 0 = verif                    -1  (pas de throw -> 0)
+  : boom 42 throw ;  ' boom catch 42 =     -1
+  5 0 throw 5 = verif                      -1  (THROW 0 = no-op)
+  : boom2 1 2 3 42 throw ;  ' boom2 catch 42 = -1 ; depth 1 = -1 drop (restauration)
+  : boom0 0 throw ;  ' boom0 catch 0 =     -1  (THROW 0 dans xt)
+  : boom5 42 throw ;  7 ' boom5 catch 42 = -1 drop ; depth 1 = -1 drop (i*x conservé)
+  : test1 postpone 2drop ;  1 2 test1 depth 0 =   -1
+  : double dup + ;  : test2 postpone double ;  3 test2 6 =  -1
+  : test3 postpone dup postpone + ;  4 test3 8 =   -1
+  : get-2drop ' 2drop ; immediate
+  : test4 postpone get-2drop ;  5 test4 execute depth 0 =  -1
+
+DOC (docs/PRIMITIVES_REFERENCE.md)
+----------------------------------
+- Nouvelle section "Exceptions : CATCH / THROW / try-catch-endtry / POSTPONE
+  (Jour 54)" : throw (199), catch (state 0), try/catch/endtry (state 1),
+  postpone (state 1), note limite `postpone if/else/then` -> "Mot inconnu".
+- Table "Mots Forth immédiats" : + catch (state 0), + postpone (state 1).
+
+LIMITES CONNUES
+---------------
+- `postpone if / else / then` non supporté (mots de compilation structurés) :
+  -> "Mot inconnu". À implémenter plus tard si besoin.
+- La sémantique exacte de compilation d'un mot immédiat via `postpone`
+  (qui devrait différer de sa sémantique d'exécution) n'est pas distincte :
+  `postpone get-2drop` exécute le mot (Op::Call) au runtime.
+
+VALIDATION MATÉRIELLE (utilisateur)
+-----------------------------------
+  qemu → shell → exec TESTS/core2012.fth  → vérifier la fin :
+  "FAIL: NB-FAILS=0" et toutes les lignes de la section B38 en -1.
+
+REPO / ARTEFACTS
+----------------
+- qemu_img\EFI\BOOT\BOOTX64.efi  resynchronisé (08:29:29, 1709056 o)
+- qemu_img\forth\TESTS\core2012.fth resynchronisé (08:24:40, 66594 o)
+
+=== MISE A JOUR 11/08/2026 (panique core2012.fth : cause racine) ===
+
+CAUSE RACINE DU PANIC
+---------------------
+- set_source copiait TOUT le fichier dans memory[HERE..] sans borne MAX_MEM.
+  core2012.fth = 67142 o > 65536 (MAX_MEM) -> ecrasait les cellules systeme
+  (BASE=65533, STATE=65534, >IN=65535) -> panic.
+- Corrections de pile (within, abort") et typos B34/B36/B38 correctes mais
+  insuffisantes : le debordement memoire etait la cause du crash.
+
+CORRECTIFS APPLIQUES (src/interpreter.rs)
+-----------------------------------------
+- MAX_MEM : 65536 -> 131072 (commentaire explicatif).
+- set_source : copie BORNEE a MAX_MEM (cap = MAX_MEM - here, used = len.min(cap),
+  here sature a MAX_MEM, message si troncature). Le tokenizer travaille sur
+  source_buffer (String) : la source tronquee reste interpretable.
+- Op::PushStr (s" interprete) : copie BORNEE a MAX_MEM (idem set_source).
+- NOUVEAU helper mem_resize(new_len) : borne a MAX_MEM, remplace TOUS les
+  self.memory.resize(...) (buffer:, s", chaines, files) � plus aucun resize
+  non borne.
+- get_str lit string_pool (Vec<u8> separe) -> jamais de panic (borne).
+
+ZONES (auto-calc depuis MAX_MEM=131072)
+----------------------------------------
+  PAD     = 129936      WORD    = 130960
+  PNO     = [131000..131068)   HOLD = 131068   systeme = 131069..131071
+
+BUILDS
+------
+- cargo build : OK (413 warnings baseline, 0 erreur).
+- cargo build --release : OK (413 warnings baseline, 0 erreur).
+- target/x86_64-unknown-uefi/release/rust_os.efi -> qemu_img/EFI/BOOT/BOOTX64.efi
+  (1709056 o, 06:37:02).
+
+TESTS core2012.fth : adresses absolues mises a jour (MAX_MEM 131072)
+-------------------------------------------------------------------
+- B34 : pad = 129936, pad 1024 + = 130960 (WORD_BASE).
+- Ligne 560 (65536 here w! here w@) : 65536 < MAX_MEM -> acces memoire -> -1.
+- qemu_img/forth/TESTS/core2012.fth resynchronise (67174 o, 06:32:39).
+
+VALIDATION MATERIELLE (utilisateur) A REFAIRE
+---------------------------------------------
+  qemu -> shell -> exec TESTS/core2012.fth -> verifier la fin SANS panic :
+  "FAIL: NB-FAILS=0" et lignes B34/B36/B38 en -1.
+
+=== MISE A JOUR 11/08/2026 (mot inconnu 3+) ===
+- core2012.fth B7/B8/B29 et drvlib/drvmap.fth utilisent le mot 3+ qui n'etait
+  PAS defini (group0 n'a que 1+ 1- 2+ 2- 2* 2/ abs negate).
+- Ajoute la primitive "3+" (indice 1837, hors group0 pour ne pas decaler les
+  indices codes en dur 47=1+ 48=1- 49=2+ 50=2-).
+- src/interpreter.rs : add_primitive("3+",1837) + case 1837 => wrapping_add(3).
+- Builds dev+release OK (413 warnings), BOOTX64.efi resynchronise (1709568 o).
+- docs/PRIMITIVES_REFERENCE.md : entree 1837.
+
+=== MISE A JOUR 11/08/2026 (conformite Core ISO 2012) ===
+- 3+ / 4+ / 5+ ... / 11+ sont NON STANDARD (Forth 2012 Core n'a que 1+ 2+ 1- 2-).
+- core2012.fth : tous les n+ non standard remplaces par 'n +' (mots standard) :
+  3+ -> 3 + ; 4+ -> 4 + ; ... ; 11+ -> 11 +  (sections B7/B8/B29).
+- Primitive "3+" (1837) RETIREE de interpreter.rs (ajout annule) -> aucun mot
+  non standard ajoute.
+- drvlib.fth / drvmap.fth utilisent aussi 3+ et 4* (non standard) mais ne
+  passent PAS par le tokenizer Forth (4* non defini -> jamais compiles) : non
+  touches.
+- Builds OK (413 warnings), BOOTX64.efi 1709056 o (taille initiale, primitive
+  retiree), core2012.fth resynchronise (67210 o).
+- Relancer: exec TESTS/core2012.fth -> attention aux lignes 403/411 etc.

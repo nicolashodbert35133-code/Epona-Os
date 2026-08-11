@@ -1,0 +1,64 @@
+============================================================================
+EPONA OS - PLANNING CODAGE FORTH 2012 - LOG SEMAINE 8, JOUR 53 (:NONAME)
+Date : 2026-08-10
+Statut : FAIT (:noname Core 2012 6.1.1800, tests B37)
+============================================================================
+
+1) ETAT AVANT J53
+   - :noname ABSENT : le token :noname n'avait AUCUN handler (mot inconnu
+     en interpretation). Les seules facons de creer une definition etaient
+     : nom ... ;, variable/constant/create/defer, qui exigent un nom.
+   - L'infrastructure pour l'utiliser existait deja : execute (102) execute
+     un xt = index dictionnaire ; defer (CallDeferred) + is stockent un xt
+     dans une cellule ; recurse pousse des fixups resolus a la finalisation.
+
+2) CONTRAT (core 2012 6.1.1800)
+   - :noname : cree une definition SANS NOM, pousse son xt (index
+     dictionnaire) sur la pile de donnees, et passe en mode compilation.
+   - Le ; qui suit finalise l'entree (comme : nom ... ;).
+   - Usage typique :  :noname ... ; execute       (xt laisse sur la pile)
+                      defer foo
+                      :noname ... ; is foo        (xt associe a un defer)
+   - Chaque :noname cree sa PROPRE entree de dictionnaire (pas de nom ->
+     pas d'ecrasement par redefinition).
+
+3) MECANIQUE (src/interpreter.rs)
+   - Nouveau champ ForthVm.anon_idx: Option<usize> : index dictionnaire de
+     la definition anonyme en cours (None sinon). Init a None dans le
+     constructeur ; reset a None dans abort (6108), quit (6193), dans le
+     handler ":" et dans la finalisation ";" (11999).
+   - Handler ":noname" en mode immediat (apres le bloc ":", ligne 12756) :
+     * garde MAX_DICT,
+     * push Word { name: vide, ops: [Op::Exit] } (entree provisoire),
+     * push new_idx sur la pile de donnees (le xt),
+     * vide compiling_ops/stack/recurse_fixups/locals, does_offset = None,
+     * anon_idx = Some(new_idx), state = 1.
+   - Finalisation ";" : la branche anon est traitee EN PREMIER
+     (avant la recherche par nom, qui avec un nom vide aurait pu ecraser
+     une autre entree anonyme) : les recurse_fixups sont resolus vers
+     anon_idx, puis ops/immediate/is_defining/does_ops/vocab sont ecrits
+     sur l'entree existante (pas de nouvelle creation).
+   - execute (102) et defer/is fonctionnent sans changement : le xt est
+     l'index d'un mot non-primitif du dictionnaire.
+   - JIT : serialize_dict/deserialize_dict gerent deja les noms vides
+     (name_len = 0) ; la commande words saute les noms vides.
+
+4) TESTS (forth/TESTS/core2012.fth, section B37 + sommaire a jour)
+   - Execution directe : :noname 42 ; execute 42 = verif.
+   - Definition avec argument : 5 :noname 10 + ; execute 15 = verif.
+   - XT laisse sur la pile : :noname 42 ; depth 1 = verif drop.
+   - Association defer : defer f  /  :noname 7 ; is f  /  f 7 = verif.
+   - Deux anonymes independants (1 et 2) : pas d'ecrasement.
+   - Recursion : factorielle via :noname dup 1 <= if drop 1 else dup 1-
+     recurse * then ;  puis  5 swap execute 120 = verif.
+   - Defer avec arguments : defer g :noname + ; is g  20 22 g 42 = verif.
+
+5) RESULTAT
+   - Build dev + release : 0 erreur / 413 warnings (baseline).
+   - qemu_img resynchronise (BOOTX64.efi 08:09 + core2012.fth 08:10).
+   - PRIMITIVES_REFERENCE : ligne :noname ajoutee dans "Mots Forth
+     immediats" (mode state 0).
+   - Planning J53 marque FAIT.
+   - Reste : validation materielle -- exec TESTS/core2012.fth -> B37 vert,
+     NB-FAILS = 0.
+============================================================================
