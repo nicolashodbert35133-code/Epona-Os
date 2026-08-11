@@ -1,8 +1,10 @@
 # C-Épona (OOF & Compilateur C en Forth ISO 2012 pour Epona OS)
+ATTENTION NE PAS EXECUTER CE COMPILATEUR C JUSTE POUR INFO JUSTE UNE VISION DU FUTUR TANT QUE LA RELEASE 1.98 N'EST PAS TERMINER !!!!!
 
 Le compilateur **C-Épona** associe la clarté et la familiarité de la syntaxe **C Orientée Objet** à la puissance bas-niveau du moteur **Forth ISO 2012** d'Epona OS. Il permet de développer des applications et des interfaces graphiques réactives (60 FPS) sans manipuler directement la pile Forth.
 
 ---
+## . ATTENTION NE PAS EXECUTER CE COMPILATEUR C JUSTE POUR INFO JUSTE UNE VISION DU FUTUR TANT QUE LA RELEASE 1.98 N'EST PAS TERMINER !!!!!
 
 ## 1. Grammaire & Syntaxe du C-Épona
 
