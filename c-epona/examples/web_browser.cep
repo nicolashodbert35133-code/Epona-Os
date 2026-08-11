@@ -1,0 +1,37 @@
+/* ==============================================================================
+ * c-epona/examples/web_browser.cep - Application exemple Navigateur Web C-Épona
+ * ============================================================================== */
+
+class WebBrowser : Window {
+    Button btnGo;
+    Socket netSocket;
+    Canvas3D viewCanvas;
+
+    void init() {
+        this.super("Navigateur Web C-Épona v1.0", 1024, 768);
+        this.btnGo = new Button("Charger la page", 800, 20, 180, 36);
+        this.netSocket = new Socket();
+        this.viewCanvas = new Canvas3D(1000, 680);
+    }
+
+    void navigate(string url) {
+        if (this.netSocket.connect(80, url)) {
+            this.netSocket.send("GET / HTTP/1.1\r\nHost: epona-os.org\r\n\r\n");
+            draw_string_utf8(40, 100, "Page web chargée avec succès !", 0x00FF00);
+        }
+    }
+
+    void onRender() {
+        this.renderWindow();
+        this.btnGo.render();
+        this.viewCanvas.swap();
+    }
+}
+
+int main() {
+    WebBrowser browser = new WebBrowser();
+    browser.init();
+    browser.navigate("epona-os.org");
+    browser.show();
+    return 0;
+}

@@ -1,0 +1,27 @@
+/* ==============================================================================
+ * c-epona/examples/hello_gui.cep - Application GUI C-Épona (Exemple Objet)
+ * ============================================================================== */
+
+class DemoWindow : Window {
+    Button btnClick;
+    int clickCounter;
+
+    void init() {
+        this.super("Demo C-Épona OS 1.98", 640, 480);
+        this.clickCounter = 0;
+        this.btnClick = new Button("Lancer l'Application", 100, 100, 200, 40);
+    }
+
+    void onRender() {
+        this.renderWindow();
+        this.btnClick.render();
+        draw_string_utf8(100, 160, "App C-Épona exécutée à 60 FPS sur Kernel Forth", 0xA6ADC8);
+    }
+}
+
+int main() {
+    DemoWindow app = new DemoWindow();
+    app.init();
+    app.show();
+    return 0;
+}

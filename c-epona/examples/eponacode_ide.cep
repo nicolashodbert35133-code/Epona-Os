@@ -1,0 +1,79 @@
+/* ==============================================================================
+ * c-epona/examples/eponacode_ide.cep - Éditeur de code (IDE style VS Code) en C-Épona
+ * ============================================================================== */
+
+class EponaCodeIDE : Window {
+    Button btnOpen;
+    Button btnSaveUSB;
+    Button btnClone;
+    Button btnRunJIT;
+    TextArea codeEditor;
+    File currentFile;
+
+    void init() {
+        this.super("EponaCode IDE (VS Code-like pour Épona OS)", 1024, 700);
+
+        // Barre d'actions supérieures
+        this.btnOpen = new Button("Ouvrir Fichier", 10, 10, 140, 32);
+        this.btnSaveUSB = new Button("Sauvegarder USB (/usb0)", 160, 10, 200, 32);
+        this.btnClone = new Button("Cloner Fichier", 370, 10, 140, 32);
+        this.btnRunJIT = new Button("Lancer JIT (F5)", 520, 10, 140, 32);
+
+        // Zone d'édition de code principale
+        this.codeEditor = new TextArea(10, 50, 1004, 630);
+    }
+
+    void openFile(string path) {
+        this.currentFile = new File();
+        if (this.currentFile.open(O_READ, path)) {
+            // Charge le contenu du fichier dans la zone d'édition
+            this.currentFile.read(this.codeEditor.getBuffer(), 65536);
+            this.currentFile.close();
+        }
+    }
+
+    void saveToUSB(string usbFilename) {
+        File usbFile = new File();
+        // Sauvegarde sur le point de montage de la clé USB FAT32/EXT4 (/usb0/)
+        string fullUsbPath = "/usb0/" + usbFilename;
+        if (usbFile.open(O_WRITE | O_CREATE, fullUsbPath)) {
+            usbFile.write(this.codeEditor.getBuffer(), this.codeEditor.getLength());
+            usbFile.close();
+            draw_string_utf8(680, 15, "Fichier sauvé sur Clé USB !", 0x00FF00);
+        }
+    }
+
+    void cloneFile(string newPath) {
+        File clonedFile = new File();
+        if (clonedFile.open(O_WRITE | O_CREATE, newPath)) {
+            clonedFile.write(this.codeEditor.getBuffer(), this.codeEditor.getLength());
+            clonedFile.close();
+            draw_string_utf8(680, 15, "Fichier cloné avec succès !", 0x89B4FA);
+        }
+    }
+
+    void runJIT() {
+        // Exécution dynamique JIT du code édité
+        C_JIT_COMPILE_BUFFER(this.codeEditor.getBuffer());
+    }
+
+    void onRender() {
+        this.renderWindow();
+        this.btnOpen.render();
+        this.btnSaveUSB.render();
+        this.btnClone.render();
+        this.btnRunJIT.render();
+        this.codeEditor.render();
+    }
+}
+
+int main() {
+    DesktopManager desk = new DesktopManager();
+    desk.renderDesktop();
+
+    EponaCodeIDE ide = new EponaCodeIDE();
+    ide.init();
+    ide.openFile("c-epona/examples/hello_gui.cep");
+    ide.show();
+    return 0;
+}
