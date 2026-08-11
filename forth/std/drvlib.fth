@@ -154,6 +154,23 @@ create DRV-DB-COUNT
 : drv:init  ( bar bus dev func -- ok? ) drop drop drop drop -1 ;
 : drv:fini  ( -- ) ;
 
+\ --- alloc-page ( -- addr ) : alloue UNE page physique 4K -----------------
+\ (1 alloc-phys — utilitaire mémoire du contrat driver API v1, §2.6.)
+: alloc-page ( -- addr ) 1 alloc-phys ;
+
+\ --- drv:status / drv:stop : état et arrêt du driver courant --------------
+\ drv:status ( -- id type etat )  — etat = 0 non enregistré, 1 enregistré.
+\ drv:stop ( -- ) appelle drv:fini (par défaut vide) puis marque arrêté.
+: drv:status ( -- id type etat )
+    DRV-NEXT-ID @ 1-  \ id du driver courant
+    DRV-TYPE @        \ type
+    DRV-REGISTERED @  \ etat
+;
+: drv:stop ( -- )
+    drv:fini
+    0 DRV-REGISTERED !
+;
+
 \ --- Affichage hexadécimal sur largeur fixe (guide §6.1) --------------------
 : h.2 ( n -- )
     0xff and
