@@ -1,0 +1,110 @@
+JOURNEE 58 - FICHIERS ET CHEMINS (Semaine 9, suite)
+====================================================
+
+Date : 11/08/2026
+Fichiers touches :
+  - forth/apps/lecteur.fth (CREE)
+  - forth/apps/EXEMPLE.txt (CREE, donnees de test)
+  - qemu_img/forth/apps/ (sync des 2 fichiers)
+  - docs/DEV_GUIDE_DRIVER_AGENT.md (§6.7 ajoute)
+  - PLANNING_CODAGE_FORTH_12_SEMAINES.md (Jour 58 FAIT)
+
+OBJECTIF
+--------
+1. Documenter l'API fichier et les erreurs.
+2. Ajouter un exemple d'application qui lit un fichier.
+Objectif global Semaine 9 : une application Forth distante peut etre
+ecrite, testee et empaquetee.
+
+1) CONSTAT : LES PRIMITIVES FICHIERS EXISTENT DEJA
+-----------------------------------------------------
+- 565 file-read    ( buf buf_len path_addr path_len -- bytes )
+- 566 file-write   ( addr len path_addr path_len -- bytes )
+- 567 file-exists  ( addr len -- flag )
+- 568 file-size    ( addr len -- size )
+- 569 file-list    ( addr len -- )
+- 862 included     ( addr len -- )
+- 863 read-file    ( addr len buf max -- n )
+- 864 list-dir     ( addr len -- count )
+(interpreter.rs : 565/566 vers 7410, 567/568 vers 7458, 569 vers 7492,
+862/863/864 vers 8215.)
+Aucun changement Rust : Jour 58 = documentation + exemple.
+
+2) DOCUMENTATION (docs/DEV_GUIDE_DRIVER_AGENT.md §6.7)
+-------------------------------------------------------
+Table des 8 mots (pile + description), conventions :
+- Chemins : separateur / (FAT32 resout sur /), relatif racine volume,
+  insensible a la casse. Attention : le shell convertit / en \ ; dans les
+  mots Forth, utiliser toujours /.
+- Buffer PHYSIQUE obligatoire (le FS lit/ecrit des blocs via block_read) :
+  mem:alloc-pages ( n -- vaddr ) -> mmio-b@ ( addr -- u8 ) pour relire
+  octet par octet -> mem:free-pages ( vaddr n -- ). Le buffer here normal
+  (espace Forth) n'est PAS un buffer physique.
+- Erreurs : file-exists = 0 si absent OU vide (limite connue) ; file-size
+  = 0 si absent, -1 si FS non monte ; file-read/read-file/file-write = -1
+  si fichier absent ou FS non monte ; list-dir = -1 si FS non monte.
+
+3) EXEMPLE D'APPLICATION (forth/apps/lecteur.fth)
+--------------------------------------------------
+- `: principal` = point d'entree (auto-detecte par exec).
+- lire-fichier ( addr len -- ) : file-exists -> file-size ->
+  mem:alloc-pages -> file-read -> boucle mmio-b@/emit -> mem:free-pages.
+- Teste aussi un fichier inexistant (message "introuvable").
+- Regles respectees : pas de exit dans les mots a locals, pas de
+  parentheses dans les chaines (stripping commentaires), memoire
+  create-only, equilibre des blocs (4 if/then + 1 do/loop = 5/5).
+
+4) DONNEES DE TEST (forth/apps/EXEMPLE.txt)
+--------------------------------------------
+Texte lisible explique le fonctionnement (file-exists/file-size/alloc/
+file-read/affichage). Copie sur qemu_img/forth/apps/EXEMPLE.txt.
+
+5) VERIFICATIONS
+-----------------
+- Equilibre des blocs lecteur.fth : OK (5 ouvre / 5 ferme).
+- Pas de parentheses dans les chaines de lecture.
+- Aucun changement Rust -> pas de rebuild necessaire.
+- qemu_img/forth/apps/ resynchronise.
+
+6) VALIDATION UTILISATEUR (QEMU) — A FAIRE
+------------------------------------------
+- exec apps/lecteur.fth
+  Attendu :
+  - "--- lecture du fichier EXEMPLE.txt ---"
+  - le contenu du fichier EXEMPLE.txt (6 paragraphes)
+  - "--- fin, 429 octets lus ---"
+  - "--- fichier inexistant ---"
+  - "forth/apps/NEXISTE-PAS.txt : introuvable"
+  - "Lecteur termine."
+
+ETAT
+----
+- Jour 58 FAIT : API fichiers documentee (§6.7) + exemple lecteur.fth.
+- Semaine 9 en cours : J59 Console et sortie ensuite.
+
+7) SUITE (meme seance) : CONFIG AFFICHAGE QEMU (2026-08-15)
+-----------------------------------------------------------
+Probleme : au boot QEMU, l'affichage etait en 2048x2048 (trop gros).
+Cause : src/main.rs choisissait le mode GOP avec le PLUS de pixels, et
+sous QEMU le mode max expose est 2048x2048.
+
+Modifications :
+- src/acpi.rs : ajout de smbios_manufacturer() (champ Type 1 index 4) et
+  is_qemu() (detection SMBIOS : manufacturer + product name contiennent
+  qemu/kvm/bochs). Le parse Type 1 est factorise dans smbios_type1_string().
+- src/main.rs : la selection GOP scanne tous les modes (max pixels + 1920x1080).
+  Si is_qemu() et qu'un mode 1920x1080 existe, on le prefere au mode max.
+  (repli sur le mode max si 1080p absent).
+- run_qemu.bat : FICHIER CORRIGE (syntaxe cassee : -cpu sans valeur,
+  commentaires traines en fin de ligne 8-9, doublon -vga vmware + -device VGA).
+  Nouvelle config : -cpu qemu64, -device VGA,xres=1920,yres=1080, -display gtk,gl=on.
+- run_qemu_amd_zen2.bat / run_qemu_intel_kabylake.bat /
+  run_qemu_intel_skylake.bat : suppression du doublon conflictuel
+  "-vga std -device VGA,xres=1024,yres=768" -> "-device VGA,xres=1920,yres=1080".
+
+Builds : dev + release OK (0 erreur / 413 warnings baseline).
+qemu_img resynchronise : EFI/BOOT/BOOTX64.EFI (15/08/2026 11:51:43).
+
+Validation : a confirmer sur QEMU (message "[Video 1920x1080 ...]" attendu
+au boot).
+=====================================================================================

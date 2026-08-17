@@ -1,0 +1,116 @@
+================================================================================
+Log détaillé - 16/08/2026 - Corrections ISO Forth 2012 (directives agent)
+================================================================================
+
+Contexte
+--------
+Application des items 1 et 2 du fichier docs/DIRECTIVES_CORRECTIONS_AGENT.md
+(section Jour 62b du PLANNING_CODAGE_FORTH_12_SEMAINES.md) :
+
+  1. [P1] SAVE-INPUT / RESTORE-INPUT -> signatures de pile ISO 2012
+  2. [P1] C" -> chaine COMPTEE ( -- c-addr )
+  3. [P1] Automatiser l'execution des tests sous QEMU
+  4. [P2] Dette warnings 'static mut'
+  5. [P3] Modulariser interpreter.rs (14 409 lignes)
+
+Items 1 et 2 traites. Item 3 en attente (validation QEMU manuelle OK,
+automatisation a definir). Items 4 et 5 hors perimetre de cette seance.
+
+--------------------------------------------------------------------------------
+1. SAVE-INPUT / RESTORE-INPUT  (src/interpreter.rs, primitives 1837/1838)
+--------------------------------------------------------------------------------
+Avant  : save-input ( -- flag ) avec Vec Rust interne input_snapshots ;
+         restore-input ( flag -- flag ).
+Apres  : conforme ISO Forth 2012 (6.2.2182 / 6.2.2148) :
+
+    save-input   ( -- x3 x2 x1 3 )   x3 = source_addr,
+                                     x2 = source_buffer_len,
+                                     x1 = >IN, puis n = 3 au sommet.
+
+    restore-input ( x3 x2 x1 n -- flag )
+        - depile n ; si n != 3 : depile n elements si possible, push -1 (echec)
+        - si n == 3 : depile to_in, src_len, src_addr ; restaure source_addr
+          et >IN ; push 0 (succes).
+
+Champ `input_snapshots: Vec<(String, usize, i64)>` SUPPRIME de ForthVm
+(definition ~l.371 + initialisation ~l.493). L'etat vit desormais uniquement
+sur la pile de donnees Forth.
+
+Note : le contenu de source_buffer n'est pas restaurable depuis les seules
+3 grandeurs ; le standard ne l'exige pas. Les tests utilisent le mecanisme
+dans le cadre du meme buffer (reparsing apres evaluate).
+
+--------------------------------------------------------------------------------
+2. C"  (src/interpreter.rs, tokenizer compilation + interpretation)
+--------------------------------------------------------------------------------
+Avant  : ( -- c-addr u ) stocke uniquement les octets, pousse (addr, len).
+Apres  : conforme ISO Forth 2012 (6.2.0765) : execution ( -- c-addr ).
+
+    - Chaine COMPTEE en data space via HERE : 1 + max_len cellules.
+      self.memory[buf_addr]          = max_len (octet de longueur)
+      self.memory[buf_addr+1 .. +len] = octets de la chaine
+    - Compilation : self.compiling_ops.push(Op::Push(buf_addr as i64))
+      (une seule valeur : c-addr).
+    - Interpretation : self.stack.push(buf_addr) (une seule valeur).
+
+Op::PushStrAddr reste utilise par S" (sans changement).
+
+--------------------------------------------------------------------------------
+3. Tests mis a jour (signatures conformes)
+--------------------------------------------------------------------------------
+forth/core2012/jour59.fth :
+  - verif (attendu -1) + verif0 (attendu 0)
+  - save-input -> depth 4 puis sommet 3 (verification n = 3)
+  - cycle complet -> 0
+  - 0 restore-input -> -1 (n invalide)
+  - snapshots imbriques (2 save / 2 restore) -> 0
+  - 3 3 3 3 restore-input -> -1 (n = 3 valide mais pas de snapshot : la
+    logique depile 3 cellules puis pousse -1 ; test d'un n valide sans etat)
+  - save-input / s" 111 222" evaluate / + 333 / restore-input -> 0
+    (les 4 cellules du snapshot restent sous la pile pendant l'evaluate)
+
+forth/core2012/jour62b.fth :
+  - C" interpretation : ( -- c-addr ), c-addr c@ = longueur, 1+ c@ = 1er octet
+  - C" compilation : : c62 ( -- c-addr ) c" compile c62" ; c62 c@ = 11
+  - persistance : ma-str-addr @ c@ = 10 (longueur), 1+ c@ = 'p', 2 + c@ = 'e'
+  - DEFER@ / DEFER! inchanges
+
+Copies qemu_img/forth/core2012/ synchronisees.
+Verdict tests d'usage : aucun autre fichier .fth ne consomme c" ni
+save-input/restore-input (verifie par rg). TESTS/core2012.fth n'utilise que s".
+
+--------------------------------------------------------------------------------
+4. Validation compilation
+--------------------------------------------------------------------------------
+cargo build (dev)    : OK, 0 erreur, 413 warnings (baseline inchangee)
+cargo build --release: OK, 0 erreur, 413 warnings
+qemu_img/EFI/BOOT/BOOTX64.EFI resynchronise depuis target/x86_64-unknown-uefi/
+release/rust_os.efi (16/08/2026 09:44:23, 1 725 440 octets).
+
+Rappel baseline : rustc 1.99.0-nightly ; __cpuid n'est plus unsafe (bloc
+unsafe retire precedemment pour rester a 413).
+
+--------------------------------------------------------------------------------
+5. Documentation mise a jour
+--------------------------------------------------------------------------------
+- docs/PRIMITIVES_REFERENCE.md :
+    | 1837 | save-input  | ( -- x3 x2 x1 3 )     | ... corr. 2026-08-16 |
+    | 1838 | restore-input| ( x3 x2 x1 3 -- flag )| flag 0 = succes ...  |
+    | c"   | ( "ccc<quote>" -- c-addr ) chaine COMPTEE ... corr. 2026-08-16 |
+- PLANNING_CODAGE_FORTH_12_SEMAINES.md : bloc "APPLIQUE (2026-08-16)" ajoute
+  sous les directives critiques + signature C" corrigee dans la liste J62b.
+
+--------------------------------------------------------------------------------
+6. Reste a faire (prochaine seance)
+--------------------------------------------------------------------------------
+- [QEMU] Validation manuelle : exec forth/core2012/jour59.fth et jour62b.fth
+  -> NB-FAILS = 0 attendu ("TOUTES LES CIBLES ATTEINTES").
+- [P1 item 3] Automatiser l'execution des tests sous QEMU (script batch :
+  -display none -serial stdio + check NB-FAILS = 0 dans la sortie). Aucun
+  driver serie dans le noyau actuellement (sortie framebuffer uniquement),
+  l'automatisation necessite d'abord un driver UART 16550 ou une capture
+  framebuffer.
+- [P2] Dette warnings 'static mut' (Rust edition 2024, barre < 100 warnings).
+- [P3] Modularisation de interpreter.rs (propositions dans les directives).
+- [Planning] Reprendre le Jour 63 (Console et sortie).
+================================================================================

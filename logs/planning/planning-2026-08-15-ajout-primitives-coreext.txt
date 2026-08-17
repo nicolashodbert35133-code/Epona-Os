@@ -1,0 +1,144 @@
+SEANCE 2026-08-15 - CORRECTION PLANNING : AJOUT DES 7 PRIMITIVES CORE EXT MANQUANTES
+=====================================================================================
+
+Date : 15/08/2026
+Fichiers touches :
+  - PLANNING_CODAGE_FORTH_12_SEMAINES.md (ajout J59-J62 + decalage J63-J90)
+  - logs/planning/planning-2026-08-15-ajout-primitives-coreext.txt (CE LOG)
+
+OBJECTIF
+--------
+1. Etablir un log du travail realise jusqu'a present.
+2. Corriger le planning Forth 2012 pour y inscrire les 7 primitives Core Ext
+   encore manquantes.
+3. Decaler tous les jours suivants ("on decale tout").
+
+CONSTAT (verifie par grep sur src/interpreter.rs)
+--------------------------------------------------
+7 mots Core Ext ABSENTS du code (aucune occurrence de la primitive Forth) :
+  - SAVE-INPUT      ( sauvegarde etat d'entree )
+  - RESTORE-INPUT   ( restauration etat d'entree )
+  - SOURCE-ID       ( identite de la source d'entree )
+  - ROLL            ( rotation de pile, n cellules )
+  - 2R@             ( lit 2 cellules de la pile de retour sans depiler )
+  - [COMPILE]       ( compilation immediate, deprecie )
+  - UNUSED          ( espace dictionnaire libre )
+(les occurrences "roll"/"unused" trouvees dans interpreter.rs sont des
+sous-chaines Rust : scroll/control, commentaire "unused variable" - PAS des
+primitives Forth).
+Les mots apparentes deja presents : 2R> et 2>R (donc 2R@ est le seul manquant
+de la famille 2R-ops), DEFER/IS/ACTION-OF presents mais DEFER@/DEFER! absents
+(laisses en priorite basse, non planifies aujourd'hui).
+
+DECISION
+--------
+- Les 7 primitives sont inserees dans le planning en 4 jours, dans l'ordre
+  chronologique apres le Jour 58 (position courante des travaux) :
+    J59 : SAVE-INPUT / RESTORE-INPUT
+    J60 : SOURCE-ID / UNUSED
+    J61 : ROLL / 2R@
+    J62 : [COMPILE]  (deprecie -> documenter l'ecart, regle §16)
+- Tous les jours suivants sont decales de +4 :
+    ancien J59..J63  -> nouveau J63..J67 (Semaine 9, API Application v1)
+    ancien J64..J70  -> nouveau J68..J74 (Semaine 10, Portabilite)
+    ancien J71..J77  -> nouveau J75..J81 (Semaine 11, Qualification)
+    ancien J78..J84  -> nouveau J82..J88 (Semaine 12, Release candidate)
+    ancien J85/J86   -> nouveau J89/J90 (journees dediees)
+- References croisees mises a jour : forth_audit_2012.md (Jour 85 -> Jour 89).
+- Les logs historiques (week01-dayNN.txt) restent tels quels (archives).
+
+POURQUOI CES GROUPES
+--------------------
+- J59 : paire inseparable, meme sujet (etat d'entree).
+- J60 : deux mots "environnement" triviaux.
+- J61 : deux mots de manipulation de pile.
+- J62 : [COMPILE] est deprecie par la norme -> section dediee pour decider
+  impl or ecart documente (regle §16 du planning).
+
+ETAT (AVANT IMPLEMENTATION)
+---------------------------
+- Planning corrige : J59-J62 ajoutes, J63-J90 renumerores.
+- 7 primitives Core Ext : RESTENT A IMPLEMENTER (planifiees, pas codees).
+- Prochaine etape : Jour 59 (SAVE-INPUT/RESTORE-INPUT) ou continuer l'API
+  Application v1 decalee a J63.
+
+ETAT (APRES IMPLEMENTATION - FIN DE SEANCE)
+--------------------------------------------
+- Les 10 primitives Core Ext manquantes sont codees : 1837-1842 +
+  [compile] tokenizer + C" tokenizer (compile+interp) + 1844/1845
+  (defer@/defer!).
+- Build dev + release OK (0 erreur / 413 warnings baseline).
+- Tests ecrits (forth/core2012/jour59-62.fth + jour62b.fth) mais PAS encore
+  valides sur QEMU (validation a executer).
+
+SUITE (meme seance) : IMPLEMENTATION J59-J62 + FICHIERS DE TEST
+----------------------------------------------------------------
+- J59 (SAVE-INPUT/RESTORE-INPUT) :
+    * champ ForthVm.input_snapshots: Vec<(String, usize, i64)> (source_buffer,
+      source_addr, >in) ; capacite 32.
+    * primitives 1837 save-input ( -- flag ) : -1 si snapshot pousse, 0 si
+      pile saturee (>= 32).
+    * primitives 1838 restore-input ( flag -- ) : restaure la spec, -1 si ok,
+      0 si flag 0 ou pile vide.
+    * add_primitive("save-input", 1837), add_primitive("restore-input", 1838).
+- J60 (SOURCE-ID/UNUSED) :
+    * champ ForthVm.source_id: i64 = 0 (terminal) ; eval_source le passe a -1
+      pendant une chaine evaluate et le restaure a la fin.
+    * primitive 1839 source-id ( -- n ) : pousse self.source_id.
+    * primitive 1840 unused ( -- u ) : MAX_MEM - here (relation here unused +
+      = MAX_MEM).
+- J61 (ROLL/2R@) :
+    * primitive 1841 roll ( x_n ... x_0 n -- x_{n-1} ... x_0 x_n ) : remove
+      a l'indice len-1-n puis push ; n >= len -> pile inchangee (condition
+      ambigue standard).
+    * primitive 1842 2r@ ( -- x1 x2 ) : copie les 2 cellules du sommet du
+      return stack sans depiler.
+- J62 ([COMPILE]) :
+    * branche tokenizer mode compilation, cote postpone : compile la
+      semantique du mot suivant meme immediat (Core Ext 6.2.0920).
+- Fichiers de test crees (conventions NB-FAILS/verif) :
+    * forth/core2012/jour59.fth  : save-input/restore-input (flags, LIFO,
+      restauration reelle apres evaluate).
+    * forth/core2012/jour60.fth  : source-id (terminal=0, evaluate=-1,
+      restaure 0), unused (positif, here unused + constant apres 100 allot).
+    * forth/core2012/jour61.fth  : roll (0/1/2 = noop/swap/rot, n>=len
+      inchange), 2r@ (copie sans depiler, 2r@ x2).
+    * forth/core2012/jour62.fth  : [compile] sur mot ordinaire + immediat +
+      contraste sans [compile] (execution immediate a la compilation).
+- Build : dev et release (target x86_64-unknown-uefi) = 0 erreur / 413
+  warnings (baseline inchangee).
+- qemu_img resynchronise : BOOTX64.EFI + forth/core2012/jour59-62.fth.
+- Validation sur QEMU non realisee dans cette seance (a executer).
+
+SUITE 2 (meme seance) : J62b - C" / DEFER@ / DEFER!
+------------------------------------------------------
+Decision utilisateur : implementer C" + DEFER@/DEFER! (derniers Core Ext
+manquants) au lieu de les laisser en priorite basse.
+
+- C" (Core Ext 6.2.0765) : cas tokenizer ajoutes (MODE COMPILATION + MODE
+  INTERPRETATION), identiques a s" : parse ccc<quote>, stocke la chaine EN
+  DATA SPACE via here (interp : pousse addr+len ; compile : Op::PushStrAddr
+  pour le runtime ( -- c-addr u )).
+- DEFER@ (prim 1844) et DEFER! (prim 1845) : implementes dans exec_primitive
+  apres 1842 (avant scheduler_v2) ; registres via add_primitive apres 2r@.
+    * defer@ ( xt1 -- xt2 ) : cherche Op::CallDeferred(addr) dans les ops du
+      mot xt1 (index dictionnaire), pousse memory[addr] (cellule du defer,
+      -1 si non assigne). Non-defer -> -1.
+    * defer! ( xt2 xt1 -- ) : meme detection, ecrit memory[addr] = xt2
+      (equivalent de IS sur xt).
+- Fichier de test cree : forth/core2012/jour62b.fth
+    * c" interprete : longueur (7/10), premier octet ('b'=98, 'p'=112),
+      multi-mots (espaces preserves), persistance (relisible apres coup).
+    * c" compile : mots c62 (len 11, 'c'=99) et c62b (len 2, 'h'=104).
+    * defer@ : xt assigne via is re-lisible et executable (111), defer non
+      assigne -> -1.
+    * defer! : change la cible (222), cycles d'affectation, profondeur
+      inchangee.
+- Builds : dev et release OK (0 erreur / 413 warnings baseline).
+- qemu_img resynchronise : BOOTX64.EFI + forth/core2012/jour62b.fth.
+- Docs a jour : forth_audit_2012.md (C"/DEFER@/DEFER! barres -> plus aucune
+  Core Ext manquante), PLANNING (tableau Core Ext complet + section Jour 62b
+  FAIT).
+- Validation sur QEMU non realisee dans cette seance (a executer avec
+  jour59-62.fth).
+=====================================================================================

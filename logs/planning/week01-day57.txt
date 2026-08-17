@@ -81,7 +81,7 @@ Buffer S1 cree en top-level (create est un mot state 0).
 - exec TESTS/core.fth
   Attendu (colonnes gauche = valeur reelle, droite = attendue) :
   MATHS: 5 0 10 -1 -1 0 0 -1 -1 0 1 0 1 -1 0 1 -1 4 1 7 25 12 15 0 1 8 81 5
-  CHAINES: -1 0 -1 0 -1 0 -1 0 3 1 -1 0 2 1 0 + HELLO + hello + [bonjour] []
+  CHAINES: -1 0 -1 0 -1 0 -1 -1 0 3 1 -1 0 2 1 0 + HELLO + hello + [bonjour] [] [bonjour]
   NOMBRES: 123 -1 -45 -1 0 -1 12 0 0 0 0 0 + 123 -45 0 987654321 -1
 
 ETAT
