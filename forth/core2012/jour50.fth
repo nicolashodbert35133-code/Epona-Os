@@ -7,7 +7,7 @@
 \   de u< (Jour 38).
 \ - within (prim 1833) : ( n lo hi -- flag ) -> -1 si lo <= n < hi
 \   (borne haute EXCLUE, comparaisons signees).
-\ - pad (opcode Op::Pad) : zone dediee PAD_BASE = 64400 (WORD_BASE - 1024,
+\ - pad (opcode Op::Pad) : zone dediee PAD_BASE = 129936 (WORD_BASE - 1024,
 \   1024 cellules sous la zone WORD). Conforme au /PAD = 1024 de
 \   ENVIRONMENT? (Jour 49).
 \ Section B34 : 9 cas within, 8 cas u>, 3 cas pad.
@@ -56,12 +56,12 @@ variable NB-FAILS
 5 5 u> 0 = verif
 
 \ ---------------------------------------------------------------------------
-\ B34 - PAD : zone transitoire, pad + 1024 = 65424
+\ B34 - PAD : zone transitoire, pad + 1024 = 130960
 \ ---------------------------------------------------------------------------
 pad pad = verif
-pad 1024 + 65424 = verif
+pad 1024 + 130960 = verif
 pad 1024 0 fill
-pad 3 c@ 0 = verif
+pad 3 + c@ 0 = verif
 
 \ ---------------------------------------------------------------------------
 \ RESUME JOURNEE 50

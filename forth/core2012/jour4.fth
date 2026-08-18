@@ -51,7 +51,7 @@ variable NB-FAILS
 6 2 * 12 = verif
 7 2 / 3 = verif
 7 2 mod 1 = verif
-7 2 /mod swap 3 = verif 1 = verif
+7 2 /mod 3 = verif 1 = verif
 5 1+ 6 = verif
 5 1- 4 = verif
 5 2* 10 = verif

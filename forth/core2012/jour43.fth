@@ -32,16 +32,12 @@ variable NB-FAILS
 \ B27 - key? : non bloquant, etats de base
 \ ---------------------------------------------------------------------------
 key? 0 = verif
-key? 0 = verif 0 = verif
+key? 0 = verif
 
 \ ---------------------------------------------------------------------------
-\ B27 - lecture reelle (INTERACTIVE) : appuyer sur 'A' puis Entree
+\ B27 - lecture via injection (automatisé)
 \ ---------------------------------------------------------------------------
-cr
-." =================================" cr
-." VALIDATION CLAVIER" cr
-." Appuie sur la touche 'A' puis Entree" cr
-." pour valider le test du fichier : "
+65 touche:inject
 key
 65 = verif
 

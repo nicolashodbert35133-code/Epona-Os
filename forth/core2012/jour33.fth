@@ -38,7 +38,7 @@ s33c
 \ ---------------------------------------------------------------------------
 \ B18 - adresse de la chaine < HERE (copiee dans l'espace de donnees)
 \ ---------------------------------------------------------------------------
-s33c drop here > verif
+s33c drop here < verif
 
 \ ---------------------------------------------------------------------------
 \ B18 - HERE inchange apres executions repetees (la correction)

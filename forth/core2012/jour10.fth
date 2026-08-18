@@ -6,7 +6,7 @@
 \ Section B2 : positifs (16 2 = 4, 1 4 = 0, 1 0 = 1), negatifs (-16 2 =
 \ 0x3FFFFFFFFFFFFFFC, -1 63 = 1, -2 1 = MAX, -16 4 = 0x0FFFFFFFFFFFFFFF),
 \ decalage nul (-16 0 = -16, 123 0 = 123), >= 64 bits (-1 64 = -1,
-\ 1 65 = 1 -- mod 64). lshift logique deja conforme.
+\ 1 65 = 0 -- mod 64). lshift logique deja conforme.
 \
 \ Conventions Epona :
 \   - chaque test imprime sa VALEUR REELLE via '.'

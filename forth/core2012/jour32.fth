@@ -30,22 +30,26 @@ variable NB-FAILS
 \ ---------------------------------------------------------------------------
 \ B17 - pattern create , does> @ (my-const)
 \ ---------------------------------------------------------------------------
-create my-const 100 , does> @ ;
-my-const 100 = verif
+: my-const32  create , does> @ ;
+100 my-const32 MC32
+MC32 100 = verif
 
 \ ---------------------------------------------------------------------------
 \ B17 - body consomme data_addr (plus-data : @ 10 +)
 \ ---------------------------------------------------------------------------
-create plus-data 5 , does> @ 10 + ;
-plus-data 15 = verif
+: plus-data32  create , does> @ 10 + ;
+5 plus-data32 PD32
+PD32 15 = verif
 
 \ ---------------------------------------------------------------------------
 \ B17 - two defining words, adresses distinctes
 \ ---------------------------------------------------------------------------
-create plus-1 1 , does> @ 1 + ;
-create plus-2 2 , does> @ 2 + ;
-plus-1 2 = verif
-plus-2 4 = verif
+: plus-1-32  create , does> @ 1 + ;
+: plus-2-32  create , does> @ 2 + ;
+1 plus-1-32 P132
+2 plus-2-32 P232
+P132 2 = verif
+P232 4 = verif
 
 \ ---------------------------------------------------------------------------
 \ RESUME JOURNEE 32

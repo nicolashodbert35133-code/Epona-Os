@@ -43,7 +43,7 @@ variable NB-FAILS
 \ ---------------------------------------------------------------------------
 -7 3 / -2 = verif
 -7 3 mod -1 = verif
--7 3 /mod swap -2 = verif -1 = verif
+-7 3 /mod -2 = verif -1 = verif
 7 -3 / -2 = verif
 7 -3 mod 1 = verif
 12 5 /mod swap 2 = verif 2 = verif

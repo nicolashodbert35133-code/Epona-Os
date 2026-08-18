@@ -46,8 +46,8 @@ xt53 !
 :NONAME ( a b -- a b a ) over ;
 xt53 !
 : apres53 100 ;
-xt53 @ execute
-1 2 1 = verif 2 = verif 1 = verif
+1 2 xt53 @ execute
+1 = verif 2 = verif 1 = verif
 apres53 100 = verif
 
 \ ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 \
 \ Base : PLANNING_CODAGE_FORTH_12_SEMAINES.md - Jour 36
 \ base etait un champ Rust non adressable. Correctif : nouvelle cellule
-\ systeme base_addr = MAX_MEM - 3 = 65533 (init 10), source de verite
+\ systeme base_addr = MAX_MEM - 3 = 131069 (init 10), source de verite
 \ unique ; helper cur_base() lit memory[base_addr]. . / u. / hex / decimal
 \ / parsing passent par cur_base(). Primitives : base = 388 (pousse
 \ base_addr), align = 389 (no-op : 1 AU = 1 cellule -> toujours aligne).
@@ -33,22 +33,22 @@ variable num36
 \ B21 - BASE adressable et modifiable
 \ ---------------------------------------------------------------------------
 base @ 10 = verif
-base 65533 = verif
+base 131069 = verif
 
 \ ---------------------------------------------------------------------------
 \ B21 - parsing en base 2
 \ ---------------------------------------------------------------------------
 2 base !
 s" 1010" evaluate num36 !
-10 base !
+decimal
 num36 @ 10 = verif
 
 \ ---------------------------------------------------------------------------
 \ B21 - parsing en base 16
 \ ---------------------------------------------------------------------------
-16 base !
+hex
 s" FF" evaluate num36 !
-10 base !
+decimal
 num36 @ 255 = verif
 
 \ ---------------------------------------------------------------------------

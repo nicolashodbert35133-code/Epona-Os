@@ -40,14 +40,14 @@ src27 3 + c@ 7 = verif
 \ B13 - CMOVE (copie, chevauchement gere)
 \ ---------------------------------------------------------------------------
 dst27 4 0 fill
-dst27 4 src27 4 cmove
+src27 dst27 4 cmove
 dst27 c@ 7 = verif
 dst27 3 + c@ 7 = verif
 
 \ ---------------------------------------------------------------------------
 \ B13 - ERASE partiel (mise a zero des u premieres cellules)
 \ ---------------------------------------------------------------------------
-dst27 2 0 erase
+dst27 2 erase
 dst27 c@ 0 = verif
 dst27 1 + c@ 0 = verif
 dst27 2 + c@ 7 = verif
@@ -57,7 +57,7 @@ dst27 2 + c@ 7 = verif
 \ ---------------------------------------------------------------------------
 src27 4 9 fill
 dst27 4 0 fill
-dst27 4 src27 4 move
+src27 dst27 4 move
 dst27 c@ 9 = verif
 dst27 3 + c@ 9 = verif
 
@@ -66,7 +66,7 @@ dst27 3 + c@ 9 = verif
 \ ---------------------------------------------------------------------------
 src27 0 0 fill
 src27 c@ 9 = verif
-0 4 src27 0 cmove
+4 src27 0 cmove
 src27 c@ 9 = verif
 
 \ ---------------------------------------------------------------------------

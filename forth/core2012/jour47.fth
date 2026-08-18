@@ -44,10 +44,11 @@ s" 1 2 3 abort" evaluate
 depth 0 = verif
 
 \ ---------------------------------------------------------------------------
-\ B31 - (c) silencieux : l'arithmetique apres abort tourne sur une pile vide
+\ B31 - (c) silencieux : le code apres abort dans la source est ignore
+\        (7 8 + ne s'execute pas, la pile reste vide)
 \ ---------------------------------------------------------------------------
 s" 1 2 3 abort 7 8 +" evaluate
-15 = verif
+depth 0 = verif
 
 \ ---------------------------------------------------------------------------
 \ B31 - (d) STATE = interpretation apres abort

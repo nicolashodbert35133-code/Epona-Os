@@ -32,9 +32,9 @@ variable NB-FAILS
 \ Chaine comptee "dup" (3, d, u, p) construite octet par octet.
 create fd 3 c, 100 c, 117 c, 112 c,
 fd find
-1 = verif
+1 = verif drop
 \ xt execute doit se comporter comme dup
-fd find rot drop execute
+5 fd find drop swap execute
 5 = verif 5 = verif
 
 \ ---------------------------------------------------------------------------

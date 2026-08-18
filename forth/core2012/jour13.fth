@@ -35,14 +35,15 @@ here source 2drop here - 0 = verif
 \ ---------------------------------------------------------------------------
 \ B4 - SOURCE renvoie le bon contenu (longueur 7 pour "src-len")
 \ ---------------------------------------------------------------------------
+: src-len  source nip ;   \ retourne la longueur du buffer source courant
 s" src-len" evaluate
 7 = verif
 
 \ ---------------------------------------------------------------------------
 \ B4 - >IN reste modifiable
 \ ---------------------------------------------------------------------------
->in 5 ! >in @ 5 = verif
->in 0 ! >in @ 0 = verif
+5 >in ! >in @ 5 = verif
+0 >in ! >in @ 0 = verif
 
 \ ---------------------------------------------------------------------------
 \ RESUME JOURNEE 13

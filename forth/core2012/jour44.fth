@@ -31,13 +31,10 @@ create tbuf 32 allot
   then ;
 
 \ ---------------------------------------------------------------------------
-\ B28 - ACCEPT : validation interactive (une touche puis Entree)
+\ B28 - ACCEPT : test automatisé via injection
 \ ---------------------------------------------------------------------------
-cr
-." =================================" cr
-." VALIDATION CLAVIER" cr
-." Appuie sur la touche 'A' puis Entree" cr
-." pour valider le test du fichier : "
+65 touche:inject
+13 touche:inject
 tbuf 16 accept
 dup . ."  char(s) recu(s)" cr
 1 = verif

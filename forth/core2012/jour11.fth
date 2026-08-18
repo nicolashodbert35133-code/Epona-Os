@@ -32,35 +32,34 @@ variable S1
 \ B3 - SEARCH
 \ ---------------------------------------------------------------------------
 \ Trouvee en position 3 (addr3 = addr1 + 3)
-s" ABCDEFGHIJ" S1 !
-s" ABCDEFGHIJ" s" DEFG" search
+s" ABCDEFGHIJ" over S1 ! s" DEFG" search
 -1 = verif
-swap drop S1 @ 3 + = verif
+drop S1 @ 3 + = verif
 
 \ Trouvee au debut (addr3 = addr1)
-s" ABCDEFGHIJ" s" ABCD" search
+s" ABCDEFGHIJ" over S1 ! s" ABCD" search
 -1 = verif
-swap drop S1 @ = verif
+drop S1 @ = verif
 
 \ Trouvee en fin (addr3 = addr1 + 7)
-s" ABCDEFGHIJ" s" HIJ" search
+s" ABCDEFGHIJ" over S1 ! s" HIJ" search
 -1 = verif
-swap drop S1 @ 7 + = verif
+drop S1 @ 7 + = verif
 
 \ Multi-occurrences (premiere occurrence)
-s" ABAB" s" AB" search
+s" ABAB" over S1 ! s" AB" search
 -1 = verif
-swap drop s" ABAB" + = verif
+drop S1 @ = verif
 
 \ Non trouvee : flag 0, len3 = len1, addr3 = addr1
-s" ABCDEFGHIJ" s" XYZ" search
+s" ABCDEFGHIJ" over S1 ! s" XYZ" search
 0 = verif
-swap drop S1 @ = verif
+drop S1 @ = verif
 
 \ Sous-chaine vide 0 0 : TOUJOURS trouvee (la correction du Jour 11)
-s" ABC" s" " search
+s" ABC" over S1 ! s" " search
 -1 = verif
-swap drop s" ABC" + = verif
+drop S1 @ = verif
 
 \ len2 > len1 : non trouvee (flag 0)
 s" ABC" s" ABCD" search

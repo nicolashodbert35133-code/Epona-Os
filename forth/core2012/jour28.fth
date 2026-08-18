@@ -2,7 +2,7 @@
 \ forth/core2012/jour28.fth - Revue semaine 4 (ALLOC repare)
 \
 \ Base : PLANNING_CODAGE_FORTH_12_SEMAINES.md - Jour 28
-\ Revue S4 : migration maintenue. MAX_MEM porte de 4096 a 65536.
+\ Revue S4 : migration maintenue. MAX_MEM porte de 4096 a 131072.
 \ alloc (95) repare : reservait memory.len() -> echec systematique
 \ (EDITEUR 10000 alloc -> -1) ; desormais reserve size cellules depuis
 \ here via checked_add, message « Erreur: alloc — memoire insuffisante »,
@@ -31,14 +31,14 @@ variable NB-FAILS
 \ ---------------------------------------------------------------------------
 10000 alloc
 dup 0 >= verif
-dup here >= verif
+dup here <= verif
 drop
 
 \ ---------------------------------------------------------------------------
 \ B14 - ALLOC depassant la memoire -> -1, here inchange
 \ ---------------------------------------------------------------------------
-here 70000 alloc here = verif
-70000 alloc -1 = verif
+here 200000 alloc drop here = verif
+200000 alloc -1 = verif
 
 \ ---------------------------------------------------------------------------
 \ RESUME JOURNEE 28

@@ -6,7 +6,7 @@
 \ state pousse state_addr ; ] et les mots : ; [ ] du tokenizer lisent/
 \ ecrivent la cellule ; champ Rust self.state supprime.
 \ Section B5 : lecture (state @), ecriture dans une definition
-\ (: st-set state 5 ! ... ;), bascule reelle 1 state ! [ ... ] puis retour.
+\ (: st-set 5 state ! ... ;), bascule reelle 1 state ! [ ... ] puis retour.
 \
 \ Conventions Epona :
 \   - chaque test imprime sa VALEUR REELLE via '.'
@@ -30,15 +30,23 @@ variable NB-FAILS
 \ B5 - STATE est une ADRESSE modifiable
 \ ---------------------------------------------------------------------------
 state @ 0 = verif
-: st-set state 5 ! ;
+: st-set 5 state ! state @ 5 = verif 0 state ! ;
 st-set
-state @ 5 = verif
-0 state ! state @ 0 = verif
+state @ 0 = verif
 
 \ ---------------------------------------------------------------------------
-\ B5 - Bascule reelle 1 state ! [ ... ] puis retour
+\ B5 - Bascule reelle : 1 state ! force le tokenizer en mode compilation
 \ ---------------------------------------------------------------------------
-1 state ! [ state @ 1 = verif 0 state ! ]
+\ Preuve : le token '[' est traite par le MODE COMPILATION (il ramene state
+\ a 0, interpreter.rs). En mode immediat, '[' serait "Mot inconnu" : si on
+\ passe cette ligne sans erreur, la bascule reelle a fonctionne. On verifie
+\ ensuite que l'etat est bien revenu a 0 (mode immediat).
+1 state !
+[
+state @ 0 = verif
+
+\ ']' (mode immediat) bascule en compilation, '[' (mode compilation) revient
+] [
 state @ 0 = verif
 
 \ ---------------------------------------------------------------------------

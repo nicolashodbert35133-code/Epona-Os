@@ -3,8 +3,8 @@
 \
 \ Base : PLANNING_CODAGE_FORTH_12_SEMAINES.md - Jour 40
 \ Groupe complet <#(396) #(397) #s(398) hold(399) sign(400) #>(401).
-\ Zone "pictured numeric output" memory[65464..65532) construite vers
-\ l'arriere, pointeur HOLD dans memory[65532] (init au boot). #/#S lisent
+\ Zone "pictured numeric output" memory[131000..131068) construite vers
+\ l'arriere, pointeur HOLD dans memory[131068] (init au boot). #/#S lisent
 \ BASE au runtime (cur_base()) ; chiffres majuscules. Garde bornes (zone
 \ pleine -> message, pas d'ecriture). Section B25 : 0 -> "0", 42,
 \ -42 via sign, base 16 "FF", hold "!0", # seul, usage u.40.
@@ -45,9 +45,9 @@ variable NB-FAILS
 \ ---------------------------------------------------------------------------
 \ B25 - base 16 "FF"
 \ ---------------------------------------------------------------------------
-16 base !
-255 s>d <# #s #> s" FF" compare 0 = verif
-10 base !
+hex
+FF s>d <# #s #> s" FF" compare 0 = verif
+decimal
 
 \ ---------------------------------------------------------------------------
 \ B25 - hold "!0"
