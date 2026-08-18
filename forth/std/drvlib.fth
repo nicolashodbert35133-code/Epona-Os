@@ -11,6 +11,9 @@
 
 cr ." [DRVLIBS] framework driver charge" cr
 
+\ --- Helpers arithmétiques ----------------------------------------------------
+: 4* 4 * ;
+
 \ --- Types de drivers (guide §7.1) ------------------------------------------
 0 constant Generic
 1 constant Network
