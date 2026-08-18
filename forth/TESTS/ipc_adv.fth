@@ -126,7 +126,7 @@ vm:init dup . constant VM-OK
   \ --- spawn (1817) : tache Forth cooperative ---
   : noop  ;                        \ mot trivial
   ' noop spawn dup . constant SPID
-  SPID 0>= .                       \ -1 : cree (tid >= 0)
+  SPID 0 >= .                       \ -1 : cree (tid >= 0)
 
   \ --- cli / sti : sans crash ---
   cli sti

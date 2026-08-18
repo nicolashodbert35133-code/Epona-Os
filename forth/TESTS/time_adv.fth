@@ -8,7 +8,7 @@
 : test-time-adv
   \ --- uptime ( -- s ) : croissant ---
   uptime dup . constant U0
-  U0 0>= .                        \ -1
+  U0 0 >= .                        \ -1
   uptime U0 >= .                  \ -1 : monotone (croissant ou egal)
 
   \ --- ticks:us ( -- us ) : croissant, resolution us ---

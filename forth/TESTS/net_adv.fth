@@ -37,7 +37,7 @@
 
   \ --- net:socket ( type -- sock|-1 ) : 0=UDP, 1=TCP, 2=RAW ---
   0 net:socket dup . constant U0
-  U0 0>= .                          \ -1 : socket UDP cree
+  U0 0 >= .                          \ -1 : socket UDP cree
   1 net:socket .                    \ -1 : TCP non supporte
   2 net:socket .                    \ -1 : RAW non supporte
 
@@ -55,7 +55,7 @@
 
   \ --- net:listen ( port backlog -- sock|-1 ) ---
   8080 5 net:listen dup . constant LS1
-  LS1 0>= .                         \ -1 : listener cree
+  LS1 0 >= .                         \ -1 : listener cree
 
   \ --- net:sock-status ( sock -- state ) : 1 = listen ---
   LS1 net:sock-status .             \ 1
